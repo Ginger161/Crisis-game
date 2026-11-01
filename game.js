@@ -72,7 +72,17 @@ const person = (id) => G.S.find((s) => s.id === id);
 const alive = () => G.S.filter((s) => s.alive);
 const log = (t, c = '') => { G.log.unshift({ t, c }); G.log.length = Math.min(G.log.length, 40); };
 const inv = (k) => G.inv[k] || 0;
-const add = (k, n = 1) => { G.inv[k] = Math.max(0, inv(k) + n); };
+const STASH_BASE = 40;
+const stashCap = () => STASH_BASE + 25 * ((G && G.build && G.build.cupboard) || 0);
+const stashCount = () => Object.values(G.inv).reduce((a, b) => a + b, 0);
+const stashRoom = () => Math.max(0, stashCap() - stashCount());
+const packCap = (s) => 6 + (s && s.trait === 'strong' ? 2 : 0);
+const packCount = (s) => Object.values((s && s.pack) || {}).reduce((a, b) => a + b, 0);
+/* anything that comes into the shelter has to fit in the cupboard; the rest is left behind */
+const add = (k, n = 1) => {
+  if (n > 0) { const room = stashRoom(); if (n > room) { const lost = n - room; G.stats.lost = (G.stats.lost || 0) + lost; try { toastWhy(`The cupboard is full. ${lost} ${ITEMS[k][1].toLowerCase()} left behind.`); } catch (e) {} n = room; } }
+  G.inv[k] = Math.max(0, inv(k) + n);
+};
 const canPay = (c) => Object.entries(c).every(([k, v]) => inv(k) >= v);
 const pay = (c) => Object.entries(c).forEach(([k, v]) => add(k, -v));
 const costText = (c) => Object.entries(c).map(([k, v]) => `${v}${ITEMS[k][0]}`).join(' ');
@@ -143,7 +153,7 @@ const ST = CR.Story, PO = CR.Politics, KS = CR.Cast;
 function mkFromCast(cid, trust) {
   const c = KS.by[cid]; const seed = Math.floor(R() * 1e9);
   const sp = CR.Sprites.gen(c.arch, seed, c.ov); sp.name = c.name;
-  return { id: 0, cid, name: c.name, arch: c.arch, seed, sp, dept: c.role, story: c.bio, trait: c.trait, hunger: rnd(10, 30), thirst: rnd(10, 30), fatigue: rnd(10, 30), hp: 100, sick: false, wound: false, mood: rnd(62, 85), alive: true, gone: false, slots: 2, trust: trust || 10, known: [], topics: {}, beats: {} };
+  return { id: 0, cid, name: c.name, arch: c.arch, seed, sp, dept: c.role, story: c.bio, trait: c.trait, hunger: rnd(10, 30), thirst: rnd(10, 30), fatigue: rnd(10, 30), hp: 100, sick: false, wound: false, mood: rnd(62, 85), alive: true, gone: false, slots: 2, trust: trust || 10, known: [], topics: {}, beats: {}, pack: {} };
 }
 function drawParty() {
   const ids = KS.core.map((c) => c.id);
@@ -174,7 +184,7 @@ function newGame() {
   G = {
     day: 1, screen: 'day', S: [], nextId: 0, sel: null,
     inv: { food: rnd(7, 10), water: rnd(7, 10), wood: rnd(4, 6), parts: rnd(2, 3), cloth: rnd(1, 3), meds: rnd(0, 2), bandage: rnd(0, 2) },
-    build: { barricade: 0, stove: 0, bed: 0, bucket: 0, radio: 0, still: 0 },
+    build: { barricade: 0, stove: 0, bed: 0, bucket: 0, radio: 0, still: 0, cupboard: 0 },
     locs: {}, flags: {}, stats: { thefts: 0, kills: 0, helped: 0, refused: 0, deaths: 0, left: 0, lost: 0, storylets: 0, by: {} },
     rescueWin: null, rescueDay: 0, log: [], assign: {}, exp: null, tonight: null, groups: [], grateful: [], lastEv: '', thiefId: 0, pickLoc: null, pickZone: null, shelter: '', newsLog: [],
     mem: {}, rel: {}, threads: [], nem: [], turned: [], favors: [], dir: { tension: 20, last: [], cool: {} }, dead: [], fac: [], zones: {}, ledger: [], pacts: [], wars: [], rumors: [], envoys: [], rep: { honor: 0, fear: 0, wealth: 0 }, player: true, out: null
@@ -239,6 +249,46 @@ function nextModal() {
 }
 
 
+
+/* ---------- inventory: the cupboard (group) and each person's pack ---------- */
+const ITEM_KEYS = Object.keys(ITEMS);
+function depositBag(bag, s) {
+  s.pack = s.pack || {}; let toPack = 0, lost = 0;
+  Object.entries(bag).forEach(([k, v]) => { for (let i = 0; i < v; i++) { if (stashRoom() > 0) G.inv[k] = inv(k) + 1; else if (packCount(s) < packCap(s)) { s.pack[k] = (s.pack[k] || 0) + 1; toPack++; } else lost++; } });
+  if (toPack || lost) say('The cupboard is full', `<i>There was no room for everything ${s.name} brought back.${toPack ? ` ${toPack} item${toPack > 1 ? 's' : ''} stayed in ${s.name}'s pack.` : ''}${lost ? ` ${lost} had to be left outside.` : ''} A bigger cupboard would help.</i>`);
+}
+function invText(s) {
+  const list = (o) => ITEM_KEYS.filter((k) => (o[k] || 0) > 0).map((k) => `${ITEMS[k][0]} ${o[k]}`).join('   ') || 'nothing';
+  return `<b>Cupboard</b>  ${stashCount()}/${stashCap()}\n${list(G.inv)}\n\n<b>${s.name}'s pack</b>  ${packCount(s)}/${packCap(s)}\n${list(s.pack || {})}\n\n<i>Raiders can only take from the cupboard. A pack stays with its owner.</i>`;
+}
+function invMenu(s) {
+  s.pack = s.pack || {}; const others = alive().filter((o) => o.id !== s.id);
+  ask(`${s.name}'s inventory`, invText(s), [
+    { label: 'Take from the cupboard', off: stashCount() === 0 || packCount(s) >= packCap(s), why: stashCount() === 0 ? 'The cupboard is empty.' : `${s.name}'s pack is full (${packCap(s)} max).`, fn() { invList(s, 'take'); return ''; } },
+    { label: 'Put into the cupboard', off: packCount(s) === 0 || stashRoom() < 1, why: packCount(s) === 0 ? `${s.name} is carrying nothing.` : 'The cupboard is full.', fn() { invList(s, 'put'); return ''; } },
+    { label: 'Give to someone', off: packCount(s) === 0 || !others.length, why: packCount(s) === 0 ? `${s.name} is carrying nothing to give.` : 'There is no one else here.', fn() { invWho(s); return ''; } },
+    { label: 'Done' }], { sp: s.sp, state: stateOf(s) });
+}
+function invWho(s) {
+  const ch = alive().filter((o) => o.id !== s.id).map((o) => ({ label: `${o.name} (${packCount(o)}/${packCap(o)})`, off: packCount(o) >= packCap(o), why: `${o.name} cannot carry any more.`, fn() { invList(s, 'give', o); return ''; } }));
+  ch.push({ label: 'Back', fn() { invMenu(s); return ''; } }); ask('Give to whom?', `<i>${s.name} is carrying ${packCount(s)}/${packCap(s)}.</i>`, ch, { sp: s.sp, state: stateOf(s) });
+}
+function giftEffect(t, k) {
+  const need = ((k === 'food' || k === 'meal') && t.hunger > 55) || (k === 'water' && t.thirst > 55) || (k === 'meds' && t.sick) || (k === 'bandage' && t.wound);
+  t.trust = clamp((t.trust || 0) + (need ? 4 : 1), 0, 100); if (need) mood(t, 2); return need;
+}
+function invList(s, mode, target) {
+  s.pack = s.pack || {}; const src = mode === 'take' ? G.inv : s.pack; const items = ITEM_KEYS.filter((k) => (src[k] || 0) > 0);
+  const room = () => (mode === 'take' ? packCap(s) - packCount(s) : mode === 'put' ? stashRoom() : packCap(target) - packCount(target));
+  const why = mode === 'take' ? `${s.name}'s pack is full (${packCap(s)} max).` : mode === 'put' ? 'The cupboard is full.' : `${target.name} cannot carry any more.`;
+  const move = (k, n) => { for (let i = 0; i < n; i++) { if (room() < 1 || (src[k] || 0) < 1) break; if (mode === 'take') { add(k, -1); s.pack[k] = (s.pack[k] || 0) + 1; } else if (mode === 'put') { s.pack[k]--; add(k, 1); } else { s.pack[k]--; target.pack = target.pack || {}; target.pack[k] = (target.pack[k] || 0) + 1; } } };
+  const ch = items.map((k) => ({ label: `${ITEMS[k][0]} ${ITEMS[k][1]} ×${src[k]}`, off: room() < 1, why, fn() { move(k, 1); if (mode === 'give') { const need = giftEffect(target, k); toastWhy(need ? `${target.name} needed that. Thank you.` : `${target.name} takes it.`); } invList(s, mode, target); return ''; } }));
+  if (items.length > 1 && room() > 0) ch.push({ label: 'Move everything that fits', fn() { items.forEach((k) => move(k, src[k])); if (mode === 'give') target.trust = clamp((target.trust || 0) + 2, 0, 100); invList(s, mode, target); return ''; } });
+  ch.push({ label: 'Back', fn() { if (mode === 'give') invWho(s); else invMenu(s); return ''; } });
+  const head = mode === 'take' ? 'Take from the cupboard' : mode === 'put' ? 'Put into the cupboard' : `Give to ${target.name}`;
+  ask(head, items.length ? `<i>Tap an item to move one. Cupboard ${stashCount()}/${stashCap()} · ${s.name} ${packCount(s)}/${packCap(s)}${mode === 'give' ? ` · ${target.name} ${packCount(target)}/${packCap(target)}` : ''}</i>` : '<i>Nothing left to move.</i>', ch, { sp: s.sp, state: stateOf(s) });
+}
+
 /* ---------- why something is greyed out ---------- */
 const escA = (t) => String(t).replace(/"/g, '&quot;');
 const parseData = (x) => { const o = {}; String(x || '').replace(/data-([a-z]+)="([^"]*)"/g, (m, k, v) => { o[k] = v; return m; }); return o; };
@@ -247,7 +297,7 @@ function whyNot(a, d) {
   const noTask = s ? (s.slots < 1 ? `${nm} has no tasks left today.` : s.mood < 15 ? `${nm} is too broken to work.` : s.fatigue >= 95 ? `${nm} is too exhausted.` : '') : '';
   const need = (c) => { const miss = Object.entries(c).filter(([k, v]) => inv(k) < v).map(([k, v]) => `${v - inv(k)} more ${ITEMS[k][1].toLowerCase()}`); return miss.length ? `Needs ${miss.join(' and ')}.` : ''; };
   switch (a) {
-    case 'use': { const k = d.i; if (inv(k) < 1) return `You have no ${ITEMS[k][1].toLowerCase()}.`; if (k === 'meds' && s && !s.sick) return `${nm} is not sick.`; if (k === 'bandage' && s && !s.wound) return `${nm} has no wound to treat.`; return 'Not possible right now.'; }
+    case 'use': { const k = d.i; if (inv(k) < 1 && !(s && s.pack && s.pack[k] > 0)) return `You have no ${ITEMS[k][1].toLowerCase()}.`; if (k === 'meds' && s && !s.sick) return `${nm} is not sick.`; if (k === 'bandage' && s && !s.wound) return `${nm} has no wound to treat.`; return 'Not possible right now.'; }
     case 'cook': return !G.build.stove ? 'Build a stove first (Work, then Build).' : noTask || (!inv('food') ? 'You have no food to cook.' : !inv('wood') ? 'You need wood for the fire.' : '');
     case 'bandage': return noTask || need({ cloth: 2 });
     case 'club': return noTask || need({ wood: 2 });
@@ -281,6 +331,7 @@ function kill(s, why) {
   moodAll(-12);
   if (G.exp && G.exp.sid === s.id) G.exp.dead = true;
   if (s.cid) ST.onDeath(s, why);
+  Object.entries(s.pack || {}).forEach(([k, v]) => add(k, v)); s.pack = {};
   sfx('death'); buzz([90, 60, 220]);
   Q.push({ title: `${s.name} is dead`, text: deathText(s, why), choices: [{ label: 'Continue' }], art: { side: true, sp: s.sp, kind: 'dead', state: 'dead' } });
 }
@@ -526,19 +577,21 @@ const BUILDS = {
   bed: { n: 'Beds', cost: () => ({ wood: 3, cloth: 3 }), max: 1, desc: 'Better sleep.' },
   bucket: { n: 'Rain bucket', cost: () => ({ parts: 2, cloth: 2 }), max: 1, desc: 'Free water when it rains.' },
   radio: { n: 'Radio', cost: () => ({ parts: 4 }), max: 1, desc: 'Better rumours.' },
-  still: { n: 'Still', cost: () => ({ parts: 3, wood: 2 }), max: 1, desc: 'Brew ogogoro.' }
+  still: { n: 'Still', cost: () => ({ parts: 3, wood: 2 }), max: 1, desc: 'Brew ogogoro.' },
+  cupboard: { n: 'Bigger cupboard', cost: () => ({ wood: 4, parts: 1 }), max: 1, desc: '+25 storage.' }
 };
 function canTask(s) { return s && s.alive && s.slots > 0 && s.mood >= 15 && s.fatigue < 95; }
 function spend(s) { s.slots--; s.fatigue += 8; }
 function useItem(s, k) {
-  if (inv(k) < 1) return;
+  const own = ((s.pack || {})[k] || 0) > 0;
+  if (!own && inv(k) < 1) return;
   if (k === 'food') { s.hunger = Math.max(0, s.hunger - 22); mood(s, -1); s.thirst = Math.min(100, s.thirst + 6); if (!s.sick && chance(0.22)) { s.sick = true; log(`${s.name} has a stomach upset from eating raw food.`, 'warn'); } }
   else if (k === 'meal') { s.hunger = Math.max(0, s.hunger - 60); mood(s, 2); }
   else if (k === 'water') { s.thirst = Math.max(0, s.thirst - 45); }
   else if (k === 'ogogoro') { mood(s, 12); s.fatigue += 10; }
   else if (k === 'meds') { if (!s.sick) return; s.sick = false; }
   else if (k === 'bandage') { if (!s.wound) return; s.wound = false; s.hp = Math.min(100, s.hp + 8); }
-  add(k, -1);
+  if (own) s.pack[k]--; else add(k, -1);
 }
 function act(a, d) {
   if (a === 'new') { newGame(); return; }          // there is no game yet on the title screen
@@ -561,6 +614,7 @@ function act(a, d) {
     case 'night': ui.night = 'roles'; G.screen = 'night'; G.assign = {}; alive().forEach((x) => { G.assign[x.id] = 'sleep'; }); G.pickLoc = null; G.pickZone = LOCBY[G.shelter].zone; break;
     case 'zone': G.pickZone = d.id; G.pickLoc = null; break;
     case 'tab': ui[d.k] = d.t; break;
+    case 'inv': if (s) { invMenu(s); flush(); } return;
     case 'role': { if (d.r === 'scav') { Object.keys(G.assign).forEach((k) => { if (G.assign[k] === 'scav') G.assign[k] = 'sleep'; }); ui.night = 'where'; } G.assign[d.id] = d.r; break; }
     case 'loc': G.pickLoc = d.id; break;
     case 'begin': beginNight(); return;
@@ -624,7 +678,7 @@ function goHome(forced) {
   if (CR.Expedition) CR.Expedition.stop();
   const e = G.exp, s = person(e.sid);
   if (!e.dead && s.alive) {
-    Object.entries(e.bag).forEach(([k, v]) => add(k, v));
+    depositBag(e.bag, s);
     s.fatigue += 20 + ((e.total || 4) - e.hours) * 4 + (e.travel || 0) * 5;
     if (e.hours <= 0 && chance(0.4)) { const h = rnd(8, 20); if (hurt(s, h, 'Caught by the morning patrol.')) { /* dead */ } else say('Dawn', `${s.name} was out too late. A patrol saw them running. They made it, bleeding.`); }
     if (s.alive) log(`${s.name} returned with ${Object.values(e.bag).reduce((a, b) => a + b, 0)} items.`, 'good');
@@ -708,7 +762,7 @@ function dawn() {
   /* breakdowns */
   alive().forEach((s) => {
     if (s.mood < 15 && chance(0.3)) {
-      s.alive = false; s.gone = true; G.stats.left++; moodAll(-8);
+      s.alive = false; s.gone = true; s.pack = {}; G.stats.left++; moodAll(-8);
       lines.push(s.cid && CR.Life && CR.Life.turnSurvivor(s) ? `${s.name} is gone. Somebody swears they saw them walk toward the Gate Boys' fire.` : `${s.name} left in the dark and did not come back.`);
     }
   });
@@ -828,14 +882,14 @@ function storesPanel() {
     ['🪵', 'Wood', inv('wood'), 'fires, building, clubs'], ['⚙️', 'Scrap', inv('parts'), 'building, weapons, radio'], ['🧵', 'Cloth', inv('cloth'), 'bandages, beds, a rain bucket'],
     ['💊', 'Medicine', inv('meds'), 'cures a fever'], ['🩹', 'Bandages', inv('bandage'), 'closes a wound'], ['🍶', 'Ogogoro', inv('ogogoro'), 'lifts a mood, trades well']
   ].filter((r) => r[2] > 0 || ['Food', 'Water', 'Medicine'].includes(r[1]));
-  return `<div class="panel"><h3>Stores <span class="dim" style="font-size:13px">for ${n} ${n === 1 ? 'person' : 'people'}</span></h3>${rows.map((r) => `<div class="srow2"><span>${r[0]} ${r[1]}</span><b>${r[2]}</b><span class="dim">${r[3]}</span></div>`).join('')}</div>`;
+  return `<div class="panel"><h3>Cupboard <span class="dim" style="font-size:13px">${stashCount()}/${stashCap()} · feeds ${n} ${n === 1 ? 'person' : 'people'}</span></h3>${rows.map((r) => `<div class="srow2"><span>${r[0]} ${r[1]}</span><b>${r[2]}</b><span class="dim">${r[3]}</span></div>`).join('')}</div>`;
 }
 function workTab(s) {
   const t = canTask(s);
-  const uses = ['food', 'meal', 'water', 'meds', 'bandage', 'ogogoro'].map((k) => btn('use', `${ITEMS[k][0]} ${k === 'meds' ? 'Treat sickness' : k === 'bandage' ? 'Treat wound' : k === 'food' ? 'Eat raw (weak, risky)' : k === 'meal' ? 'Eat a cooked meal' : ITEMS[k][1]}`, inv(k) > 0 && !(k === 'meds' && !s.sick) && !(k === 'bandage' && !s.wound), `data-i="${k}"`)).join('');
+  const uses = ['food', 'meal', 'water', 'meds', 'bandage', 'ogogoro'].map((k) => btn('use', `${ITEMS[k][0]} ${k === 'meds' ? 'Treat sickness' : k === 'bandage' ? 'Treat wound' : k === 'food' ? 'Eat raw (weak, risky)' : k === 'meal' ? 'Eat a cooked meal' : ITEMS[k][1]}`, (inv(k) > 0 || (s.pack && s.pack[k] > 0)) && !(k === 'meds' && !s.sick) && !(k === 'bandage' && !s.wound), `data-i="${k}"`)).join('');
   const tasks = [btn('cook', 'Cook a pot (🍚×4 + 🪵)', t && G.build.stove && inv('food') && inv('wood')), btn('bandage', 'Bandage (2🧵)', t && inv('cloth') >= 2), btn('club', 'Club (2🪵)', t && inv('wood') >= 2), btn('machete', 'Machete (2⚙️🪵)', t && inv('parts') >= 2 && inv('wood')), btn('brew', 'Brew (2🍚)', t && G.build.still && inv('food') >= 2), hasTrait(s, 'devout') ? btn('pray', 'Pray', t) : ''].join('');
   const builds = Object.entries(BUILDS).map(([k, B2]) => { const lv = G.build[k]; const full = lv >= B2.max; return btn('build', `${B2.n}${B2.max > 1 ? ` ${lv}/${B2.max}` : lv ? ' ✓' : ''} ${full ? '' : costText(B2.cost())}`, t && !full && canPay(B2.cost()), `data-b="${k}" title="${B2.desc}"`); }).join('');
-  return `${storesPanel()}<div class="sub">${s.name} · ${s.slots} task${s.slots === 1 ? '' : 's'} left${s.act ? ' · ' + s.act : ''}</div>
+  return `${storesPanel()}<button class="primary" style="width:100%;margin:2px 0 4px" data-a="inv">🎒 Inventory · ${s.name} carries ${packCount(s)}/${packCap(s)}</button><div class="sub">${s.name} · ${s.slots} task${s.slots === 1 ? '' : 's'} left${s.act ? ' · ' + s.act : ''}</div>
     <div class="sub">Use</div><div class="row">${uses}</div><div class="sub">Make</div><div class="row">${tasks}</div><div class="sub">Build</div><div class="grid2">${builds}</div>`;
 }
 function facRows() {
@@ -1016,6 +1070,7 @@ function useObject(obj, sid) {
       else say(s.name, '<i>Too tired to listen.</i>');
       break;
     case 'window': lookOut(s); break;
+    case 'cupboard': invMenu(s); break;
     case 'door': ask('The door', '<i>Night is coming. The barricade holds, for now.</i>', [{ label: 'Nightfall', fn() { act('night', {}); return ''; } }, { label: 'Not yet' }], { sp: s.sp, state: stateOf(s) }); break;
     case 'mat': if (hasTrait(s, 'devout')) act('pray', {}); else { mood(s, 1); say(s.name, `<i>${ST.first(s)} sits on the mat a while, and breathes.</i>`); } break;
   }

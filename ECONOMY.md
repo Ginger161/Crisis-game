@@ -38,6 +38,15 @@ Each building has a **richness** (how many times it can be searched, about 3–1
 **Other sources:** rain with a bucket, gifts and repaid loans, trading with the 14 groups, favours returned, looting the dead (with consequences), raiding.
 **Drains:** raids and theft, tribute, tolls, bribes, supplies spent on gifts and favours.
 
+## 3b. Carrying and storing
+| Place | Holds | Notes |
+|---|---|---|
+| **Cupboard** (the chest in the room) | **40** items, **65** with a Bigger cupboard (4 wood + 1 scrap) | The group's shared store. Cooking, building, trading and raids all work from here. Anything that will not fit is left behind. |
+| **Personal pack** | **6** items (**8** for a strong character) | Belongs to one person. Raiders cannot take it. They can eat, drink and heal from their own pack. A dead person's pack goes back to the cupboard (what does not fit is lost). |
+| **Night bag** | **8** items (**10** strong) | What the scavenger carries on a night run. Coming home it goes into the cupboard first, then the scavenger's pack, then is lost. |
+
+Moving things: tap the chest in the room, or Work then Inventory. You can take from the cupboard into a pack, put a pack into the cupboard, or give items to another person. Giving a hungry person food (or a sick person medicine) earns more trust than giving to someone who does not need it.
+
 ## 4. What each kind of building gives
 | Kind | Examples | Top finds | Risk |
 |---|---|---|---|
@@ -74,6 +83,5 @@ Food 1 · water 1 · wood 0.8 · cloth 0.8 · scrap 1.2 · bandages 1.5 · ogogo
 ## 7. What is not there yet
 - No currency. Trade is barter only.
 - No spoilage: food keeps forever.
-- No storage limit at the shelter.
 - Prices do not move day to day, only by need and reputation.
 - Guns have no ammunition.

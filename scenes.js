@@ -77,7 +77,7 @@ function layout(ppl, bd) {
 /* tappable things in the shelter (scene coordinates). x = where a person stands to use it. */
 const HOT = {
   radio: { rect: [117, 52, 12, 11], x: 121 }, bed: { rect: [60, 36, 40, 30], x: 76 }, table: { rect: [104, 56, 30, 10], x: 112 }, stove: { rect: [134, 52, 16, 24], x: 132 },
-  window: { rect: [106, 12, 42, 28], x: 124 }, poster: { rect: [44, 6, 26, 30], x: 56 }, door: { rect: [8, 28, 32, 48], x: 26 }, mat: { rect: [12, 70, 28, 8], x: 26 }
+  window: { rect: [106, 12, 42, 28], x: 124 }, cupboard: { rect: [40, 46, 22, 30], x: 50 }, poster: { rect: [44, 6, 26, 30], x: 56 }, door: { rect: [8, 28, 32, 48], x: 26 }, mat: { rect: [12, 70, 28, 8], x: 26 }
 };
 
 /* ---------- 1. The shelter (your hostel room) ---------- */
@@ -94,6 +94,9 @@ function shelter(m) {
   if (bd.barricade) { for (let i = 0; i < 20; i++) { R(12 + i, 36 + i, 3, 3, PAL.wood); R(34 - i, 36 + i, 3, 3, PAL.woodD); } R(10, 60, 28, 4, PAL.wood); if (bd.barricade > 1) R(10, 52, 28, 3, PAL.woodD); if (bd.barricade > 2) { R(10, 44, 28, 3, PAL.wood); R(8, 66, 32, 5, PAL.woodD); } }
   /* crest poster */
   b.add(`<g transform="translate(46 8) scale(.55)">${emblemRects(0, 0, 1)}</g>`);
+  /* the group's cupboard: a chest, or a proper cupboard once you have built a bigger one */
+  if (bd.cupboard) { R(40, 48, 22, 28, '#5a3f2a'); R(40, 48, 22, 3, '#7a5a3c'); R(50, 51, 2, 25, '#2a1d14'); R(46, 62, 2, 3, '#c8a050'); R(54, 62, 2, 3, '#c8a050'); R(41, 54, 8, 1, '#3a2a1c'); R(53, 54, 8, 1, '#3a2a1c'); }
+  else { R(42, 66, 16, 10, '#5a3f2a'); R(42, 64, 16, 3, '#7a5a3c'); R(49, 66, 2, 10, '#3a2a1c'); R(49, 69, 2, 2, '#c8a050'); R(42, 73, 16, 1, '#3a2a1c'); }
   /* bunk bed */
   R(62, 38, 3, FLOOR - 38, PAL.woodD); R(96, 38, 3, FLOOR - 38, PAL.woodD);
   R(63, 44, 35, 2, PAL.wood); R(63, 64, 35, 2, PAL.wood);

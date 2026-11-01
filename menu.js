@@ -39,6 +39,7 @@ const SCREENS = {
       ['🛠', 'Use things', 'Tap the window, bunk or table. Build a stove and a radio at the table first.'],
       ['💬', 'Talk', 'Tap your selected person again. People open up slowly.'],
       ['🍚', 'Cook', 'Raw food is quick but weak, and can make you sick. A cooked pot fills everyone and lifts the room.'],
+      ['🎒', 'Carry', 'The cupboard is shared and limited. Everyone also has a small pack of their own.'],
       ['🌙', 'Night run', 'You walk the scavenger yourself. Tap glowing spots. Dodge the pale cones.'],
       ['🛏', 'Night', 'One guards. One sleeps. One goes out for supplies.'],
       ['🏛', 'Other groups', 'Fourteen groups live here. Trade, lend, threaten, betray. They remember.'],

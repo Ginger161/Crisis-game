@@ -8,7 +8,7 @@ const STEPS = [
   { text: '<b>Keep your people alive.</b> Soldiers will come. Nobody knows when.', btn: 'Start' },
   { text: '👆 <b>Tap a different person</b> in the room.', wait: 'select' },
   { text: '👣 <b>Tap the floor.</b> They walk there.', wait: 'walk' },
-  { text: '🛠 <b>Tap the window, the bunk or the table.</b> They go and use it.', wait: 'object' },
+  { text: '🛠 <b>Tap the window, the chest or the table.</b> They go and use it.', wait: 'object' },
   { text: '💬 <b>Tap your selected person again</b> to talk. Trust is earned.', wait: 'talk' },
   { text: '🌍 <b>Open the World tab.</b> Other groups live here.', wait: 'tab:world' },
   { text: '🍚 Hunger kills. <b>Open Work and eat something.</b> Cooked is best.', wait: 'use' },

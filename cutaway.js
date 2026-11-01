@@ -97,10 +97,10 @@ function onTap(e) {
   if (hit && hit.sid === selId) { Cut.hooks.talkMenu(hit.sid); return; }
   if (!sel || (sel.busy && sel.kind !== 'walk')) return;
   /* an object? */
-  const order = [G.build.radio ? 'radio' : null, 'bed', G.build.stove ? 'stove' : null, 'table', 'mat', 'window', 'door'].filter(Boolean);
+  const order = [G.build.radio ? 'radio' : null, 'cupboard', 'bed', G.build.stove ? 'stove' : null, 'table', 'mat', 'window', 'door'].filter(Boolean);
   const obj = order.find((k) => { const r = HOT[k].rect; return p.x >= r[0] && p.x <= r[0] + r[2] && p.y >= r[1] && p.y <= r[1] + r[3]; });
   if (obj) {
-    const H = HOT[obj]; hint({ bed: 'Rest', radio: 'Listen', stove: 'Cook', table: 'Work', mat: 'Pray', window: 'Look out', door: 'The night' }[obj]);
+    const H = HOT[obj]; hint({ cupboard: 'Open the cupboard', bed: 'Rest', radio: 'Listen', stove: 'Cook', table: 'Work', mat: 'Pray', window: 'Look out', door: 'The night' }[obj]);
     walkTo(sel, H.x, () => {
       const s = Cut.hooks.person(sel.sid);
       if (obj === 'bed') { const free = Object.values(Cut.actors).every((o) => o === sel || o.kind !== 'sleep' || o.x !== 80); pose(sel, 'sleep', 80, free ? 60 : 40, 1, 2200, null); setTimeout(() => Cut.hooks.use('bed', sel.sid), 2300); }
