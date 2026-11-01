@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crisis — art style test</title>
+<style>
+  body{background:#0e0d0c;color:#e8e2d8;font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:900px;margin:0 auto}
+  h1{font-family:Georgia,serif;font-weight:normal;letter-spacing:.2em;color:#c8832b}
+  h2{font-family:Georgia,serif;font-weight:normal;margin:28px 0 4px}
+  p{color:#9a9187;margin:0 0 10px;font-size:14px}
+  .scene{background:#000;border:1px solid #2e2a26;border-radius:6px;overflow:hidden}
+  svg{display:block;width:100%;height:auto}
+  .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+  .row div{flex:1;min-width:110px;background:#171513;border:1px solid #2e2a26;border-radius:6px;padding:6px;text-align:center;font-size:12px;color:#9a9187}
+  .row svg{width:100%}
+  button{font:inherit;color:#e8e2d8;background:#1f1c19;border:1px solid #2e2a26;border-radius:6px;padding:8px 14px;cursor:pointer}
+</style>
+</head>
+<body>
+<h1>CRISIS · ART TEST</h1>
+<p>Same room, same four survivors, three looks. Tap "Reroll cast" to see that every run can generate different people.</p>
+<button id="reroll">Reroll cast</button>
+<div id="out"></div>
+<script>
+const R = Math.random, rnd = (a, b) => a + Math.floor(R() * (b - a + 1)), pick = (a) => a[Math.floor(R() * a.length)];
+const SKIN = ['#8d5a3b', '#5e3a24', '#3f2616', '#a8714a', '#6b4429', '#4a2e1c'];
+const HAIR = ['#14100d', '#1d1510', '#2a1d14'];
+const SHIRT = ['#6b4f3a', '#4d5a4a', '#5a4a58', '#7a6a4a', '#3f4f5f', '#7a3f35', '#58584a'];
+const PANTS = ['#2a2a30', '#33302a', '#26313a', '#3a2f2a'];
+const ACCENT = ['#b8402f', '#c8832b', '#6f9a4a', '#4a6f9a'];
+const NAMES = ['Chidera', 'Tunde', 'Amina', 'Emeka', 'Ngozi', 'Bashir', 'Ifeoma', 'Segun', 'Hauwa', 'Obinna', 'Zainab', 'Kelechi'];
+
+function mkCast() {
+  const names = NAMES.slice().sort(() => R() - 0.5);
+  return [0, 1, 2, 3].map((i) => ({
+    name: names[i], skin: pick(SKIN), hair: pick(HAIR), shirt: pick(SHIRT), pants: pick(PANTS), accent: pick(ACCENT),
+    style: pick(['short', 'afro', 'wrap']), hurt: R() < 0.35, mood: pick(['okay', 'sad', 'broken'])
+  }));
+}
+
+/* ============ STYLE A: pixel art ============ */
+const HEAD = {
+  short: ['....HHHH....', '...HHHHHH...', '...HSSSSH...', '...SESSES...'],
+  afro: ['..HHHHHHHH..', '.HHHHHHHHHH.', '.HHHSSSSHHH.', '..HSESSESH..'],
+  wrap: ['...WWWWWW...', '..WWWWWWWW..', '..WWSSSSWW..', '...SESSES...']
+};
+const BODY = ['....SSSS....', '..TTTTTTTT..', '.TTTTTTTTTT.', '.STTTTTTTTS.', '.STTTTTTTTS.', '.SSTTTTTTSS.', '...TTTTTT...', '...PPPPPP...', '...PPPPPP...', '...PP..PP...', '...PP..PP...', '...PP..PP...', '..BBB..BBB..'];
+function pixelChar(c, s, x0 = 0, y0 = 0) {
+  const rows = HEAD[c.style].concat(BODY);
+  const col = { H: c.hair, S: c.skin, T: c.shirt, P: c.pants, B: '#15110e', E: '#0b0907', W: c.accent };
+  let out = '';
+  const dy = c.mood === 'broken' ? 1 : 0;
+  rows.forEach((r, y) => {
+    [...r].forEach((ch, x) => {
+      if (ch === '.') return;
+      let fill = col[ch];
+      if (c.hurt && ch === 'T' && x === 4 && y === 9) fill = '#8a2a20';
+      out += `<rect x="${x0 + x * s}" y="${y0 + (y + (y < 6 ? dy : 0)) * s}" width="${s}" height="${s}" fill="${fill}"/>`;
+    });
+  });
+  if (c.hurt) out += `<rect x="${x0 + 4 * s}" y="${y0 + 9 * s}" width="${s}" height="${s}" fill="#8a2a20"/><rect x="${x0 + 5 * s}" y="${y0 + 10 * s}" width="${s}" height="${s}" fill="#8a2a20"/>`;
+  return out;
+}
+function pixelScene(cast) {
+  const s = 7, W = 120, H = 56;
+  let o = `<svg viewBox="0 0 ${W * 5} ${H * 5}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">`;
+  const rect = (x, y, w, h, c) => (o += `<rect x="${x * 5}" y="${y * 5}" width="${w * 5}" height="${h * 5}" fill="${c}"/>`);
+  rect(0, 0, W, H, '#14110f');
+  rect(4, 4, W - 8, H - 12, '#2a241f');                       // back wall
+  for (let y = 6; y < H - 8; y += 4) for (let x = 4 + ((y / 4) % 2) * 3; x < W - 8; x += 6) rect(x, y, 5, 3, y % 8 ? '#2f2823' : '#29231e'); // bricks
+  rect(4, H - 8, W - 8, 4, '#1a1612');                         // floor
+  rect(14, 10, 18, 22, '#0b0a09'); rect(16, 12, 14, 18, '#c8a05a'); rect(16, 12, 14, 18, '#e0b86a');
+  for (let i = 0; i < 4; i++) rect(16 + i * 4, 12, 1, 18, '#7a5a2a'); rect(16, 20, 14, 1, '#7a5a2a');
+  // light beam
+  for (let i = 0; i < 10; i++) rect(30 + i * 3, 30 + i * 2, 4, 1, 'rgba(224,184,106,.14)');
+  // barricade planks
+  for (let i = 0; i < 5; i++) rect(14, 11 + i * 4, 18, 2, i % 2 ? '#3a2a1c' : '#4a3626');
+  // bed + crates
+  rect(70, 36, 24, 6, '#3a3030'); rect(70, 34, 24, 3, '#5a4a40'); rect(70, 42, 3, 4, '#1a1410'); rect(91, 42, 3, 4, '#1a1410');
+  rect(100, 36, 10, 10, '#4a3626'); rect(100, 36, 10, 2, '#5a4430');
+  // candle glow
+  rect(60, 34, 1, 3, '#e0b86a'); rect(59, 33, 3, 1, '#e8a84a');
+  let svg = o;
+  const pos = [26, 52, 80, 108];
+  cast.forEach((c, i) => { svg += `<g transform="translate(${pos[i] * 5 - 30}, ${(H - 8) * 5 - 17 * s / 1.4 - 24})">${pixelChar(c, 3.2)}</g>`; });
+  return svg + '</svg>';
+}
+
+/* ============ STYLE B: charcoal sketch ============ */
+const GREY = (hex, k = 0.55) => { const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255; const l = (r + g + b) / 3; r = Math.round(l * (1 - k) + r * k); g = Math.round(l * (1 - k) + g * k); b = Math.round(l * (1 - k) + b * k); return `rgb(${r},${g},${b})`; };
+function sketchChar(c, x, y) {
+  const sh = GREY(c.shirt, 0.35), sk = GREY(c.skin, 0.3), pa = GREY(c.pants, 0.2), ha = GREY(c.hair, 0.1);
+  const slump = c.mood === 'broken' ? 6 : c.mood === 'sad' ? 3 : 0;
+  let o = `<g transform="translate(${x},${y})" filter="url(#rough)" stroke="#0a0908" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">`;
+  o += `<path d="M-9 70 L-11 118 L-3 118 L0 80 L3 118 L11 118 L9 70 Z" fill="${pa}"/>`;                // legs
+  o += `<path d="M-15 ${28 + slump} Q-18 52 -12 74 L12 74 Q18 52 15 ${28 + slump} Q0 ${22 + slump} -15 ${28 + slump}Z" fill="${sh}"/>`; // torso
+  o += `<path d="M-15 ${30 + slump} L-24 66 M15 ${30 + slump} L24 66" fill="none" stroke="${sh}" stroke-width="7"/>`; // arms
+  o += `<ellipse cx="0" cy="${14 + slump * 1.4}" rx="10" ry="12" fill="${sk}"/>`;                          // head
+  if (c.style === 'afro') o += `<ellipse cx="0" cy="${6 + slump * 1.4}" rx="14" ry="11" fill="${ha}"/>`;
+  else if (c.style === 'wrap') o += `<path d="M-12 ${12 + slump * 1.4} Q0 -6 12 ${12 + slump * 1.4} L10 ${20 + slump * 1.4} L-10 ${20 + slump * 1.4}Z" fill="${GREY(c.accent, 0.5)}"/>`;
+  else o += `<path d="M-10 ${10 + slump * 1.4} Q0 -2 10 ${10 + slump * 1.4}Z" fill="${ha}"/>`;
+  if (c.hurt) o += `<path d="M-6 44 L2 52 L-3 60" stroke="#7a2a20" stroke-width="4" fill="none"/>`;
+  // hatching
+  for (let i = 0; i < 7; i++) o += `<path d="M${-12 + i * 3} 40 l-3 22" stroke="#00000055" stroke-width="1" fill="none"/>`;
+  return o + '</g>';
+}
+function sketchScene(cast) {
+  let o = `<svg viewBox="0 0 600 280" xmlns="http://www.w3.org/2000/svg"><defs>
+    <filter id="rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="4"/></filter>
+    <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" result="g"/><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 -.18"/></filter>
+    <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#e0b86a" stop-opacity=".55"/><stop offset="1" stop-color="#e0b86a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="600" height="280" fill="#1a1816"/>
+  <g filter="url(#rough)" stroke="#0a0908" stroke-width="3" stroke-linecap="round">
+    <rect x="20" y="20" width="560" height="220" fill="#3a3732"/>
+    <path d="M20 240 H580" stroke-width="5"/>
+    <rect x="70" y="50" width="90" height="110" fill="#8a8272"/>
+    <path d="M115 50 V160 M70 105 H160" stroke="#2a2724"/>
+    <path d="M60 60 l110 20 M60 100 l110 20 M60 140 l110 20" stroke="#2a1d14" stroke-width="9"/>
+  </g>
+  <g stroke="#00000066" stroke-width="1">${Array.from({ length: 40 }, (_, i) => `<path d="M${30 + i * 14} 28 l-6 40"/>`).join('')}</g>
+  <ellipse cx="330" cy="215" rx="110" ry="60" fill="url(#glow)"/>
+  <g filter="url(#rough)" stroke="#0a0908" stroke-width="3"><rect x="420" y="190" width="120" height="30" fill="#5a5148"/><rect x="420" y="180" width="120" height="14" fill="#7a7060"/></g>
+  ${cast.map((c, i) => sketchChar(c, 130 + i * 110, 130)).join('')}
+  <rect width="600" height="280" filter="url(#grain)" opacity=".7"/>
+  </svg>`;
+  return o;
+}
+
+/* ============ STYLE C: silhouette + one colour ============ */
+function silChar(c, x, y) {
+  const slump = c.mood === 'broken' ? 8 : c.mood === 'sad' ? 4 : 0;
+  let o = `<g transform="translate(${x},${y})" fill="#0a0908">`;
+  o += `<path d="M-8 78 L-10 126 L-2 126 L0 90 L2 126 L10 126 L8 78Z"/>`;
+  o += `<path d="M-16 ${34 + slump} Q-20 58 -12 80 L12 80 Q20 58 16 ${34 + slump} Q0 ${26 + slump} -16 ${34 + slump}Z"/>`;
+  o += `<ellipse cx="0" cy="${18 + slump * 1.5}" rx="10" ry="12"/>`;
+  if (c.style === 'afro') o += `<ellipse cx="0" cy="${9 + slump * 1.5}" rx="14" ry="11"/>`;
+  o += `<rect x="-14" y="${46 + slump}" width="28" height="5" fill="${c.accent}" opacity=".9"/>`;
+  if (c.style === 'wrap') o += `<path d="M-12 ${15 + slump * 1.5} Q0 -2 12 ${15 + slump * 1.5}Z" fill="${c.accent}"/>`;
+  return o + '</g>';
+}
+function silScene(cast) {
+  return `<svg viewBox="0 0 600 280" xmlns="http://www.w3.org/2000/svg"><defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#241812"/><stop offset="1" stop-color="#0c0a09"/></linearGradient>
+    <radialGradient id="win" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#e8a84a"/><stop offset="1" stop-color="#e8a84a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="600" height="280" fill="url(#sky)"/>
+  <rect x="60" y="40" width="110" height="130" fill="#e8a84a" opacity=".85"/>
+  <path d="M115 40 V170 M60 105 H170" stroke="#0a0908" stroke-width="6"/>
+  <path d="M60 52 l110 18 M60 92 l110 18 M60 132 l110 18" stroke="#0a0908" stroke-width="10"/>
+  <path d="M170 170 L330 260 L130 260Z" fill="#e8a84a" opacity=".12"/>
+  <rect x="0" y="244" width="600" height="36" fill="#080706"/>
+  <rect x="440" y="206" width="110" height="38" fill="#0a0908"/>
+  <circle cx="470" cy="198" r="3" fill="#e8a84a"/><circle cx="470" cy="198" r="26" fill="url(#win)" opacity=".5"/>
+  ${cast.map((c, i) => silChar(c, 150 + i * 105, 122)).join('')}
+  </svg>`;
+}
+
+function portraits(cast, fn) { return `<div class="row">${cast.map((c) => `<div>${fn(c)}<br>${c.name} · ${c.mood}${c.hurt ? ' · hurt' : ''}</div>`).join('')}</div>`; }
+function render() {
+  const cast = mkCast();
+  document.getElementById('out').innerHTML = `
+  <h2>A · Pixel art</h2><p>Chunky sprites built from rectangles. Easy to animate, cheap to generate, instantly retro. Hair, headwrap, skin, clothes and wounds are all swappable parts.</p>
+  <div class="scene">${pixelScene(cast)}</div>
+  ${portraits(cast, (c) => `<svg viewBox="0 0 40 57" shape-rendering="crispEdges">${pixelChar(c, 3, 2, 2)}</svg>`)}
+  <h2>B · Charcoal sketch (closest to This War of Mine)</h2><p>Rough, grey, hand-drawn feel from SVG filters. Muted skin tones and a grain layer. Heavy atmosphere, a little slower to draw.</p>
+  <div class="scene">${sketchScene(cast)}</div>
+  <h2>C · Silhouette with one accent colour</h2><p>Dark shapes, warm amber light, one colour per person. Reads as scary and stylish, hides the limits of simple art, easiest to keep consistent.</p>
+  <div class="scene">${silScene(cast)}</div>`;
+}
+document.getElementById('reroll').onclick = render;
+render();
+</script>
+</body>
+</html>

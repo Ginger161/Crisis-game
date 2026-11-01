@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crisis · Side-view poses</title>
+<style>
+body{background:#0e0d0c;color:#f2ebcf;font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:1100px;margin:0 auto}
+h1{font-family:Georgia,serif;font-weight:normal;letter-spacing:.2em;color:#f6b37f}
+p{color:#9a9187;font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.cell{background:#171513;border:1px solid #2e2a26;border-radius:6px;padding:6px 4px 4px;text-align:center;font-size:11px;color:#9a9187}
+.cell svg{display:block;margin:0 auto;background:linear-gradient(#171513 0 calc(100% - 6px),#2a211b calc(100% - 6px))}
+button{font:inherit;color:#f2ebcf;background:#1f1c19;border:1px solid #2e2a26;border-radius:6px;padding:6px 11px;cursor:pointer}
+button.on{border-color:#f6b37f}
+</style></head><body>
+<h1>SIDE-VIEW POSES</h1>
+<p>Every pose is solved from a skeleton, so feet always land on the ground. Use the buttons to change who is shown.</p>
+<div class="row" id="who"></div>
+<div class="row" id="out"></div>
+<script src="sprites.js"></script><script src="side.js"></script>
+<script>
+const S = Crisis.Sprites, D = Crisis.Side;
+const WHO = [['boy_gym', 'Gym boy'], ['girl_hijab', 'Hijabi'], ['prof_f', 'Professor'], ['sister', 'Sister'], ['bandit_soldier', 'Soldier'], ['bandit_boss', 'Commander'], ['grandma', 'Grandma'], ['kid_girl', 'Child']];
+let cur = 0, seed = 7, state = 'ok';
+function draw() {
+  const sp = S.gen(WHO[cur][0], seed);
+  document.getElementById('out').innerHTML = D.KINDS.map((k) => `<div class="cell">${D.render(sp, k, { scale: 5, state: k === 'dead' ? 'dead' : state })}${k}</div>`).join('');
+}
+document.getElementById('who').innerHTML = WHO.map((w, i) => `<button data-i="${i}" class="${i === cur ? 'on' : ''}">${w[1]}</button>`).join('') + '<button data-a="state">State: ok</button><button data-a="seed">Reroll</button>';
+document.getElementById('who').onclick = (e) => { const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.a === 'seed') seed = Math.floor(Math.random() * 1e6);
+  else if (b.dataset.a === 'state') { state = { ok: 'hurt', hurt: 'sick', sick: 'tired', tired: 'ok' }[state]; b.textContent = 'State: ' + state; }
+  else { cur = +b.dataset.i; [...e.currentTarget.querySelectorAll('button[data-i]')].forEach((x) => x.classList.toggle('on', +x.dataset.i === cur)); }
+  draw(); };
+draw();
+</script></body></html>
