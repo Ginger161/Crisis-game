@@ -10,9 +10,9 @@ const STEPS = [
   { text: '👣 <b>Tap the floor.</b> They walk there.', wait: 'walk' },
   { text: '🛠 <b>Tap the window, the chest or the table.</b> They go and use it.', wait: 'object' },
   { text: '💬 <b>Tap your selected person again</b> to talk. Trust is earned.', wait: 'talk' },
-  { text: '🌍 <b>Open the World tab.</b> Other groups live here.', wait: 'tab:world' },
-  { text: '🍚 Hunger kills. <b>Open Work and eat something.</b> Cooked is best.', wait: 'use' },
-  { text: '🌙 <b>Tap Nightfall</b> when you are ready. ☰ at the top has the guide.', btn: 'Got it' }
+  { text: '🌍 <b>Tap World</b> at the bottom. Other groups live there.', wait: 'tab:world' },
+  { text: '🎒 Hunger kills. <b>Tap Items</b>, then eat something. Cooked is best.', wait: 'use' },
+  { text: '🌙 <b>Tap Night</b> when you are ready. ☰ at the top has the guide.', btn: 'Got it' }
 ];
 const settings = () => C.Settings;
 function ensure() {
@@ -33,7 +33,7 @@ function draw() {
 }
 T.place = function () {
   if (!T.el) return; const el = T.el; if (!T.active) { el.classList.add('hidden'); return; }
-  const a = document.querySelector('.actions'), pw = document.querySelector('.panelwrap');
+  const a = document.querySelector('.nav'), pw = document.querySelector('.panelwrap');
   if (!a || !pw) { el.classList.add('hidden'); return; }
   const r = pw.getBoundingClientRect(), ar = a.getBoundingClientRect();
   el.style.left = (r.left + 8) + 'px'; el.style.width = (r.width - 16) + 'px'; el.style.top = 'auto'; el.style.bottom = Math.max(0, window.innerHeight - ar.top + 10) + 'px'; el.classList.remove('hidden');

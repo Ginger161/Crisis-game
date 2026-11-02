@@ -28,7 +28,7 @@ let tt = null;
 U.toast = function (text) {
   if (typeof document === 'undefined' || !document.body) return; let t = document.getElementById('toast2');
   if (!t) { t = document.createElement('div'); t.id = 'toast2'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
-  t.textContent = text; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600);
+  t.innerHTML = String(text); t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600);
 };
 if (typeof window !== 'undefined') { window.addEventListener('resize', U.soon); }
 C.UI = U;

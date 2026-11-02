@@ -15,9 +15,10 @@ const rr = Math.round;
 const has = (sp, k) => String(sp.state || '').split('+').includes(k);
 
 /* ---------- pixel canvas ---------- */
+const TOPX = 24;                                  // rows of headroom above a standing figure, so a jump or a reach is never cut off
 function canvas() {
-  const g = new Array(CW * CH).fill(null);
-  const px = (x, y, c) => { x = rr(x); y = rr(y); if (x >= 0 && x < CW && y >= 0 && y < CH) g[y * CW + x] = c; };
+  const g = new Array(CW * (CH + TOPX)).fill(null);
+  const px = (x, y, c) => { x = rr(x); y = rr(y) + TOPX; if (x >= 0 && x < CW && y >= 0 && y < CH + TOPX) g[y * CW + x] = c; };
   const rect = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) px(x + i, y + j, c); };
   const seg = (x1, y1, x2, y2, r, c) => {
     const x0 = Math.floor(Math.min(x1, x2) - r - 1), x3 = Math.ceil(Math.max(x1, x2) + r + 1), y0 = Math.floor(Math.min(y1, y2) - r - 1), y3 = Math.ceil(Math.max(y1, y2) + r + 1);
@@ -30,7 +31,7 @@ function canvas() {
   };
   const out = () => {
     let s = '';
-    for (let y = 0; y < CH; y++) { let x = 0; while (x < CW) { const c = g[y * CW + x]; if (!c) { x++; continue; } let w = 1; while (x + w < CW && g[y * CW + x + w] === c) w++; s += `<rect x="${x}" y="${y}" width="${w}" height="1" fill="${c}"/>`; x += w; } }
+    for (let y = 0; y < CH + TOPX; y++) { let x = 0; while (x < CW) { const c = g[y * CW + x]; if (!c) { x++; continue; } let w = 1; while (x + w < CW && g[y * CW + x + w] === c) w++; s += `<rect x="${x}" y="${y - TOPX}" width="${w}" height="1" fill="${c}"/>`; x += w; } }
     return s;
   };
   return { px, rect, seg, out, g };
@@ -353,7 +354,9 @@ function render(sp, kind, opts) {
 /* place a character so its feet touch groundY, horizontally centred on x */
 function place(sp, kind, x, groundY, opts) {
   opts = opts || {}; ensureCSS(); const s = opts.s || 1;
-  return `<svg class="ss" x="${(x - 16 * s).toFixed(2)}" y="${(groundY - G * s).toFixed(2)}" width="${CW * s}" height="${CH * s}" viewBox="0 0 ${CW} ${CH}" shape-rendering="crispEdges">${inner(sp, kind, opts)}</svg>`;
+  /* 10 units of headroom above the figure, so a raised pose (standing on a stool, arms up) is never cut off by the edge of its own box */
+  const HR = 24;
+  return `<svg class="ss" overflow="visible" x="${(x - 16 * s).toFixed(2)}" y="${(groundY - G * s - HR * s).toFixed(2)}" width="${CW * s}" height="${(CH + HR) * s}" viewBox="0 ${-HR} ${CW} ${CH + HR}" shape-rendering="crispEdges">${inner(sp, kind, opts)}</svg>`;
 }
 C.Side = { render, place, SA, G, CW, CH, KINDS: Object.keys(SA) };
 if (typeof module !== 'undefined') module.exports = C.Side;

@@ -15,7 +15,7 @@ const { pick, chance, rnd, clamp, first, speak, portrait, bond } = S;
 const ask = (t, x, c, a) => H().ask(t, x, c, a), say = (t, x, a) => H().say(t, x, a);
 const all = (n) => H().moodAll(n), mood = (s, n) => H().mood(s, n);
 const cn = (cid) => (K().by[cid] || { name: 'Someone' }).name;
-const npc = (cid, text) => { const c = K().by[cid]; if (!c) return `<i>${text}</i>`; return `<b>${c.name}</b> “${V.say(c.voice, text, { id: cid })}”`; };
+const npc = (cid, text) => { const c = K().by[cid]; if (!c) return `<i>${text}</i>`; return S.bubble(c.name, 'you', V.say(c.voice, text, { id: cid })); };
 const art = (cid, st) => ({ sp: P.face(cid), state: st || 'ok' });
 const facOf = (cid) => (G().fac || []).find((f) => f.members.includes(cid));
 const nonLeaders = (f) => f.members.filter((m) => m !== f.leader);
@@ -258,7 +258,7 @@ S.add({ id: 'turncoat', kind: 'nemesis', w: 5, cd: 2, when: (x) => (x.G.turned |
   } });
 
 /* ---------- favours, and people asking to join ---------- */
-S.add({ id: 'favor', kind: 'favor', w: 2.4, cd: 3, when: (x) => P.live().some((f) => f.id !== 'gate' && f.members.length > 1),
+S.add({ id: 'favor', kind: 'favor', door: true, w: 2.4, cd: 3, when: (x) => P.live().some((f) => f.id !== 'gate' && f.members.length > 1),
   run(x) {
     const g = x.G; const fs = P.live().filter((f) => f.id !== 'gate' && f.members.length > 1 && f.p > -45); if (!fs.length) return false; const f = pick(fs), m = pickMember(f); if (!m) return false; f.met = true;
     const kinds = ['message', 'hide', 'vouch', 'escort', 'cover']; if (H().inv('club') + H().inv('machete') + H().inv('pistol') > 0) kinds.push('weapon'); const k = pick(kinds); const A = pick(H().alive()); const record = (kind, extra) => { g.favors = g.favors || []; g.favors.push(Object.assign({ cid: m, fid: f.id, kind, day: g.day, paid: false }, extra || {})); };
@@ -283,7 +283,7 @@ S.add({ id: 'favor', kind: 'favor', w: 2.4, cd: 3, when: (x) => P.live().some((f
       { label: 'Refuse', fn() { f.p = clamp(f.p - 3, -100, 100); return ''; } }], art(m, 'ok')); }
     else return false;
   } });
-S.add({ id: 'favor_back', kind: 'favor', w: 4, cd: 1, when: (x) => (x.G.favors || []).some((q) => !q.paid && x.G.day - q.day >= 4),
+S.add({ id: 'favor_back', kind: 'favor', door: true, w: 4, cd: 1, when: (x) => (x.G.favors || []).some((q) => !q.paid && x.G.day - q.day >= 4),
   run(x) {
     const g = x.G, q = g.favors.find((z) => !z.paid && g.day - z.day >= 4), f = P.fac(q.fid); q.paid = true; if (!f || f.status !== 'active' || !f.members.includes(q.cid)) return false; const m = q.cid;
     if (q.kind === 'weapon') { if (q.ret) { H().add(q.item, 1); H().add('food', 1); say(`${cn(m)} keeps their word`, `${npc(m, `Here is your ${q.item}. And a little something. Thank you.`)}`, art(m, 'ok')); f.p = clamp(f.p + 6, -100, 100); } else { say(`${cn(m)} does not come`, `<i>The ${q.item} does not come back. Neither does ${cn(m)}, when you send word.</i>`, art(m, 'ok')); f.p = clamp(f.p - 6, -100, 100); L.nem(f, `you lent them a ${q.item} and cannot get it back`, 12); } return true; }
@@ -292,7 +292,7 @@ S.add({ id: 'favor_back', kind: 'favor', w: 4, cd: 1, when: (x) => (x.G.favors |
     else { g.flags.levyPaid = 2; say(`A warning from ${cn(m)}`, `${npc(m, `Somebody is planning something for you. Tonight. Keep the lamp low and the door shut.`)}`, art(m, 'ok')); }
     f.p = clamp(f.p + 6, -100, 100); return true;
   } });
-S.add({ id: 'join_ask', kind: 'favor', w: 1.3, cd: 5, when: (x) => x.al.length < 6 && P.live().some((f) => f.id !== 'gate' && f.members.length > 2 && f.p > 5),
+S.add({ id: 'join_ask', kind: 'favor', door: true, w: 1.3, cd: 5, when: (x) => x.al.length < 6 && P.live().some((f) => f.id !== 'gate' && f.members.length > 2 && f.p > 5),
   run(x) {
     const f = pick(P.live().filter((q) => q.id !== 'gate' && q.members.length > 2 && q.p > 5)), m = pickMember(f); if (!m) return false;
     const why = pick(['I cannot stay where I am. I will not say why.', 'They want me to do something I will not do.', 'My people are going hungry and I cannot watch it.', 'I would rather be where I am trusted.']);
@@ -303,17 +303,17 @@ S.add({ id: 'join_ask', kind: 'favor', w: 1.3, cd: 5, when: (x) => x.al.length <
 
 /* ---------- everyday Nigerian moments ---------- */
 function ng(id, kind, w, build, when) {
-  S.add({ id: 'ng_' + id, kind, w, cd: 4, when, cast: { A: (s) => s.mood > 15, B: (s, x, o) => s.id !== o.A.id },
+  S.add({ id: 'ng_' + id, kind, w, cd: 4, door: kind === 'visitor', when, cast: { A: (s) => s.mood > 15, B: (s, x, o) => s.id !== o.A.id },
     run(x, cs) { const r = build(cs.A, cs.B, x); if (!r) return false; ask(r.title, r.text, r.choices, portrait(cs.A)); return true; } });
 }
-ng('nepa', 'humor', 1.8, (A, B) => ({ title: 'Light!', text: `A shout from the stairwell: <b>"NEPA don bring light!"</b> Every phone in the building lunges for a socket. For six minutes the bulbs glow, and the corridor erupts.\n\n${speak(A, `Oga! Plug the radio first! The radio!`)}`, choices: [
-  { label: 'Charge the radio first', fn() { all(2); return `<i>The radio gets four bars of battery. Nobody forgives you for the phones.</i>`; } },
-  { label: 'Let everyone charge a phone', fn() { all(4); bond(A, B, 3, -1); return `<i>Messages appear, in a flood. Some of them are the worst news. Some are the best. Nobody speaks for a while.</i>`; } },
-  { label: 'Cook on the hot plate', fn() { H().add('meal', 1); all(2); return `<i>A real meal, in six minutes. It tastes of electricity and relief.</i>`; } }] }));
-ng('whatsapp', 'humor', 1.5, (A) => ({ title: 'A forwarded message', text: `A phone on 2% finds one bar of network and shudders out a message. <i>"URGENT! SHARE TO 10 GROUPS. Army convoy reaches Bwari tomorrow. Do not leave your houses. Forwarded many times."</i>\n\n${speak(A, `Is this true? It says forwarded many times. That means it is true, abi?`)}`, choices: [
-  { label: 'Believe it and tell everyone', fn() { all(3); (G().newsLog = G().newsLog || []).unshift({ d: G().day, t: 'A forwarded message claims an army convoy reaches Bwari tomorrow. (unverified)' }); return `<i>Hope runs through the shelter like a fever. It is a bit hard to stop.</i>`; } },
-  { label: 'Say "forwarded many times" means nothing', fn() { all(-1); trust(A, 2); return `<i>${first(A)} sighs. "My aunt shares this kind of thing too."</i>`; } },
-  { label: 'Delete it', fn() { return `<i>Someone, somewhere, will not.</i>`; } }] }));
+ng('batteries', 'visitor', 1.3, (A) => ({ title: 'Batteries', text: `A boy with a tin box appears at the barricade. <b>"Batteries, Oga. Four. They still hold something."</b>\n\n${speak(A, `If the radio is the only thing that tells us anything, that is worth a meal.`)}`, choices: [
+  { label: 'Trade 2 food for them', off: H().inv('food') < 2 || !G().build.radio, why: !G().build.radio ? 'You have no radio to put them in.' : 'Needs 2 food.', fn() { H().add('food', -2); const b = C.World.bulletin('radio'); (G().newsLog = G().newsLog || []).unshift({ d: G().day, t: b.text }); G().newsLog.length = Math.min(G().newsLog.length, 6); all(2); return `<i>The radio lives a little longer. Through the static, a flat voice: "${b.text}"</i>`; } },
+  { label: 'Haggle', off: !G().build.radio, why: 'You have no radio to put them in.', fn() { if (chance(0.5)) { H().add('food', -1); all(2); return `<i>You win. One meal, four batteries.</i>`; } return `<i>The boy shrugs and closes the tin.</i>`; } },
+  { label: 'Send him away', fn() { return `<i>He is gone before you finish the thought.</i>`; } }] }));
+ng('paper_news', 'world', 1.5, (A) => ({ title: 'A news sheet', text: `Somebody has been copying out the news by hand: one sheet, passed from block to block, a corner torn off at each stop.\n\n<i>${pick(C.Campus.NEWS)}</i>\n\n${speak(A, `Do you believe it? It has been copied so many times.`)}`, choices: [
+  { label: 'Read it aloud to everyone', fn() { all(chance(0.5) ? 2 : -2); return `<i>Everyone listens. Nobody is sure what they just heard.</i>`; } },
+  { label: 'Keep it for later', fn() { return `<i>You fold it into your pocket, as if it might be worth something one day.</i>`; } },
+  { label: 'Burn it for the fire', fn() { H().add('wood', 1); return `<i>It burns for about a minute. It is the warmest news you have had.</i>`; } }] }));
 ng('prayer_warriors', 'camp', 1.4, (A) => ({ title: 'Midnight prayers', text: `At midnight, from the next hostel, a loud, rhythmic, joyful voice: <b>"Every power assigned against us... FIRE!"</b> Something metal is being struck in time.\n\n${speak(A, `They are praying for the whole campus. Or for themselves. Or at the bandits. Hard to tell.`)}`, choices: [
   { label: 'Join in, quietly', fn() { all(3); trust(A, 2); return `<i>You find you know the words. Your people find they do too.</i>`; } },
   { label: 'Ask them to be quieter', fn() { all(-1); return `<i>You cannot tell whether the yelling got louder, or you imagined it.</i>`; } },
@@ -339,7 +339,7 @@ ng('japa', 'camp', 1.4, (A, B) => ({ title: 'Japa dreams', text: `${first(A)} an
   { label: 'Say the country needs people who stay', fn() { all(-1); return `<i>Nobody has an answer. Everybody has a view.</i>`; } }] }), (x) => x.al.length >= 2);
 ng('owambe', 'humor', 1.4, (A) => ({ title: 'A small owambe', text: `${first(A)} has found two cups of rice, a tin of tomato and one remaining Maggi cube, and has declared the evening an <b>owambe</b>.\n\n${speak(A, `Today we are celebrating. I do not know what. We will decide later.`)}`, choices: [
   { label: 'Throw the party (2 food)', off: H().inv('food') < 2, fn() { H().add('food', -2); all(7); trust(A, 4); return `<i>Someone beats a bucket in perfect time. Somebody does the shoulder dance with a sheet around their waist. For two hours the war stands outside, respectfully.</i>`; } },
-  { label: 'A quiet one, no food', fn() { all(3); return `<i>Music, from somebody's phone, low. It counts.</i>`; } },
+  { label: 'A quiet one, no food', fn() { all(3); return `<i>Somebody hums, low. It counts.</i>`; } },
   { label: 'Not now', fn() { all(-2); trust(A, -2); return `<i>The tomato goes back in the tin.</i>`; } }] }));
 ng('proverb', 'camp', 1.2, (A) => ({ title: 'An old saying', text: `${first(A)} says it flatly, to nobody:\n\n${speak(A, pick(['When two elephants fight, it is the grass that suffers.', 'A man who has no enemies has not told the truth.', 'The river that forgets its source will dry up.', 'However far the stream flows, it never forgets its source.']))}\n\n<i>The room takes it in, each in their own way.</i>`, choices: [
   { label: 'Say it is a lesson for us', fn() { all(2); trust(A, 3); return `<i>${first(A)} looks pleased, and a little surprised to be understood.</i>`; } },
@@ -387,7 +387,7 @@ L.egg = function () {
   ask('A note, folded small', EGG_NOTE.join('\n\n') + extra, [{ label: 'Fold it back' }]); H().flush();
 };
 S.add({ id: 'scratched', kind: 'camp', w: 0.7, cd: 99, once: true, when: (x) => x.day >= 6,
-  run() { ask('Scratched into the bunk', `Under the frame of the bunk, scratched with a key, small and careful, as if by someone who did not want to be seen doing it:\n\n<b>3 · 2 · 1</b>\n<i>knock on the truth</i>\n\nBeneath it, a tiny drawing of a shield.`, [{ label: 'Look closer' }, { label: 'Pretend you did not see it' }]); } });
+  run() { ask('Scratched into the bunk', `Beside the tally of days on the wall, scratched with a key, small and careful, as if by someone who did not want to be seen doing it:\n\n<b>3 · 2 · 1</b>\n<i>knock on the days</i>\n\nBeneath it, a tiny drawing of a hand.`, [{ label: 'Look closer' }, { label: 'Pretend you did not see it' }]); } });
 
 C.Life = L;
 if (typeof module !== 'undefined') module.exports = L;

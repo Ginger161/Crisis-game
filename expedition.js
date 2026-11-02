@@ -16,8 +16,9 @@ const usable = () => typeof document !== 'undefined' && document.createElementNS
 function ensureRoot() {
   if (X.root) return;
   X.root = document.createElement('div'); X.root.className = 'xwrap';
-  X.root.innerHTML = '<div class="xsvg"></div><button class="xsneak" aria-pressed="false">🤫 Sneak</button><div class="xnoise" title="Noise"><i></i></div><div class="xhint"></div>';
+  X.root.innerHTML = '<div class="xsvg"></div><button class="xsneak" aria-pressed="false">🤫 Sneak</button><button class="xhole">🕓 Hole up</button><div class="xnoise" title="Noise"><i></i></div><div class="xhint"></div>';
   X.root.addEventListener('pointerdown', onTap);
+  X.root.querySelector('.xhole').addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); if (X.hooks.holeUp && !(X.hooks.modalOpen && X.hooks.modalOpen())) X.hooks.holeUp(); });
   X.root.querySelector('.xsneak').addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); if (!X.st) return; X.st.p.sneak = !X.st.p.sneak; const b = e.currentTarget; b.classList.toggle('on', X.st.p.sneak); b.setAttribute('aria-pressed', X.st.p.sneak); hint(X.st.p.sneak ? 'Sneaking: slower, quieter.' : 'Walking normally.'); });
 }
 function hint(t) { if (!X.root) return; const h = X.root.querySelector('.xhint'); h.textContent = t; h.classList.add('on'); clearTimeout(X.ht); X.ht = setTimeout(() => h.classList.remove('on'), 2600); }
@@ -56,7 +57,7 @@ function build(e, info) {
   X.st = { W, nseg, R, svg, wg: svg.querySelector('#xwg'), actors: svg.querySelector('#xact'), dark: svg.querySelector('#xdark'), flash: svg.querySelector('#xflash'), spots, hides, pats: [], npcs: [], cam: 0, t: performance.now(), e, info, tick: 0 };
   const S = X.st; const sneakBtn = X.root.querySelector('.xsneak'); sneakBtn.classList.remove('on');
   const pl = mkEn(info.sp, 30, 'idle', 1, info.state, {}); pl.sneak = false; pl.target = null; pl.busy = false; pl.hidden = false; pl.walked = 0; S.p = pl;
-  const nPat = (info.danger ? 1 : 0) + (risk >= 4 ? 1 : 0) + (risk >= 3 && R() < 0.5 ? 1 : 0) + (R() < 0.25 ? 1 : 0);
+  const nPat = (info.danger ? 1 : 0) + (info.day ? 1 : 0) + (risk >= 4 ? 1 : 0) + (risk >= 3 && R() < 0.5 ? 1 : 0) + (R() < 0.25 ? 1 : 0);
   const types = ['bandit_soldier', 'bandit_heavy', 'bandit_scout', 'bandit_kid'];
   for (let i = 0; i < nPat; i++) { const sp = SP().gen(types[Math.floor(R() * types.length)], Math.floor(R() * 1e6)); const r0 = SEG * 0.7 + R() * 40, r1 = W - 24 - R() * 40; S.pats.push(mkEn(sp, r0 + R() * (r1 - r0), 'walk', R() < 0.5 ? 1 : -1, 'ok', { cone: true, range: 44, speed: 12 + R() * 4, r0, r1, pause: 0, cool: 0 })); }
   if (info.hasGroup) {
@@ -105,7 +106,7 @@ function tick() {
   if (e.dead) { setKind(p, 'dead'); p.state = 'dead'; redraw(p); return; }
   p.state = X.hooks.stateNow ? X.hooks.stateNow() : p.state;
   if (p.target != null && !p.busy) {
-    const dx = p.target - p.x, spd = p.sneak ? 13 : 25, step = spd * dt;
+    const dx = p.target - p.x, spd = p.sneak ? 13 : 25, step = spd * dt; e.sneak = !!p.sneak; e.hours = Math.max(0, e.hours - Math.min(Math.abs(dx), step) * (p.sneak ? 1 / 110 : 1 / 300));
     if (Math.abs(dx) <= step) { p.x = p.target; p.target = null; const f = p.then; p.then = null; setKind(p, 'idle'); if (f) f(); }
     else { p.x += Math.sign(dx) * step; p.dir = Math.sign(dx); p.walked += step; setKind(p, p.sneak ? 'sneak' : 'walk'); if (!p.sneak && p.walked > 55) { p.walked = 0; e.noise += 1; } else if (p.sneak && p.walked > 170) { p.walked = 0; e.noise += 1; } }
   } else if (!p.busy && p.kind !== 'idle' && !p.hidden) setKind(p, 'idle');

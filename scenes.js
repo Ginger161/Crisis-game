@@ -58,7 +58,7 @@ const place = (sp, kind, x, g, o) => SD().place(sp, kind, x, g, o);
    Pass {backwards:true} only for a dramatic moment (someone backing away from danger). */
 const walker = (sp, kind, x, g, o) => { o = o || {}; const st = `--d:${o.dist || 60}px;--t:${o.secs || 14}s`; return `<g class="wR" style="${st}">${place(sp, kind, x, g, Object.assign({}, o, { dir: 1 }))}</g><g class="wL" style="${st}">${place(sp, kind, x, g, Object.assign({}, o, { dir: o.backwards ? 1 : -1 }))}</g>`; };
 const chair = (b, x, g, dir) => { const R = b.R, d = dir === -1 ? -1 : 1; const bx = d === 1 ? x - 6 : x + 5; R(x - 5, g - 9, 10, 2, PAL.wood); R(bx, g - 19, 2, 12, PAL.woodD); R(x - 4, g - 7, 1, 7, PAL.woodD); R(x + 3, g - 7, 1, 7, PAL.woodD); };
-const fan = (b, x, y) => { b.R(x, 8, 1, y - 8, PAL.woodD); b.add(`<g class="blink"><rect x="${x - 7}" y="${y}" width="15" height="1" fill="#2a2a2a"/></g>`); };
+const fan = (b, x, y) => { b.R(x, 8, 1, y - 8, PAL.woodD); b.R(x - 7, y, 15, 1, '#2a2a2a'); };
 
 /* where each pose happens in the shelter: bunks to lie on, chairs to sit on, a mat to kneel on, floor to stand on */
 function layout(ppl, bd) {
@@ -93,7 +93,8 @@ function shelter(m) {
   R(12, 30, 24, FLOOR - 30, '#5a3f2a'); R(14, 32, 20, FLOOR - 32, '#6a4a32'); R(32, 54, 2, 2, '#c8a050');
   if (bd.barricade) { for (let i = 0; i < 20; i++) { R(12 + i, 36 + i, 3, 3, PAL.wood); R(34 - i, 36 + i, 3, 3, PAL.woodD); } R(10, 60, 28, 4, PAL.wood); if (bd.barricade > 1) R(10, 52, 28, 3, PAL.woodD); if (bd.barricade > 2) { R(10, 44, 28, 3, PAL.wood); R(8, 66, 32, 5, PAL.woodD); } }
   /* crest poster */
-  b.add(`<g transform="translate(46 8) scale(.55)">${emblemRects(0, 0, 1)}</g>`);
+  /* the wall where the days are counted: five-bar tally marks */
+  for (let k = 0; k < 6; k++) { const x0 = 46 + (k % 3) * 9, y0 = 10 + Math.floor(k / 3) * 11; for (let q = 0; q < 4; q++) R(x0 + q * 2, y0, 1, 8, '#5a4a3a'); R(x0 - 1, y0 + 6, 8, 1, '#5a4a3a'); }
   /* the group's cupboard: a chest, or a proper cupboard once you have built a bigger one */
   if (bd.cupboard) { R(40, 48, 22, 28, '#5a3f2a'); R(40, 48, 22, 3, '#7a5a3c'); R(50, 51, 2, 25, '#2a1d14'); R(46, 62, 2, 3, '#c8a050'); R(54, 62, 2, 3, '#c8a050'); R(41, 54, 8, 1, '#3a2a1c'); R(53, 54, 8, 1, '#3a2a1c'); }
   else { R(42, 66, 16, 10, '#5a3f2a'); R(42, 64, 16, 3, '#7a5a3c'); R(49, 66, 2, 10, '#3a2a1c'); R(49, 69, 2, 2, '#c8a050'); R(42, 73, 16, 1, '#3a2a1c'); }
@@ -152,7 +153,6 @@ function quad(model) {
   for (let i = 0; i < 6; i++) R(30 + i * 14, 32, 3, 30, PAL.orange);
   for (let r = 0; r < 2; r++) for (let i = 0; i < 5; i++) { const lit = (i * 3 + r * 5 + (model.seed || 0)) % 4 === 0; R(36 + i * 14, 36 + r * 12, 7, 8, lit ? PAL.amber : '#26242e', lit ? 'class="flick"' : ''); R(36 + i * 14, 40 + r * 12, 7, 1, PAL.cream); }
   R(62, 48, 11, 14, '#2a2024');
-  b.add(`<g transform="translate(66 6) scale(.5)">${emblemRects(0, 0, 1)}</g>`);
   /* second block with orange roof */
   R(114, 34, 32, 28, PAL.cream); R(112, 30, 36, 5, PAL.orange); R(114, 35, 32, 1, PAL.orangeD);
   for (let i = 0; i < 3; i++) { R(118 + i * 9, 40, 6, 7, '#26242e'); R(118 + i * 9, 51, 6, 7, i === 1 ? PAL.amber : '#26242e', i === 1 ? 'class="flick"' : ''); }
@@ -209,11 +209,11 @@ function kindProps(b, kind, name) {
     case 'library':
       for (let i = 0; i < 3; i++) { const x = 12 + i * 22; R(x, 24, 16, FLOOR - 24, PAL.woodD); for (let r = 0; r < 4; r++) { R(x + 1, 28 + r * 12, 14, 1, PAL.wood); for (let k = 0; k < 6; k++) R(x + 2 + k * 2, 22 + r * 12 + 6 - (k % 3), 1, 5 + (k % 3), ['#7a3f35', '#2d5fa0', '#4d5a4a', '#8a7a5a'][(k + r) % 4]); } }
       for (let i = 0; i < 2; i++) { const x = 84 + i * 30; R(x, 62, 22, 3, PAL.wood); R(x + 2, 65, 2, FLOOR - 65, PAL.woodD); R(x + 18, 65, 2, FLOOR - 65, PAL.woodD); R(x + 5, 50, 12, 10, '#16120f'); R(x + 6, 51, 10, 8, '#0e1a22'); R(x + 9, 60, 4, 2, '#2a2a2e'); }
-      R(140, 30, 10, 46, '#2a2e34'); for (let i = 0; i < 6; i++) R(142, 34 + i * 6, 6, 2, '#16190c'), R(146, 35 + i * 6, 1, 1, '#60d060', 'class="blink"'); break;
+      R(140, 30, 10, 46, '#2a2e34'); for (let i = 0; i < 6; i++) R(142, 34 + i * 6, 6, 2, '#16190c'), R(146, 35 + i * 6, 1, 1, '#1c2a1c'); break;
     case 'admin':
       R(30, 62, 40, 3, PAL.wood); R(32, 65, 3, FLOOR - 65, PAL.woodD); R(64, 65, 3, FLOOR - 65, PAL.woodD); R(44, 58, 14, 4, '#2a2a2e');
       R(96, 36, 16, 40, PAL.steel); R(96, 36, 16, 2, '#9aa2aa'); for (let i = 0; i < 3; i++) R(98, 42 + i * 10, 12, 1, '#4a525a');
-      b.add(`<g transform="translate(120 20) scale(.4)">${emblemRects(0, 0, 1)}</g>`); break;
+      break;
   }
 }
 function exteriorProps(b, kind) {
@@ -264,6 +264,13 @@ function location(o) {
 }
 
 function roomInner(kind) { ensureCSS(); const b = mk(); if (kind === 'field' || kind === 'gate') exteriorProps(b, kind); else { room(b, {}); kindProps(b, kind, ''); } return b.get(); }
-C.Scenes = { shelter, quad, location, walker, emblem, emblemRects, layout, HOT, FLOOR, PAL, ensureCSS, roomInner, GLOWDEF };
+/* the game's own mark: a candle inside a broken ring, a C */
+function logo(sz) {
+  let o = ''; const N = 24, cx = 11.5, cy = 11.5;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy), ang = Math.atan2(dy, dx); if (d >= 8.2 && d <= 11.4 && Math.abs(ang) > 0.62) o += `<rect x="${x}" y="${y}" width="1" height="1" fill="${(x * 3 + y * 5) % 7 === 0 ? '#c58f66' : '#f6b37f'}"/>`; }
+  o += '<rect x="8" y="18" width="8" height="1" fill="#8f6648"/><rect x="10" y="10" width="4" height="8" fill="#f2ebcf"/><rect x="10" y="10" width="4" height="1" fill="#d0cab2"/><rect x="11" y="8" width="1" height="2" fill="#2a2a2a"/><rect x="11" y="3" width="2" height="1" fill="#ffd070"/><rect x="10" y="4" width="4" height="3" fill="#ffd070"/><rect x="11" y="7" width="2" height="1" fill="#d9822b"/><rect x="11" y="5" width="2" height="1" fill="#fff3b0"/>';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${24 * sz}" height="${24 * sz}" shape-rendering="crispEdges">${o}</svg>`;
+}
+C.Scenes = { logo, shelter, quad, location, walker, emblem, emblemRects, layout, HOT, FLOOR, PAL, ensureCSS, roomInner, GLOWDEF };
 if (typeof module !== 'undefined') module.exports = C.Scenes;
 })(typeof window !== 'undefined' ? window : globalThis);

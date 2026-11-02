@@ -11,7 +11,7 @@ const all = (n) => H().moodAll(n), mood = (s, n) => H().mood(s, n);
 const fac = (id) => P.fac(id);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const NAME = P.NAME, itemText = P.itemText;
-const leaderLine = (f, text) => { const l = P.leaderOf(f); if (!l) return `<i>${text}</i>`; return `<b>${l.name}</b> “${V.say(l.voice, text, { id: l.id })}”`; };
+const leaderLine = (f, text) => { const l = P.leaderOf(f); if (!l) return `<i>${text}</i>`; return S.bubble(l.name, 'you', V.say(l.voice, text, { id: l.id })); };
 
 /* ---------- the outside world ---------- */
 const W = {
@@ -24,7 +24,7 @@ const W = {
   },
   bulletin(source) {
     const G = H().G, o = G.out, left = Math.max(1, G.rescueDay - G.day);
-    const sure = { radio: 0.85, phone: 0.65, rumor: 0.45 }[source] || 0.6; const lie = Math.random() > sure;
+    const sure = { radio: 0.85, paper: 0.6, rumor: 0.45 }[source] || 0.6; const lie = Math.random() > sure;
     const est = lie ? left + rnd(5, 14) * (chance(0.5) ? 1 : -1) : left + rnd(-2, 3);
     const pool = [];
     if (o.forces > 55) pool.push(`Security forces are said to be gathering at the edge of the district. A source suggests they could move in about ${Math.max(2, est)} days.`);
@@ -41,7 +41,7 @@ const W = {
 C.World = W;
 
 /* ---------- envoys: the visits that make the map feel alive ---------- */
-S.add({ id: 'envoy', kind: 'politics', w: (x) => 5, cd: 0, when: (x) => (x.G.envoys || []).length > 0,
+S.add({ id: 'envoy', kind: 'politics', door: true, w: (x) => 5, cd: 0, when: (x) => (x.G.envoys || []).length > 0,
   run(x) {
     const G = x.G; const e = G.envoys.shift(); const f = fac(e.fid); if (!f || f.status !== 'active') return false; f.met = true;
     const art = P.faceArt(f); const lead = (t) => leaderLine(f, t);
@@ -146,11 +146,11 @@ S.add({ id: 'council', kind: 'politics', w: 2, cd: 6, when: (x) => x.G.zones && 
   } });
 
 /* ---------- a defector from a failing faction ---------- */
-S.add({ id: 'defector', kind: 'politics', w: 2.2, cd: 6, when: (x) => P.live().some((f) => f.morale < 38 && f.members.length > 2 && f.p > -20) && x.al.length < 6,
+S.add({ id: 'defector', kind: 'politics', door: true, w: 2.2, cd: 6, when: (x) => P.live().some((f) => f.morale < 38 && f.members.length > 2 && f.p > -20) && x.al.length < 6,
   run(x) {
     const G = x.G; const f = P.live().filter((q) => q.morale < 38 && q.members.length > 2 && q.p > -20)[0]; const cid = pick(f.members.filter((m) => m !== f.leader)); if (!cid) return false; const c = K().by[cid];
     const sp = P.face(cid);
-    ask(`${c.name} at the barricade`, `<b>${c.name}</b> “${V.say(c.voice, `I am from ${f.name}. They are finished. The food is gone and the leader is losing his grip. I can work. I can carry. I am asking, please.`, { id: cid })}”\n\n<i>${c.bio}</i>`, [
+    ask(`${c.name} at the barricade`, `${S.bubble(c.name, 'you', V.say(c.voice, `I am from ${f.name}. They are finished. The food is gone and the leader is losing his grip. I can work. I can carry. I am asking, please.`, { id: cid }))}\n\n<i>${c.bio}</i>`, [
       { label: `Take ${c.name} in`, fn() { f.members = f.members.filter((m) => m !== cid); const s = H().joinNamed(cid); if (s) { s.trust = 15; f.p = clamp(f.p - 6, -100, 100); H().log(`${c.name} joined from ${f.name}.`, 'good'); return `<i>${c.name} comes in without a word. It is not clear who is more relieved.</i>`; } return ''; } },
       { label: 'Send them back', fn() { f.p = clamp(f.p + 4, -100, 100); return `<i>${c.name} turns without arguing. Hope is expensive.</i>`; } }], { sp, state: 'hungry' });
   } });
@@ -158,10 +158,10 @@ S.add({ id: 'defector', kind: 'politics', w: 2.2, cd: 6, when: (x) => P.live().s
 /* ---------- the news ---------- */
 S.add({ id: 'news_rumor', kind: 'world', w: (x) => (x.hasRadio ? 3 : 1.2), cd: 2,
   run(x) {
-    const G = x.G; const src = x.hasRadio ? 'radio' : chance(0.5) ? 'phone' : 'rumor'; const fresh = (G.rumors || []).filter((r) => G.day - r.d <= 3 && !r.told);
+    const G = x.G; const src = x.hasRadio ? 'radio' : chance(0.5) ? 'paper' : 'rumor'; const fresh = (G.rumors || []).filter((r) => G.day - r.d <= 3 && !r.told);
     if (fresh.length && chance(0.7)) { const r = pick(fresh); r.told = 1; const lie = Math.random() > r.sure; const t = lie ? r.t.replace(/hit |took |broke /, 'were rumoured to have ') : r.t; G.newsLog = G.newsLog || []; G.newsLog.unshift({ d: G.day, t: `${t}${lie ? ' (unconfirmed)' : ''}` }); G.newsLog.length = Math.min(G.newsLog.length, 6); say(src === 'radio' ? 'Over the radio' : src === 'phone' ? 'A cracked phone' : 'Word on the stairs', `<i>${src === 'radio' ? 'Between the static, a flat voice:' : 'Somebody whispers, and the whisper travels:'}</i>\n\n“${t}”`); return true; }
     const b = C.World.bulletin(src); G.newsLog = G.newsLog || []; G.newsLog.unshift({ d: G.day, t: b.text }); G.newsLog.length = Math.min(G.newsLog.length, 6);
-    say(src === 'radio' ? 'On the radio' : src === 'phone' ? 'A dying phone' : 'A rumour', `<i>${src === 'radio' ? 'The static clears for a moment:' : 'It comes second-hand, third-hand, from somebody who heard it from someone:'}</i>\n\n“${b.text}”\n\n<i>${src === 'radio' ? 'Radios can lie.' : 'You have no way to check it.'}</i>`);
+    say(src === 'radio' ? 'On the radio' : src === 'paper' ? 'A news sheet' : 'A rumour', `<i>${src === 'radio' ? 'The static clears for a moment:' : 'It comes second-hand, third-hand, from somebody who heard it from someone:'}</i>\n\n“${b.text}”\n\n<i>${src === 'radio' ? 'Radios can lie.' : 'You have no way to check it.'}</i>`);
     all(b.text.includes('days') ? 3 : -1); return true;
   } });
 

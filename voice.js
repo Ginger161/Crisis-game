@@ -57,8 +57,9 @@ function pidginize(text, r, heat) {
   return t;
 }
 function mood(text) { if (/\b(yes|ok|okay|fine|alright|agree|sure|fair|good|right)\b/i.test(text) && !/[!]/.test(text)) return 'agree'; if (/!/.test(text)) return 'exclaim'; if (/\b(sorry|lost|dead|died|gone|miss|cry|grave|funeral)\b/i.test(text)) return 'sorrow'; if (/\b(thank|thanks)\b/i.test(text)) return 'thanks'; if (/\b(please)\b/i.test(text)) return 'please'; if (/\b(God|pray|Lord)\b/.test(text)) return 'god'; if (/\b(friend|brother|sister|love)\b/i.test(text)) return 'warm'; return 'plain'; }
+const ENGLISH_ONLY = true;   // the Pidgin and dialect layer is switched off; set false to bring it back
 function say(voice, text, opts) {
-  opts = opts || {}; if (!voice) return text;
+  opts = opts || {}; if (!voice || ENGLISH_ONLY) return text;
   const r = rng(hash((opts.id || '') + '|' + text));
   let t = text, heat = opts.heat != null ? opts.heat : 0.5;
   if (voice.base === 'pg') t = pidginize(t, r, 1);

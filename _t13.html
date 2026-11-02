@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}iframe{border:0;width:390px;height:560px;display:block}pre{margin:0;color:#8f8;font:10px monospace;white-space:pre-wrap;width:490px}</style></head><body>
+<iframe id="f" src="index.html"></iframe><pre id="log"></pre>
+<script>
+const out=[];const L=m=>out.push(m);const f=document.getElementById('f');const wait=ms=>new Promise(r=>setTimeout(r,ms));
+f.onload=()=>setTimeout(run,300);
+async function run(){try{
+const w=f.contentWindow,d=f.contentDocument;const q=s=>d.querySelector(s),qa=s=>[...d.querySelectorAll(s)];
+w.addEventListener('error',e=>L('PAGE ERROR: '+e.message+' @'+(e.filename||'').split('/').pop()+':'+e.lineno));
+const modalOpen=()=>!q('#modal').classList.contains('hidden');
+q('[data-a=new]').click();let n=0;while(modalOpen()&&n++<40){const b=qa('#modal .btns button').find(x=>/Continue/.test(x.textContent))||q('#modal .btns button');if(!b)break;b.click();}
+const C=w.__crisis,G=C.G;G.speed=0;w.Crisis.UI.toast=()=>{};
+const H=w.Crisis.House;const SIM=w.Crisis.Sim;const me=G.S.find(s=>s.id===G.sel);
+me.f=0;me.x=170;me.act=null;me.up=0;await wait(1500);
+L('hit rectangles for stations left in the picture: '+qa('.house rect[data-st]').length+' (only the hidden tally wall)');
+const calls=[];const t1=H.hooks.tapFloor,t2=H.hooks.tapStation,t3=H.hooks.tapPerson;
+H.hooks.tapFloor=(f,x)=>calls.push('walk f'+f+' x'+Math.round(x));H.hooks.tapStation=id=>calls.push('USE '+id);H.hooks.tapPerson=id=>calls.push('person '+id);
+const svg=q('.house svg');const m=svg.getScreenCTM();const g=H.geom();
+const tap=(sx,sy)=>{const el=d.elementFromPoint(sx,sy);const ev=new w.MouseEvent('pointerdown',{clientX:sx,clientY:sy,bubbles:true,cancelable:true});(el||q('.house')).dispatchEvent(ev);return el;};
+const S=SIM.stations();
+const pts=[['the stove (a build site)','stove'],['the workbench','bench'],['the cupboard','cupboard'],['the table','table']];
+for(const [name,id] of pts){const st=S[id];const pt=svg.createSVGPoint();pt.x=st.x;pt.y=g.yb(st.f)-10;const s=pt.matrixTransform(m);
+  const onscreen=s.x>0&&s.x<390&&s.y>40&&s.y<330;calls.length=0;if(onscreen){tap(s.x,s.y);}L('tap on '+name+' ('+(onscreen?'on screen':'off screen')+'): '+(calls.join(', ')||'nothing'));}
+const chips=qa('.hchip');L('floating buttons near you: '+chips.length+' -> '+chips.map(c=>c.dataset.st).join(', ')+' | sizes '+chips.slice(0,2).map(c=>Math.round(c.getBoundingClientRect().width)+'x'+Math.round(c.getBoundingClientRect().height)).join(','));
+if(chips.length){calls.length=0;const r=chips[0].getBoundingClientRect();tap(r.left+r.width/2,r.top+r.height/2);L('tap on the '+chips[0].dataset.st+' button: '+calls.join(', '));}
+const p2=G.S.find(s=>s.id!==G.sel&&s.alive);SIM.abort(p2);p2.q=[];p2.f=0;p2.x=100;p2.up=0;p2.at=null;p2.idleUntil=1e9;
+SIM.order(p2.id,{k:'walk',pt:{f:2,x:60}},true);let guard=0;while(!(SIM.posOf(p2,0).depth>0.9)&&guard++<200)SIM.tick();
+H.draw(performance.now());H.draw(performance.now()+16);
+const aa=q('.house [data-pid="'+p2.id+'"]');const pp=SIM.posOf(p2,0);
+L('mid-stairs (floor '+pp.f.toFixed(2)+', depth '+(pp.depth||0).toFixed(2)+'): layer '+aa.parentNode.id+' (hactb = behind the handrail) | '+aa.getAttribute('transform')+' | '+aa.style.filter);
+SIM.abort(p2);p2.f=0;p2.x=60;p2.up=0;p2.act=null;H.draw(performance.now()+32);const bb=q('.house [data-pid="'+p2.id+'"]');L('back on the floor: layer '+bb.parentNode.id+' | '+bb.getAttribute('transform')+' | filter "'+bb.style.filter+'"');
+const order=[...q('.house svg').children].map(c=>c.id||c.tagName).join(' > ');L('layer order: '+order);
+L('errors '+((w.__errors||[]).length)+(w.__errors&&w.__errors[0]?' '+String(w.__errors[0]).slice(0,200):''));
+}catch(e){L('TEST ERROR: '+e.message+' @'+(e.stack||'').split('\n')[1])}
+document.getElementById('log').textContent=out.join('\n');}
+</script></body></html>

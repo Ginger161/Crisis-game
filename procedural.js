@@ -80,10 +80,10 @@ reg('smell', 'horror', 1.2, (A) => ({ title: 'The sweet smell', text: `A sweet, 
   { label: 'Seal the room', fn() { H().add('cloth', -1); all(-1); return `<i>It stays shut. The smell stays in the walls.</i>`; } },
   { label: 'Open it and look', fn() { all(-5); mood(A, -4); return `<i>You will not describe what is in there. Somebody will say a prayer. Somebody will be sick.</i>`; } },
   { label: 'Burn something to cover it', fn() { H().add('wood', -1); all(-1); return `<i>The smoke fills the corridor. Nobody mentions the smell again. Nobody forgets it.</i>`; } }] }));
-reg('phone', 'horror', 1.1, (A) => ({ title: 'A dead phone, lit', text: `${first(A)}'s phone has been dead for a week. Tonight it lights up. One notification, from a contact saved as <b>${pick(['Mama', 'Daddy', 'My Love', 'Chinedu (Roommate)', 'Pastor', 'Sister Bisi'])}</b>.\n\n${speak(A, `It is not charged. How is it lit? Oga, how is it lit?`)}`, choices: [
-  { label: 'Tell them to read it', fn() { mood(A, -5); trust(A, 4); return `<i>It says one word. Not a word you would expect. ${first(A)} turns the phone face-down and will not touch it again.</i>`; } },
-  { label: 'Take the phone away', fn() { mood(A, 2); return `<i>The screen goes dark in your hand. Cold, like a stone from a river.</i>`; } },
-  { label: 'Tell them it is only residual charge', fn() { mood(A, -2); trust(A, -2); return `${speak(A, `Yes. That must be it.`)}`; } }] }));
+reg('watch', 'horror', 1.1, (A) => ({ title: 'A watch that was stopped', text: `${first(A)} has worn a stopped watch since the first night. Tonight, at three in the morning, it is ticking.\n\n${speak(A, `It has no battery. It is a wind-up. I did not wind it. Oga, I did not wind it.`)}`, choices: [
+  { label: 'Hold it to your ear', fn() { mood(A, -4); trust(A, 4); return `<i>It ticks. It ticks. Then it stops, in the middle of a second. Neither of you says anything.</i>`; } },
+  { label: 'Take it away', fn() { mood(A, 2); return `<i>It is only metal in your palm, and cold.</i>`; } },
+  { label: 'Say they wound it in their sleep', fn() { mood(A, -2); trust(A, -2); return `${speak(A, `Yes. I must have.`)}`; } }] }));
 reg('headcount', 'horror', 1.0, (A) => ({ title: 'One too many', text: `${first(A)} counts heads at night, as they do. They count again. They count a third time and their voice goes odd.\n\n${speak(A, `We are one more than we should be.`)}`, choices: [
   { label: 'Count again yourself', fn() { all(-2); return `<i>You get the right number. ${first(A)} does not. Neither of you says it.</i>`; } },
   { label: 'Light every candle', fn() { H().add('wood', 0); all(1); return `<i>Fifteen small flames. Nothing in the corners. You do not sleep, but you are glad of the light.</i>`; } },

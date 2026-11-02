@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="style.css">
+<style>body{margin:0;background:#222;color:#f2ebcf;font:14px sans-serif}#bar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px}#st{height:calc(100vh - 44px - 64px)}#strip{height:64px;display:flex;gap:6px;padding:6px 10px;align-items:center}</style></head><body>
+<div id="bar"><span>☰</span><b id="clk"></b><span id="spd"></span></div><div id="st"></div><div id="strip"></div>
+<script src="settings.js"></script><script src="sprites.js"></script><script src="side.js"></script><script src="sim.js"></script><script src="house.js"></script>
+<script>
+const Q=new URLSearchParams(location.search); const N=+(Q.get('floors')||4), skip=+(Q.get('skip')||0), speed=+(Q.get('speed')||1);
+const names=['Chidera','Tunde','Amina','Emeka'],archs=['girl_nursing','boy_law','girl_hijab','boy_nerd'],traits=['medic','hustler','sleeper','fragile'];
+const G={t:480,floors:N,log:[],stats:{},seed:7,speed:speed,day:1,build:{barricade:+(Q.get('barr')||1),stove:1,bed:0,bucket:1,radio:1,still:0,cupboard:0,bench:0},inv:{food:8,water:9,wood:5,parts:2,cloth:2,meds:1,bandage:1,meal:3},S:[],season:'harmattan'};
+names.forEach((n,i)=>G.S.push({id:i+1,name:n,arch:archs[i],sp:Crisis.Sprites.gen(archs[i],100+i),trait:traits[i],hunger:30+i*10,thirst:25,fatigue:20+i*8,hp:100,mood:70,alive:true,pack:{}}));
+const H={G,R:Math.random,inv:k=>G.inv[k]||0,add:(k,n)=>{G.inv[k]=Math.max(0,(G.inv[k]||0)+n)},log(){},bond(){},kill(p){p.alive=false}};
+Crisis.Sim.init(H);Crisis.Sim.start(G);
+if(Q.get('order')){Crisis.Sim.order(2,{k:'build',id:'barr2'});Crisis.Sim.order(3,{k:'look',st:'win2'});Crisis.Sim.order(4,{k:'look',st:'post'})}
+for(let i=0;i<skip*60;i++)Crisis.Sim.tick();
+if(Q.get('climb')){G.S[0].idleUntil=0;Crisis.Sim.order(1,{k:'walk',pt:{f:2,x:60}},true);for(let i=0;i<+Q.get('climb');i++)Crisis.Sim.tick();}
+let sel=1;
+Crisis.House.hooks={G:()=>G,step:dt=>{Crisis.Sim.drive(dt);document.getElementById('clk').textContent='Day '+G.day+' · '+Crisis.Sim.clock(G.t)},selected:()=>sel,stateOf:p=>p.hunger>85?'starving':p.hunger>62?'hungry':'ok',
+ tapPerson:id=>{sel=id},tapStation:id=>{console.log('station',id);Crisis.Sim.order(sel,{k:'walk',st:id})},tapFloor:(f,x)=>{console.log('floor',f,x)},yard:()=>Q.get('yard')?[{id:1,sp:Crisis.Sprites.gen('refugee',5),kind:'idle',x:-26,state:'hungry'}]:[]};
+Crisis.House.attach(document.getElementById('st'),G);
+window.__G=G;
+</script></body></html>

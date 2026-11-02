@@ -40,7 +40,18 @@ function initRel() {
 
 /* ---------- speaking ---------- */
 function voiced(s, text, o) { const c = cd(s); return c ? V().say(c.voice, text, Object.assign({ id: s.cid }, o || {})) : text; }
-function speak(s, text, o) { return `<b>${first(s)}</b> “${voiced(s, text, o)}”`; }
+let CUR = null;
+/* the player IS the person they have selected. "you" in a label means that person, never an unnamed stranger */
+function avatar() { const g = H && H.G; return g && g.S ? g.S.find((x) => x.id === g.sel && x.alive) || null : null; }
+function bubble(name, to, text) {
+  const me = avatar(); const mine = me ? first(me) : null;
+  if (to === 'you') to = mine || 'you';
+  if (mine && name === mine && (!to || to === mine)) { const c = CUR && [CUR.A, CUR.B, CUR.C].filter(Boolean).find((q) => q !== me); to = c ? first(c) : 'everyone'; }
+  const tag = (n) => (mine && n === mine ? `${n} <b class="me">(you)</b>` : n);
+  return `<div class="bub"><div class="who">${tag(name)}${to ? ` <i>to</i> ${tag(to)}` : ''}</div>“${text}”</div>`;
+}
+function target(s) { const me = avatar(); const ids = [CUR && CUR.A, CUR && CUR.B, CUR && CUR.C].filter(Boolean); const o = ids.find((q) => q !== s && q !== me) || ids.find((q) => q !== s); if (o && ids.length >= 2) return first(o); return me && me !== s ? first(me) : 'everyone'; }
+function speak(s, text, o) { return bubble(first(s), (o && o.to) || target(s), voiced(s, text, o)); }
 /* beat/topic lines: '~' = narration, "quoted" = speech by s */
 function render(s, lines) {
   return lines.map((l) => {
@@ -127,6 +138,7 @@ function topicsFor(s) {
   return (c.topics || []).map((t) => ({ t, done: !!done[t.id], open: (s.trust || 0) >= t.trust }));
 }
 function talk(s) {
+  CUR = { A: s };
   const c = cd(s); if (!c) return false;
   if (s.slots < 1 || s.mood < 12) { H.say(first(s), s.mood < 12 ? render(s, [`~${first(s)} turns away. There is nothing left to say today.`]) : render(s, [`~${first(s)} is worn out. Perhaps tomorrow.`]), portrait(s)); return true; }
   const opts = topicsFor(s);
@@ -154,7 +166,7 @@ function startTopic(s, t) {
       return render(s, [`"${pick(REPLY[out])}"`]);
     }
   }));
-  H.ask(t.title, render(s, t.lines), choices, portrait(s));
+  choices.prompt = 'You say…'; H.ask(t.title, render(s, t.lines), choices, portrait(s));
   return '';
 }
 
@@ -171,8 +183,9 @@ function eligible(d, x) {
 }
 function fire(d, cs, x) {
   const G = H.G; G.dir = G.dir || { tension: 20, last: [], cool: {} };
-  let ok = true;
-  if (d.kind === 'beat') ok = runBeat(d, x); else ok = d.run(x, cs || {}) !== false;
+  let ok = true; CUR = d.kind === 'beat' ? { A: d._s } : (cs || {});
+  if (d.door && H.knock) ok = H.knock(d, cs, () => d.run(x, cs || {}));
+  else if (d.kind === 'beat') ok = runBeat(d, x); else ok = d.run(x, cs || {}) !== false;
   if (ok === false) return false;
   G.dir.cool[d.id] = G.day; G.dir.last.push(d.id); if (G.dir.last.length > 8) G.dir.last.shift();
   if (d.once) setMem('fired:' + d.id);
@@ -186,18 +199,18 @@ function chooseFrom(pool, x) {
   let r = Math.random() * items.reduce((a, b) => a + b[2], 0); for (const it of items) { if ((r -= it[2]) < 0) return it; } return items[0];
 }
 /* A morning: at least one human moment, then whatever the tension asks for. */
-function morning() {
+function morning(opts) {
   const G = H.G; G.dir = G.dir || { tension: 20, last: [], cool: {} };
   const x = ctx(); const pool = defs.concat(beatDefs());
   /* pressure from the state of the shelter */
   const starving = x.al.filter((s) => s.hunger > 85 || s.thirst > 85).length;
-  G.dir.tension = clamp(G.dir.tension * 0.82 + 6 + starving * 7 + (x.grief ? 8 : 0) + (x.tension > 70 ? 0 : 0), 0, 100);
-  const n = 2 + (chance(0.55) ? 1 : 0) + (G.day % 6 === 0 ? 1 : 0);
+  if (!(opts && opts.mixed)) G.dir.tension = clamp(G.dir.tension * 0.82 + 6 + starving * 7 + (x.grief ? 8 : 0) + (x.tension > 70 ? 0 : 0), 0, 100);
+  const n = opts && opts.n !== undefined ? opts.n : 2 + (chance(0.55) ? 1 : 0) + (G.day % 6 === 0 ? 1 : 0);
   const chosen = [];
   for (let i = 0; i < n; i++) {
     const t = G.dir.tension;
     let kinds;
-    if (i === 0) kinds = HUMAN;                                  // always one human moment first
+    if (i === 0 && !(opts && opts.mixed)) kinds = HUMAN;                                  // always one human moment first
     else if (t > 68) kinds = HUMAN.concat(['humor', 'humor', 'camp']);   // relief
     else if (t < 32) kinds = DREAD.concat(['politics', 'world']);        // the quiet is wrong; make it worse
     else kinds = HUMAN.concat(DREAD, ['politics', 'world', 'visitor']);
@@ -218,7 +231,7 @@ function tick() {
     if (a.hunger > 78 || b.hunger > 78 || a.thirst > 85 || b.thirst > 85) r.tension = clamp(r.tension + 3, 0, 100); else r.tension = clamp(r.tension - 0.8, 0, 100);
     if (r.love > 0 && ok) { H.mood(a, 1); H.mood(b, 1); }
   }
-  al.forEach((s) => { const c = cd(s); if (!c) return; s.act = pick(c.acts || ['waiting']); if (!s.trust) s.trust = s.trust || 10; });
+  al.forEach((s) => { const c = cd(s); if (!c) return; s.doing = pick(c.acts || ['waiting']); if (!s.trust) s.trust = s.trust || 10; });
 }
 /* deaths ripple through everyone */
 function onDeath(s, why) {
@@ -227,13 +240,13 @@ function onDeath(s, why) {
   G.dead = G.dead || []; G.dead.push({ cid: s.cid, name: s.name, day: G.day, sp: s.sp, why: why || '' });
   H.alive().forEach((o) => { const r = rel(s, o); const hit = Math.round(4 + r.fond / 6 + (r.love > 0 ? 12 : 0)); H.mood(o, -hit); o.grief = (o.grief || 0) + Math.max(0, hit - 6); });
 }
-function describe(s) {          /* a survivor's notebook page */
+function describe(s) {          /* a survivor's page: the moment before the attack */
   const c = cd(s); if (!c) return '';
-  return `${c.role}, from ${c.home}. ${(s.known || []).join(' ')}`;
+  const L = C.Lore && C.Lore.pastOf(c); return L && L.scene ? `<i>${L.scene}</i>` : '';
 }
 
 C.Story = {
-  set host(h) { H = h; }, get host() { return H; }, defs, add, ctx, morning, tick, talk, topicsFor, onDeath, initRel, describe,
+  set host(h) { H = h; }, get host() { return H; }, get cur() { return CUR; }, set cur(v) { CUR = v; }, bubble, defs, add, ctx, morning, tick, talk, topicsFor, onDeath, initRel, describe,
   rel, bond, mem, setMem, speak, voiced, render, portrait, applyFx, first, cd, pick, rnd, chance, clamp, key, resolveCast, eligible, fire
 };
 if (typeof module !== 'undefined') module.exports = C.Story;

@@ -36,7 +36,8 @@ const SCREENS = {
     const CARDS = [
       ['🎯', 'The goal', 'Keep your people alive. Soldiers will come. Nobody knows when.'],
       ['👆', 'Move', 'Tap a person to select. Tap the floor and they walk there.'],
-      ['🛠', 'Use things', 'Tap the window, bunk or table. Build a stove and a radio at the table first.'],
+      ['🛠', 'Use things', 'Tap the chest, table, bunk, stove or window. Build a stove and a radio at the table first.'],
+      ['🚪', 'The door', 'Tap the door to go out by day. Bandits patrol in daylight, so it is risky.'],
       ['💬', 'Talk', 'Tap your selected person again. People open up slowly.'],
       ['🍚', 'Cook', 'Raw food is quick but weak, and can make you sick. A cooked pot fills everyone and lifts the room.'],
       ['🎒', 'Carry', 'The cupboard is shared and limited. Everyone also has a small pack of their own.'],

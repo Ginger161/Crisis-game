@@ -220,7 +220,7 @@ S.add({ id: 'voices_hunger', kind: 'horror', w: (x) => (x.hungry.length ? 3 : 0)
 S.add({ id: 'child_crying', kind: 'horror', w: 1.4, tension: 7, cast: { A: (s) => s.mood > 25 },
   run(x, { A }) {
     ask('Behind the wall', `At night, a sound through the wall of the next room. A child crying. Not loudly. Steady, the way you cry when you have been doing it for a long time.\n\n${speak(A, `We have to go. Please. We cannot just listen.`)}\n\n<i>The next room has been sealed since the first week.</i>`, [
-      { label: 'Break through and look', fn() { if (chance(0.5)) { H().add('food', -1); all(2); return `<i>A boy of seven, filthy, hollow, eyes huge. He takes the food in both hands. He will not say where his people went. He is gone by morning, out through a window.</i>`; } all(-5); return `<i>A tape recorder, a cheap phone on loop. Someone wants you to come to the wall. You think about who.</i>`; } },
+      { label: 'Break through and look', fn() { if (chance(0.5)) { H().add('food', -1); all(2); return `<i>A boy of seven, filthy, hollow, eyes huge. He takes the food in both hands. He will not say where his people went. He is gone by morning, out through a window.</i>`; } all(-5); return `<i>A music box, left on a ledge to wind itself down. Someone wants you to come to the wall. You think about who.</i>`; } },
       { label: 'Call to the child through the wall', fn() { all(-1); return `<i>The crying stops. After a while, from far away, you hear it again. It is moving.</i>`; } },
       { label: 'Do nothing', fn() { all(-5); mood(A, -6); A.trust = clamp((A.trust || 0) - 6, 0, 100); return speak(A, `I will remember that we did nothing.`); } }
     ], portrait(A));

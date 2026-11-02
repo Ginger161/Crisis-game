@@ -45,6 +45,7 @@ const TRAITS = {
   hardened: ['Hardened', 'Violence and theft cost less.']
 };
 const CR = (typeof window !== 'undefined' ? window : globalThis).Crisis || {};
+if (CR.Icons) Object.keys(ITEMS).forEach((k) => { const h = CR.Icons.item(k); if (h) ITEMS[k][0] = h; });
 const CAMPUS = CR.Campus;
 const LOCS = CAMPUS.LOCS;
 const LOCBY = CAMPUS.BY;
@@ -131,10 +132,16 @@ function stateOf(s) {
 }
 const hashN = (n) => Math.abs(Math.imul(n | 0, 2654435761) >>> 0);
 let curArt = null;
-function artHtml(a) {
-  if (!a || !CR.Sprites || !CR.Side) return '';
-  if (a.side) return `<div class="art">${CR.Side.render(a.sp, a.kind || 'dead', { scale: 3, state: a.state || 'ok' })}</div>`;
-  return `<div class="art">${CR.Sprites.render(a.sp, a.anim || 'blink', { scale: 3, state: a.state || 'ok' })}</div>`;
+function artOne(a) {
+  if (!a) return ''; if (a.html) return `<div class="art scene">${a.html}</div>`; if (a.icon) return `<div class="art icon">${a.icon}</div>`; if (!CR.Sprites || !CR.Side || !a.sp) return '';
+  const nm = a.name || a.sp.name || ''; const inner = a.side ? CR.Side.render(a.sp, a.kind || 'dead', { scale: 3, state: a.state || 'ok' }) : CR.Sprites.render(a.sp, a.anim || 'blink', { scale: 3, state: a.state || 'ok' });
+  return `<div class="art">${inner}${nm ? `<small>${nm}</small>` : ''}</div>`;
+}
+function artHtml(a) { if (Array.isArray(a)) return `<div class="arts">${a.map(artOne).join('<span class="arrow">↔</span>')}</div>`; return artOne(a); }
+/* when two or three people are in a scene together, show all of them, so it is clear who is talking to whom */
+function expandArt(art) {
+  const c = ST.cur; if (!art || Array.isArray(art) || !c || !c.A || !c.B || art.sp !== c.A.sp) return art;
+  return [art].concat([c.B, c.C].filter(Boolean).map((o) => ({ sp: o.sp, state: stateOf(o) })));
 }
 const memoMap = new Map();
 const memoize = (k, fn) => { if (!memoMap.has(k)) { memoMap.set(k, fn()); if (memoMap.size > 10) memoMap.delete(memoMap.keys().next().value); } return memoMap.get(k); };
@@ -180,23 +187,25 @@ function showNotebook(id) {
   ask(`${s.name}'s notebook`, `<i>${ST.describe(s)}</i>\n\nTrust in you: ${Math.round(s.trust || 0)}/100\n\n${(s.known || []).length ? 'What you know:\n' + s.known.map((k) => '• ' + k).join('\n') : 'You do not know them well yet.'}\n\n${rows.join('\n')}`, [{ label: 'Close' }], { sp: s.sp, state: stateOf(s) });
 }
 function newGame() {
-  if (CR.Cutaway) CR.Cutaway.reset(); if (CR.Tutorial) CR.Tutorial.stop();
+  if (CR.House) CR.House.reset(); if (CR.Tutorial) CR.Tutorial.stop();
   G = {
-    day: 1, screen: 'day', S: [], nextId: 0, sel: null,
+    t: 480, speed: 1, seed: Math.floor(Math.random() * 1e9), yard: [], sched: [], pend: null, away: false, day: 1, screen: 'day', S: [], nextId: 0, sel: null,
     inv: { food: rnd(7, 10), water: rnd(7, 10), wood: rnd(4, 6), parts: rnd(2, 3), cloth: rnd(1, 3), meds: rnd(0, 2), bandage: rnd(0, 2) },
-    build: { barricade: 0, stove: 0, bed: 0, bucket: 0, radio: 0, still: 0, cupboard: 0 },
+    build: { barricade: 0, stove: 0, bed: 0, bucket: 0, radio: 0, still: 0, cupboard: 0, bench: 1 },
     locs: {}, flags: {}, stats: { thefts: 0, kills: 0, helped: 0, refused: 0, deaths: 0, left: 0, lost: 0, storylets: 0, by: {} },
-    rescueWin: null, rescueDay: 0, log: [], assign: {}, exp: null, tonight: null, groups: [], grateful: [], lastEv: '', thiefId: 0, pickLoc: null, pickZone: null, shelter: '', newsLog: [],
+    rescueWin: null, rescueDay: 0, floors: 3 + Math.floor(Math.random() * 4), dayTrip: false, log: [], assign: {}, exp: null, tonight: null, groups: [], grateful: [], lastEv: '', thiefId: 0, pickLoc: null, pickZone: null, shelter: '', newsLog: [],
     mem: {}, rel: {}, threads: [], nem: [], turned: [], favors: [], dir: { tension: 20, last: [], cool: {} }, dead: [], fac: [], zones: {}, ledger: [], pacts: [], wars: [], rumors: [], envoys: [], rep: { honor: 0, fear: 0, wealth: 0 }, player: true, out: null
   };
   { const a0 = rnd(20, 32); G.rescueWin = [a0, a0 + 5]; G.rescueDay = rnd(a0, a0 + 5); }
   const party = drawParty();
   party.forEach((cid) => addPerson(mkFromCast(cid, 10)));
-  G.sel = G.S[0].id;
+  G.sel = G.S[0].id; G.S.forEach((p) => { p.slots = 3; });
   G.shelter = pick(CAMPUS.hostels().filter((h) => h.id !== 'bhT')).id; G.pickZone = LOCBY[G.shelter].zone;
   LOCS.forEach((l) => { G.locs[l.id] = { rich: rnd(l.rich[0], l.rich[1]) }; });
   CR.World.init(host); PO.init(host, party); ST.initRel();
+  CR.Sim.start(G);
   rollTonight();
+  G.sched = [10, 15, 20];
   const missingLine = party.map((cid) => { const c = KS.by[cid]; const g = KS.group[c.group]; return g ? `${c.name}'s friends from ${g.name} are somewhere across the campus.` : ''; }).filter(Boolean).slice(0, 2).join(' ');
   const intro = pick([
     'Bandits have cut every road into Bwari and the edges of Abuja. The FCT is under lockdown. The university gates were chained by the administration, then abandoned by it.',
@@ -205,7 +214,7 @@ function newGame() {
   ]);
   say('Day 1', `${intro}\n\nFour of you are holed up in ${LOCBY[G.shelter].name} on the Veritas campus. No power. No signal. Little food. Others are out there too, in the other blocks, behind their own doors, deciding what they will do to survive. ${missingLine}\n\nYou are the one the others look to. The last word on the radio, before it died: soldiers may reach the campus <b>between Day ${G.rescueWin[0]} and Day ${G.rescueWin[1]}</b>. Not the exact day. Survive until then.`);
   log('Day 1. The siege begins.');
-  flush(() => { if (CR.Tutorial && CR.Settings && !CR.Settings.v.tutorialSeen) CR.Tutorial.start(); });
+  flush();
   save();
 }
 
@@ -216,39 +225,67 @@ function load() {
     const s = localStorage.getItem('crisis_save'); if (!s) return false;
     const g = JSON.parse(s);
     /* saves from older versions have no shelter, sprites or campus ids: discard them rather than crash */
-    const ok = g && g.shelter && LOCBY[g.shelter] && Array.isArray(g.S) && g.S.every((x) => x.sp && x.sp.arch && x.cid) && g.tonight && g.build && g.fac && g.fac.length && g.rel && g.dir;
+    const ok = g && g.shelter && LOCBY[g.shelter] && Array.isArray(g.S) && g.S.every((x) => x.sp && x.sp.arch && x.cid) && g.tonight && g.build && g.fac && g.fac.length && g.rel && g.dir && typeof g.t === 'number';
     if (!ok) { localStorage.removeItem('crisis_save'); return false; }
-    G = g; if (CR.Cutaway) CR.Cutaway.reset(); return true;
+    G = g; if (CR.House) CR.House.reset(); G.pend = null; G.away = false; if (CR.Sim) CR.Sim.start(G); return true;
   } catch (e) { try { localStorage.removeItem('crisis_save'); } catch (e2) {} return false; }
 }
 
 /* ---------- modal queue ---------- */
-function ask(title, text, choices, art) { Q.push({ title, text, choices, art: art || curArt }); }
-function say(title, text, art) { Q.push({ title, text, choices: [{ label: 'Continue' }], art: art || curArt }); }
+function ask(title, text, choices, art) { Q.push({ title, text, choices, art: expandArt(art || curArt), cur: ST.cur }); }
+function say(title, text, art) { Q.push({ title, text, choices: [{ label: 'Continue' }], art: expandArt(art || curArt), cur: ST.cur }); }
 function flush(cb) { if (cb) after = cb; if (!modalOpen) nextModal(); }
 function nextModal() {
-  const m = Q.shift();
-  const el = $('#modal');
-  if (!m) {
-    modalOpen = false; if (el) el.classList.add('hidden');
-    const a = after; after = null; save(); render(); if (a) a(); return;
-  }
-  modalOpen = true; render();
-  const ch = m.choices.filter((c) => c.show === undefined || c.show);
-  el.innerHTML = `<div class="box"><div class="mhead">${artHtml(m.art)}<h3>${m.title}</h3></div><div class="story">${m.text.replace(/\n/g, '<br>')}</div><div class="btns">${ch.map((c, i) => `<button data-m="${i}" ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${c.label}</button>`).join('')}</div></div>`;
-  el.classList.remove('hidden'); placeModal(); sfx('open'); if (CR.UI) CR.UI.soon();
-  el.querySelectorAll('[data-m]').forEach((b) => {
-    b.onclick = () => {
-      if (b.getAttribute('aria-disabled')) { toastWhy(b.dataset.why); return; }
-      sfx('choose'); const c = ch[+b.dataset.m]; const r = c.fn ? c.fn() : null;
-      if (typeof r === 'string' && r) Q.unshift({ title: m.title, text: r, choices: [{ label: 'Continue' }], art: m.art });
-      if (G && G.screen !== 'over' && alive().length === 0) { G.screen = 'over'; Q.length = 0; }
-      nextModal();
-    };
-  });
+  const m = Q.shift(); const el = $('#modal');
+  if (!m) { modalOpen = false; if (el) el.classList.add('hidden'); try { const hs = document.querySelector('.house .hsvg'); if (hs) { hs.style.height = ''; hs.style.bottom = ''; } } catch (e0) {} const a = after; after = null; save(); render(); if (a) a(); return; }
+  try {
+    modalOpen = true; render();
+    const ch = m.choices.filter((c) => c.show === undefined || c.show); const prompt = ch.length > 1 ? `<div class="prompt">${m.choices.prompt || 'What do you do?'}</div>` : '';
+    const BACKRE = /^(leave it|never mind|nevermind|close|back|cancel|stay inside|wait inside|not now|that's all|enough|leave)\b/i; const bi = ch.length > 1 ? ch.findIndex((c) => BACKRE.test(String(c.label).replace(/<[^>]+>/g, '').trim())) : -1; const backBtn = bi >= 0 ? `<button class="mback" data-m="${bi}">← ${String(ch[bi].label).replace(/<[^>]+>/g, '').replace(/[.!…]+$/, '')}</button>` : '';
+    el.innerHTML = `<div class="box">${backBtn}<div class="mhead">${artHtml(m.art)}<h3>${m.title}</h3></div><div class="story">${m.text.replace(/\n/g, '<br>')}</div>${prompt}<div class="btns">${ch.map((c, i) => (i === bi ? '' : `<button data-m="${i}" ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${c.label}</button>`)).join('')}</div></div>`;
+    el.classList.remove('hidden'); placeModal(); sfx('open'); if (CR.UI) CR.UI.soon();
+    el.querySelectorAll('[data-m]').forEach((b) => {
+      b.onclick = () => {
+        if (b.getAttribute('aria-disabled')) { toastWhy(b.dataset.why); return; }
+        try {
+          sfx('choose'); const c = ch[+b.dataset.m]; if (m.cur !== undefined) ST.cur = m.cur; const r = c.fn ? c.fn() : null;
+          if (typeof r === 'string' && r) Q.unshift({ title: m.title, text: r, choices: [{ label: 'Continue' }], art: m.art, cur: m.cur });
+          if (G && G.screen !== 'over' && alive().length === 0) { G.screen = 'over'; Q.length = 0; }
+        } catch (err) { reportError(err); }
+        nextModal();
+      };
+    });
+  } catch (err) { reportError(err); modalOpen = false; Q.length = 0; if (el) el.classList.add('hidden'); }
 }
+function reportError(err) { try { console.error(err); (window.__errors = window.__errors || []).push(String(err && err.stack || err)); } catch (e) {} }
 
 
+
+
+/* ---------- someone knocks: you decide who answers ---------- */
+function knockRun(d, cs, runFn) {
+  const saved = Q.splice(0, Q.length); let r; try { r = runFn(); } catch (e) { reportError(e); r = false; }
+  const got = Q.splice(0, Q.length); Q.push(...saved);
+  if (r === false) return false; if (!got.length) return true;
+  knockModal(d, got, null); return true;
+}
+function knockModal(d, got, peek) {
+  const al = alive(); const brave = (s) => (ST.cd(s) ? ST.cd(s).axes.brave : 0.3);
+  const cands = al.slice().sort((a, b) => brave(b) - brave(a)).slice(0, 2);
+  sfx('hit'); setTimeout(() => sfx('hit'), 330); setTimeout(() => sfx('hit'), 660); buzz([40, 70, 40, 70, 40]);
+  const a0 = Array.isArray(got[0].art) ? got[0].art[0] : got[0].art;
+  if (a0 && a0.sp && !peek) { const armed0 = a0.sp.item === 'ak' || a0.sp.item === 'rifle' || /bandit|soldier/.test(a0.sp.arch || ''); const needy0 = /hungry|starving|hurt|sick/.test(a0.state || ''); G.yard = [{ sp: a0.sp, kind: armed0 ? 'aim' : needy0 ? 'sitfloor' : 'idle', state: a0.state || 'ok', until: G.t + 60, text: armed0 ? 'An armed figure stands at the door.' : needy0 ? 'Someone thin is waiting at the door, shaking.' : 'Someone is waiting at the door.' }]; }
+  const intro = pick(['Three slow knocks on the barricade.', 'Knocking: quick, soft, desperate.', 'Two polite knocks, a pause, then two more.', 'A fist on the wood, patient and heavy.']);
+  const ch = [{ label: 'Open the door yourself', fn() { Q.unshift(...got); return ''; } }];
+  cands.forEach((c) => ch.push({ label: `Send ${c.name} to answer`, fn() { c.trust = clamp((c.trust || 0) + 1, 0, 100); Q.unshift({ title: `${c.name} answers`, text: `<i>${c.name} goes to the door, slides the bolt back a hand's width, and asks who it is.</i>`, choices: [{ label: 'Continue' }], art: { sp: c.sp, state: stateOf(c) }, cur: null }, ...got); return ''; } }));
+  if (!peek) ch.push({ label: 'Look through the gap first', fn() {
+    const armed = a0 && a0.sp && (a0.sp.item === 'ak' || a0.sp.item === 'rifle' || /bandit|soldier/.test(a0.sp.arch || '')); const needy = a0 && /hungry|starving|hurt|sick/.test(a0.state || '');
+    const t = armed ? 'Boots, a rifle sling, and more than one shadow behind the first.' : needy ? 'One person, thin, shaking, with their hands where you can see them.' : 'One person, steady, watching the gap as if they know you can see them.';
+    knockModal(d, got, t); return ''; } });
+  ch.push({ label: 'Stay quiet. Do not answer.', fn() { log('Someone knocked. Nobody answered.', 'warn'); if (d.onIgnore) d.onIgnore(); return `<i>The knocking goes on a while. Then it stops, and the quiet afterwards is worse.</i>`; } });
+  ch.prompt = 'Who answers?';
+  ask('Knock, knock', `${intro}\n\nEveryone in the room goes still.${peek ? `\n\n<i>${peek}</i>` : ''}`, ch, { icon: '🚪' });
+}
 
 /* ---------- inventory: the cupboard (group) and each person's pack ---------- */
 const ITEM_KEYS = Object.keys(ITEMS);
@@ -448,7 +485,7 @@ function evGroup() {
 }
 function evNews() {
   const t = pick(CAMPUS.NEWS); G.newsLog = G.newsLog || []; G.newsLog.unshift({ d: G.day, t }); G.newsLog.length = Math.min(G.newsLog.length, 6);
-  say(G.build.radio ? 'On the radio' : 'A cracked phone', `${G.build.radio ? 'Between the static, a flat voice:' : 'A phone with one bar of battery picks up a bulletin before it dies:'}\n\n"${t}"\n\nThe outside world is still there. It just is not coming.`);
+  say(G.build.radio ? 'On the radio' : 'A news sheet', `${G.build.radio ? 'Between the static, a flat voice:' : 'A hand-copied sheet passes from block to block:'}\n\n"${t}"\n\nThe outside world is still there. It just is not coming.`);
 }
 function evScreams() {
   const g = gLive().find((x) => x.met) || null;
@@ -580,8 +617,8 @@ const BUILDS = {
   still: { n: 'Still', cost: () => ({ parts: 3, wood: 2 }), max: 1, desc: 'Brew ogogoro.' },
   cupboard: { n: 'Bigger cupboard', cost: () => ({ wood: 4, parts: 1 }), max: 1, desc: '+25 storage.' }
 };
-function canTask(s) { return s && s.alive && s.slots > 0 && s.mood >= 15 && s.fatigue < 95; }
-function spend(s) { s.slots--; s.fatigue += 8; }
+function canTask(s) { return s && s.alive && !s.out && s.mood >= 15 && s.fatigue < 95; }
+function spend(s) { s.fatigue += 8; }
 function useItem(s, k) {
   const own = ((s.pack || {})[k] || 0) > 0;
   if (!own && inv(k) < 1) return;
@@ -599,7 +636,7 @@ function act(a, d) {
   if (CR.Tutorial) CR.Tutorial.act(a, d);
   const s = person(G.sel);
   switch (a) {
-    case 'sel': G.sel = +d.id; break;
+    case 'sel': takeControl(+d.id); break;
     case 'use': if (s) useItem(s, d.i); break;
     case 'build': { const B = BUILDS[d.b]; const c = B.cost(); if (canTask(s) && canPay(c) && G.build[d.b] < B.max) { pay(c); G.build[d.b]++; spend(s); log(`${s.name} built: ${B.n}.`, 'good'); } break; }
     case 'cook': if (canTask(s) && G.build.stove && inv('food') && inv('wood')) { const n = Math.min(alive().length, 4, inv('food')); const out = n + (hasTrait(s, 'cook') ? 1 : 0); add('food', -n); add('wood', -1); add('meal', out); spend(s); moodAll(2); const al = alive(); for (let i = 0; i < al.length; i++) for (let j = i + 1; j < al.length; j++) { if (al[i].cid && al[j].cid) ST.bond(al[i], al[j], 1, -1); } if (hasTrait(s, 'cook')) { mood(s, 4); s.trust = clamp((s.trust || 0) + 2, 0, 100); } log(`${s.name} cooked a pot: ${out} meals. The smell brings everyone closer.`, 'good'); } break;
@@ -609,11 +646,17 @@ function act(a, d) {
     case 'brew': if (canTask(s) && G.build.still && inv('food') >= 2) { add('food', -2); add('ogogoro', 1); spend(s); log(`${s.name} brewed ogogoro.`); } break;
     case 'pray': if (canTask(s) && hasTrait(s, 'devout')) { mood(s, 10); spend(s); } break;
     case 'talk': { const t = person(+d.id); if (t && t.alive) { ST.talk(t); flush(); } return; }
-    case 'diplo': { if (canTask(s)) { PO.menu(s); flush(); } return; }
+    case 'diplo': { if (canTask(s)) { const before = s.slots; PO.menu(s); flush(() => { if (s.alive && s.slots < before && !s.out) { s.out = { mode: 'diplo', back: G.t + 240, what: 'the other groups' }; SIM.abort(s); s.q = [];  } }); } return; }
     case 'notebook': { showNotebook(+d.id || G.sel); flush(); return; }
-    case 'night': ui.night = 'roles'; G.screen = 'night'; G.assign = {}; alive().forEach((x) => { G.assign[x.id] = 'sleep'; }); G.pickLoc = null; G.pickZone = LOCBY[G.shelter].zone; break;
+    case 'speed': G.speed = ((G.speed || 0) + 1) % 4; chromeSig = ''; chrome(); return;
+    case 'simjob': { const j = d.k === 'build' ? { k: 'build', id: d.b } : d.k === 'craft' ? { k: 'craft', id: d.b } : { k: 'cook' }; const r = SIM.order(s.id, j, true); if (!r.ok) toastWhy(r.why); break; }
+    case 'door': doorSheet(); flush(); return;
+    case 'wheel': openWheel(d.w); return;
+    case 'home': homeMenu(); flush(); return;
+    case 'night': return;
     case 'zone': G.pickZone = d.id; G.pickLoc = null; break;
     case 'tab': ui[d.k] = d.t; break;
+    case 'recover': G.screen = G.exp ? 'exp' : 'day'; if (G.screen === 'day') ui.day = 'people'; break;
     case 'inv': if (s) { invMenu(s); flush(); } return;
     case 'role': { if (d.r === 'scav') { Object.keys(G.assign).forEach((k) => { if (G.assign[k] === 'scav') G.assign[k] = 'sleep'; }); ui.night = 'where'; } G.assign[d.id] = d.r; break; }
     case 'loc': G.pickLoc = d.id; break;
@@ -623,7 +666,7 @@ function act(a, d) {
     case 'drop': { const e = G.exp; if (e.bag[d.i] > 0) { e.bag[d.i]--; } break; }
     case 'home': goHome(); return;
     case 'new': newGame(); return;
-    case 'back': G.screen = 'day'; break;
+    case 'back': G.screen = 'day'; G.dayTrip = false; break;
   }
   save(); render();
 }
@@ -633,8 +676,9 @@ function beginNight() {
   const sc = alive().find((s) => G.assign[s.id] === 'scav');
   if (sc && !G.pickLoc) return;
   if (!sc) { resolveNight(); return; }
-  const trv = CAMPUS.travel(G.shelter, G.pickLoc), tot = Math.max(2, 4 - trv);
-  G.exp = { xseed: rnd(1, 1e9), xs: [], sid: sc.id, loc: G.pickLoc, hours: tot, total: tot, travel: trv, bag: {}, found: null, noise: 0, dead: false, msg: LOCBY[G.pickLoc].flavor };
+  const trv = CAMPUS.travel(G.shelter, G.pickLoc), tot = Math.max(2, (G.dayTrip ? 3 : 4) - trv);
+  if (G.dayTrip) sc.slots = 0;
+  G.exp = { day: !!G.dayTrip, xseed: rnd(1, 1e9), xs: [], sid: sc.id, loc: G.pickLoc, hours: tot, total: tot, travel: trv, bag: {}, found: null, noise: 0, dead: false, msg: LOCBY[G.pickLoc].flavor };
   G.screen = 'exp'; log(`${sc.name} slipped out to ${LOCBY[G.pickLoc].name}.`);
   save(); render();
 }
@@ -651,7 +695,7 @@ function search() {
 function spotSearch(idx) {
   const e = G.exp; if (!e || e.hours <= 0) return false; const L = LOCBY[e.loc], s = person(e.sid);
   e.hours--; e.noise += rnd(0, 1); e.found = null;
-  const p = 0.08 + L.risk * 0.035 + e.noise * 0.02 + (G.tonight.danger === L.id ? 0.06 : 0) - (hasTrait(s, 'runner') ? 0.05 : 0);
+  const p = 0.08 + (e.day ? 0.08 : 0) + L.risk * 0.035 + e.noise * 0.02 + Math.max(0, (e.total || 4) - e.hours) * 0.012 + (G.tonight.danger === L.id ? 0.06 : 0) - (hasTrait(s, 'runner') ? 0.05 : 0);
   if (chance(p)) encounter(L, s, null, true); else loot(L);
   finishStep(); save(); render(); return true;
 }
@@ -659,7 +703,7 @@ function forceEnc(k) { const e = G.exp; if (!e) return; encounter(LOCBY[e.loc], 
 function mountExp() {
   const el = $('#xstage'); const e = G.exp; if (!el || typeof el.appendChild !== 'function' || !e || !CR.Expedition) return;
   const L = LOCBY[e.loc], s = person(e.sid), gp = groupAt(L.id);
-  CR.Expedition.attach(el, e, { kind: L.kind === 'misc' ? 'hostel' : L.kind, risk: L.risk, danger: G.tonight.danger === L.id, hasGroup: !!(gp && gp.alive), faces: gp ? gp.faces : null, sp: s.sp, state: stateOf(s) });
+  CR.Expedition.attach(el, e, { kind: L.kind === 'misc' ? 'hostel' : L.kind, risk: L.risk, danger: G.tonight.danger === L.id, day: !!e.day, hasGroup: !!(gp && gp.alive), faces: gp ? gp.faces : null, sp: s.sp, state: stateOf(s) });
 }
 function finishStep() { flush(() => { if (G.exp && G.exp.dead) goHome(true); }); }
 function loot(L) {
@@ -680,11 +724,14 @@ function goHome(forced) {
   if (!e.dead && s.alive) {
     depositBag(e.bag, s);
     s.fatigue += 20 + ((e.total || 4) - e.hours) * 4 + (e.travel || 0) * 5;
-    if (e.hours <= 0 && chance(0.4)) { const h = rnd(8, 20); if (hurt(s, h, 'Caught by the morning patrol.')) { /* dead */ } else say('Dawn', `${s.name} was out too late. A patrol saw them running. They made it, bleeding.`); }
+    if (!e.day && e.hours <= 0 && chance(0.4)) { const h = rnd(8, 20); if (hurt(s, h, 'Caught by the morning patrol.')) { /* dead */ } else say('Dawn', `${s.name} was out too late. A patrol saw them running. They made it, bleeding.`); }
     if (s.alive) log(`${s.name} returned with ${Object.values(e.bag).reduce((a, b) => a + b, 0)} items.`, 'good');
   } else { log(`${s.name} never came back.`, 'bad'); }
-  G.exp = null; if (G.screen !== 'over') G.screen = 'night';
-  resolveNight();
+  const mins = Math.round(((e.total || 4) - e.hours + (e.travel || 0) * 2 + (e.waited || 0)) * 60);
+  G.exp = null; s.out = null; G.dayTrip = false; s.f = 0; s.x = 14; s.up = 0; s.at = null; s.act = null; s.q = [];
+  G.screen = alive().length ? 'day' : 'over';
+  if (G.screen === 'day') { G.away = true; try { CR.Sim.advance(Math.max(30, mins)); } catch (err) { reportError(err); } G.away = false; }
+  flush(); save(); render();
 }
 /* what the night looks like at the shelter */
 function defense() {
@@ -799,19 +846,9 @@ function encounter0(L, s, force, noPatrol) {
   const hide = () => chance(0.5 + (hasTrait(s, 'runner') ? 0.25 : 0) - e.noise * 0.03);
   const loseBag = () => { const ks = Object.keys(e.bag).filter((x) => e.bag[x] > 0); if (ks.length) { const x = pick(ks); const n = Math.ceil(e.bag[x] / 2); e.bag[x] -= n; return ` You drop ${n} ${ITEMS[x][0]} in the dark.`; } return ''; };
   if (k === 'patrol') {
-    curArt = { side: true, sp: CR.Sprites.gen(pick(BANDIT_ARCH), rnd(1, 1e6)), kind: 'aim', state: 'ok' };
-    ask('Patrol', `Torch beams. Voices. Two or three armed men sweep the corridor. You are in their path.`, [
-      { label: 'Hide', fn() { if (hide()) { e.msg = 'They pass. You count to a thousand.'; return 'They pass within arm\'s reach.'; } hurt(s, rnd(10, 25), 'Shot by a patrol.'); return 'They find you. A beating. You crawl away.' + loseBag(); } },
-      { label: 'Fight', off: !bestWeapon(), fn() { if (chance(0.3 + bestWeapon() * 0.18)) { G.stats.kills++; moral(s, 6); return 'It is over fast. You are not sure you can stand.'; } hurt(s, rnd(20, 45), 'Killed by a patrol.'); return 'It goes badly.'; } },
-      { label: 'Run', fn() { e.noise += 3; const t = loseBag(); if (chance(0.4)) hurt(s, rnd(8, 20), 'Shot in the back.'); return 'You run. Something whines past your ear.' + t; } }
-    ]);
+    encPatrol(L, s, e);
   } else if (k === 'rival') {
-    const r = mkPerson(null, 'visitor'); curArt = { sp: r.sp, state: 'hungry' };
-    ask('Another scavenger', `${r.name} is also out here, pale in the dark, eyes on the same room as you.`, [
-      { label: 'Split it', fn() { const k2 = pick(Object.keys(L.loot).filter((x) => !WEAPON[x])); e.bag[k2] = (e.bag[k2] || 0) + (bagUsed() < bagCap() ? 1 : 0); mood(s, 2); return `You share. ${r.name} nods once.`; } },
-      { label: 'Take it by force', fn() { G.stats.thefts++; moral(s, 5); const k2 = pick(Object.keys(L.loot).filter((x) => !WEAPON[x])); e.bag[k2] = (e.bag[k2] || 0) + Math.min(2, bagCap() - bagUsed()); if (chance(0.3)) hurt(s, rnd(5, 15), 'Stabbed over scraps.'); return `${r.name} backs off. You take it. Your hands are not steady.`; } },
-      { label: 'Back away', fn() { return 'Neither of you says anything. You go.'; } }
-    ]);
+    encRival(L, s, e);
   } else if (k === 'people') {
     const g = groupAt(L.id); g.met = true; curArt = groupArt(g);
     const k2 = ['food', 'water', 'meds'].filter((x) => g.stock[x] > 0)[0] || 'food';
@@ -822,11 +859,7 @@ function encounter0(L, s, force, noPatrol) {
         { label: 'Back out and close the door', fn() { mood(s, -2); return 'You close it. You do not tell the others.'; } }
       ]);
     } else if (g.att === 'hostile' || g.att === 'predatory') {
-      ask(`${g.name}`, `You walked into ${g.name}'s floor. They were waiting. ${g.size} of them. Somebody has a blade.`, [
-        { label: 'Fight', off: !bestWeapon(), fn() { if (chance(0.25 + bestWeapon() * 0.15)) { G.stats.kills++; moral(s, 8); setRel(g, -25); G.flags.groupRaid = g.id; g.size = Math.max(1, g.size - 1); return 'You get out. Someone does not. They will come for you.'; } hurt(s, rnd(20, 45), 'Killed by ' + g.name + '.'); return 'It goes very badly.'; } },
-        { label: 'Hand over your bag', fn() { Object.keys(e.bag).forEach((x) => { e.bag[x] = 0; }); mood(s, -4); return 'They take everything. They let you walk. That is the mercy.'; } },
-        { label: 'Try to talk', fn() { if (chance(0.35 + (hasTrait(s, 'hustler') ? 0.25 : 0))) { setRel(g, 10); return 'Something in your voice works. They let you leave.'; } hurt(s, rnd(10, 25), 'Beaten to death by ' + g.name + '.'); return 'It does not work.'; } }
-      ]);
+      encHostile(g, L, s, e);
     } else {
       ask(`${g.name}`, `${g.size} people on this floor, ${ITEMS[k2][1].toLowerCase()} stacked behind them. They are ${g.att === 'desperate' ? 'thin and shaking' : g.att === 'friendly' ? 'wary but not unfriendly' : 'watching, hands visible'}.`, [
         { label: 'Steal it while they are afraid', fn() { G.stats.thefts++; moral(s, 9); const q = grab(3); setRel(g, -35); if (chance(0.7)) G.flags.groupRaid = g.id; return `You take ${q}. A girl in the corner stares. You will see her again, in dreams.`; } },
@@ -862,8 +895,10 @@ function chipsHtml() {
   return `<div class="chips">${order.filter((k) => inv(k) > 0 || ['food', 'water', 'meds'].includes(k)).map((k) => `<span class="chip ${inv(k) ? (inv(k) <= 2 && ['food', 'water'].includes(k) ? 'low' : '') : 'zero'}">${ITEMS[k][0]}${inv(k)}</span>`).join('')}</div>`;
 }
 const hud = (title, phase) => `<header class="hud"><button class="menubtn" data-a="menu" aria-label="Menu">☰</button><div class="hudt"><b>${title}</b><span class="phase">${phase}</span></div>${chipsHtml()}</header>`;
-const tabsHtml = (key, list) => `<nav class="tabs">${list.map(([id, label, dot]) => `<button class="${ui[key] === id ? 'on' : ''}" data-a="tab" data-k="${key}" data-t="${id}">${label}${dot ? '<span class="dot"></span>' : ''}</button>`).join('')}</nav>`;
-const shell = (hudH, stageH, tabsH, panelH, actionsH, key) => `<div class="shell">${hudH}<div class="stage">${stageH}</div><div class="panelwrap${tabsH ? '' : ' notabs'}">${tabsH}<div class="panel-area" data-tab="${key}">${panelH}</div><div class="actions">${actionsH}</div></div></div>`;
+const navBtn = (cls, icon, label, attrs, dot) => `<button class="navb ${cls || ''}" ${attrs}><i>${icon}</i><span>${label}</span>${dot ? '<em class="dot"></em>' : ''}</button>`;
+const shell = (hudH, stageH, navH, panelH, key, cls = '') => `<div class="shell ${cls}">${hudH}<div class="stage">${stageH}</div><div class="panelwrap"><div class="panel-area" data-tab="${key}">${panelH}</div><nav class="nav">${navH}</nav></div></div>`;
+/* a page that fails to draw must never freeze the navigation: show the failure in the panel and keep going */
+const safe = (fn, label) => { try { return fn(); } catch (err) { reportError(err); return `<div class="panel"><h3>This page could not load</h3><div class="dim" style="font-size:13px">${label}: ${String(err && err.message || err).replace(/</g, '&lt;')}</div></div>`; } };
 const btn = (a, label, ok, extra = '') => `<button data-a="${a}" ${extra} ${ok ? '' : dis(whyNot(a, parseData(extra)))}>${label}</button>`;
 const tagsOf = (s, st) => `${/starving/.test(st) ? '<span class="tag bad">starving</span>' : /hungry/.test(st) ? '<span class="tag warn">hungry</span>' : ''}${s.sick ? '<span class="tag warn">sick</span>' : ''}${s.wound ? '<span class="tag bad">hurt</span>' : ''}${/tired/.test(st) ? '<span class="tag">tired</span>' : ''}`;
 
@@ -884,56 +919,65 @@ function storesPanel() {
   ].filter((r) => r[2] > 0 || ['Food', 'Water', 'Medicine'].includes(r[1]));
   return `<div class="panel"><h3>Cupboard <span class="dim" style="font-size:13px">${stashCount()}/${stashCap()} · feeds ${n} ${n === 1 ? 'person' : 'people'}</span></h3>${rows.map((r) => `<div class="srow2"><span>${r[0]} ${r[1]}</span><b>${r[2]}</b><span class="dim">${r[3]}</span></div>`).join('')}</div>`;
 }
+function jbtn(label, job, s) { const w = SIM.why(job, s); const d = job.k === 'cook' ? '' : ` data-b="${job.id}"`; return `<button data-a="simjob" data-k="${job.k}"${d} ${w ? dis(w) : ''}>${label}</button>`; }
+const costS = (c) => costText(c);
 function workTab(s) {
-  const t = canTask(s);
   const uses = ['food', 'meal', 'water', 'meds', 'bandage', 'ogogoro'].map((k) => btn('use', `${ITEMS[k][0]} ${k === 'meds' ? 'Treat sickness' : k === 'bandage' ? 'Treat wound' : k === 'food' ? 'Eat raw (weak, risky)' : k === 'meal' ? 'Eat a cooked meal' : ITEMS[k][1]}`, (inv(k) > 0 || (s.pack && s.pack[k] > 0)) && !(k === 'meds' && !s.sick) && !(k === 'bandage' && !s.wound), `data-i="${k}"`)).join('');
-  const tasks = [btn('cook', 'Cook a pot (🍚×4 + 🪵)', t && G.build.stove && inv('food') && inv('wood')), btn('bandage', 'Bandage (2🧵)', t && inv('cloth') >= 2), btn('club', 'Club (2🪵)', t && inv('wood') >= 2), btn('machete', 'Machete (2⚙️🪵)', t && inv('parts') >= 2 && inv('wood')), btn('brew', 'Brew (2🍚)', t && G.build.still && inv('food') >= 2), hasTrait(s, 'devout') ? btn('pray', 'Pray', t) : ''].join('');
-  const builds = Object.entries(BUILDS).map(([k, B2]) => { const lv = G.build[k]; const full = lv >= B2.max; return btn('build', `${B2.n}${B2.max > 1 ? ` ${lv}/${B2.max}` : lv ? ' ✓' : ''} ${full ? '' : costText(B2.cost())}`, t && !full && canPay(B2.cost()), `data-b="${k}" title="${B2.desc}"`); }).join('');
-  return `${storesPanel()}<button class="primary" style="width:100%;margin:2px 0 4px" data-a="inv">🎒 Inventory · ${s.name} carries ${packCount(s)}/${packCap(s)}</button><div class="sub">${s.name} · ${s.slots} task${s.slots === 1 ? '' : 's'} left${s.act ? ' · ' + s.act : ''}</div>
-    <div class="sub">Use</div><div class="row">${uses}</div><div class="sub">Make</div><div class="row">${tasks}</div><div class="sub">Build</div><div class="grid2">${builds}</div>`;
+  const tasks = [jbtn(`Cook a pot (${ITEMS.food[0]}×4 + ${ITEMS.wood[0]}) · 40 min`, { k: 'cook' }, s)].concat(Object.entries(SIM.CRAFTS).map(([id, c]) => jbtn(`${c.name} (${costS(c.cost)}) · ${c.min} min`, { k: 'craft', id }, s))).join('');
+  const builds = Object.entries(SIM.BUILDS).filter(([, d]) => d.can(G.build)).map(([id, d]) => jbtn(`${d.name} ${costS(d.cost)} · ${Math.round(d.min / 6) / 10} h`, { k: 'build', id }, s)).join('');
+  const bq = (G.bq || []).map((q) => `<div class="dim">${SIM.BUILDS[q.id].name}: ${Math.round(100 * q.prog / Math.max(1, q.need))}%${q.who && person(q.who) ? ' · ' + person(q.who).name : ''}</div>`).join('');
+  const wb = (w, ic, label) => `<button class="wbtn" data-a="wheel" data-w="${w}"><span class="wbi">${ic}</span>${label}</button>`;
+  return `${storesPanel()}<div class="wrow">${wb('stock', '🎒', 'Cupboard')}${wb('craft', '🛠', 'Make')}${wb('cook', '🍲', 'Cook')}${wb('build', '🏠', 'Build')}</div><div class="sub">${s.name} · ${s.out ? 'away' : s.act ? s.act.label : 'free'} · carries ${packCount(s)}/${packCap(s)}</div>
+    <div class="sub">Use now</div><div class="row">${uses}</div>${bq ? '<div class="sub">In progress</div>' + bq : ''}`;
 }
 function facRows() {
   return (G.fac || []).map((f) => `<div class="frow ${f.status === 'active' ? '' : 'gone'}"><span>${f.met ? f.name : 'Unknown group'}<br><small>${LOCBY[f.loc].name}</small></span><span style="text-align:right">${f.status !== 'active' ? 'gone' : f.met ? PO.stance(f) : 'unknown'}<br><small>${f.met && f.status === 'active' ? '~' + PO.size(f) + ' people' : ''}</small></span></div>`).join('');
 }
 function newsPanel() {
   const n = (G.newsLog || [])[0]; if (!n) return '';
-  return `<div class="news"><b>${G.build.radio ? '📻' : '📱'} Day ${n.d}</b> ${n.t}</div>`;
+  return `<div class="news"><b>${G.build.radio ? '📻' : '📜'} Day ${n.d}</b> ${n.t}</div>`;
 }
 function rescueLine() { const w = G.rescueWin; if (!w) return ''; return `<div class="news" style="border-left-color:var(--orange)">⏳ ${G.day >= w[0] ? 'Soldiers could arrive <b>any day now</b>. Hold on.' : `Soldiers expected between <b>Day ${w[0]} and Day ${w[1]}</b>.`}</div>`; }
 function worldTab(s) {
-  return `${rescueLine()}${newsPanel()}<div class="row" style="margin:0 0 8px"><button class="primary" style="flex:1" data-a="diplo" ${canTask(s) ? '' : dis(whyNot('diplo', {}))}>🏛 Send ${s.name} to the other groups</button></div>${zonePanel()}<div class="sub">The groups</div>${facRows()}`;
+  const dip = `<div class="row" style="margin:0 0 8px"><button class="primary" style="flex:1" data-a="diplo" ${canTask(s) ? '' : dis(whyNot('diplo', {}))}>🏛 Send ${s.name} to the other groups</button></div>`;
+  if (!G.build.radio) return `${rescueLine()}<div class="panel"><h3>Beyond your walls</h3><div class="dim">Static.</div></div>${dip}`;
+  return `${rescueLine()}${newsPanel()}${dip}${zonePanel()}<div class="sub">The groups</div>${facRows()}`;
 }
 function notesTab(s) {
   const rows = alive().filter((o) => o.id !== s.id).map((o) => { const r = ST.rel(s, o); const w = r.love >= 2 ? '❤ together' : r.love >= 1 ? '❤ something between them' : r.fond > 60 ? 'very close' : r.fond > 30 ? 'friends' : r.fond > 10 ? 'friendly' : r.fond < -10 ? 'cold' : 'acquaintances'; return `<div class="dim">${o.name}: ${w}${r.tension > 50 ? ' · strained' : ''}</div>`; }).join('');
   return `${rescueLine()}<div class="panel"><h3>${s.name}</h3><div class="dim">${ST.describe(s)}</div><div class="dim" style="margin-top:4px">Trust in you ${Math.round(s.trust || 0)}/100 · ${TRAITS[s.trait][0]}: ${TRAITS[s.trait][1]}</div>
     ${(s.known || []).length ? '<div class="sub">What you know</div>' + s.known.map((k) => `<div class="dim">• ${k}</div>`).join('') : '<div class="dim" style="margin-top:6px">You do not know them well yet. Talk to them.</div>'}${rows ? '<div class="sub">With the others</div>' + rows : ''}</div>
-    ${CR.Life ? CR.Life.notes() : ''}<div class="sub">Lately</div><div class="log">${G.log.slice(0, 10).map((l) => `<div class="${l.c}">${l.t}</div>`).join('')}</div>`;
+    ${CR.Life ? CR.Life.notes() : ''}${CR.Lore ? CR.Lore.panel(G.day) : ''}<div class="sub">Lately</div><div class="log">${G.log.slice(0, 10).map((l) => `<div class="${l.c}">${l.t}</div>`).join('')}</div>`;
 }
-function renderDay() {
+function renderDayOld() {
   const s = person(G.sel) || alive()[0]; if (s && G.sel !== s.id) G.sel = s.id;
-  const tab = ui.day;
-  const panel = { people: peopleTab, work: () => workTab(s), world: () => worldTab(s), notes: () => notesTab(s) }[tab]();
-  const tabs = tabsHtml('day', [['people', '👥 People'], ['work', '🔧 Work'], ['world', '🌍 World', (G.envoys || []).length], ['notes', '📓 Notes']]);
-  return shell(hud(`Day ${G.day}`, `Daytime · ${LOCBY[G.shelter].name}`), '<div id="cutaway"></div>', tabs, panel, '<button class="primary" data-a="night">Nightfall →</button>', 'day:' + tab);
+  const tab = ['people', 'work', 'world', 'notes'].includes(ui.day) ? ui.day : 'people';
+  const panel = safe({ people: peopleTab, work: () => workTab(s), world: () => worldTab(s), notes: () => notesTab(s) }[tab], tab);
+  const t = (id, icon, label, dot) => navBtn(tab === id ? 'on' : '', icon, label, `data-a="tab" data-k="day" data-t="${id}"`, dot);
+  const nav = t('people', '👥', 'Group') + t('work', '🎒', 'Items') + t('world', '🌍', 'World', (G.envoys || []).length) + t('notes', '📓', 'Journal') + navBtn('night', '🌙', 'Night', 'data-a="night"');
+  return shell(hud(`Day ${G.day}`, `${LOCBY[G.shelter].name} · ${G.floors} floors`), '<div id="cutaway"></div>', nav, panel, 'day:' + tab, 'tall');
 }
 function renderNight() {
-  const sc = alive().find((s) => G.assign[s.id] === 'scav'); const tab = sc ? ui.night : 'roles';
+  const trip = !!G.dayTrip; const sc = alive().find((s) => G.assign[s.id] === 'scav'); const tab = trip ? 'where' : (sc ? ui.night : 'roles');
   const roles = `<p class="dim" style="margin-bottom:8px;font-size:13px">Defense ${defense().toFixed(1)}. Sleepers recover. Guards watch the barricade. One may go out.</p>` + alive().map((s) => `<div class="nrow"><span><b>${s.name}</b> <span class="dim" style="font-size:12px">tired ${Math.round(s.fatigue)}</span></span><span class="row" style="margin:0">${['sleep', 'guard', 'scav'].map((r) => `<button class="${G.assign[s.id] === r ? 'on' : ''}" data-a="role" data-id="${s.id}" data-r="${r}" ${r === 'scav' && (s.hp < 25 || s.mood < 15) ? dis(s.hp < 25 ? s.name + ' is too hurt to go out.' : s.name + ' is too broken to go out tonight.') : ''}>${r === 'sleep' ? 'Sleep' : r === 'guard' ? 'Guard' : 'Go out'}</button>`).join('')}</span></div>`).join('');
   const sz = LOCBY[G.shelter].zone, pz = G.pickZone || sz;
   const zoneBtns = Object.entries(CAMPUS.ZONES).map(([k, z]) => `<button class="${pz === k ? 'on' : ''}" data-a="zone" data-id="${k}">${z.short} <span class="dim">${CAMPUS.DIST[sz][k]}h</span>${G.tonight.zone === k ? ' <span class="tag bad">patrols</span>' : ''}</button>`).join('');
-  const locList = LOCS.filter((l) => l.zone === pz && l.id !== G.shelter).map((l) => `<button class="${G.pickLoc === l.id ? 'on' : ''}" data-a="loc" data-id="${l.id}"><b>${l.name}</b> <span class="risk">${'●'.repeat(l.risk)}</span>${G.tonight.danger === l.id ? ' <span class="tag bad">patrols tonight</span>' : ''}${G.flags.cache === l.id ? ' <span class="tag warn">cache?</span>' : ''}${G.locs[l.id].rich <= 0 ? ' <span class="tag">picked clean</span>' : ''}${groupAt(l.id) && groupAt(l.id).met ? ` <span class="tag">${groupAt(l.id).alive ? ATTN[groupAt(l.id).att] : 'silent'}</span>` : ''}</button>`).join('');
-  const where = sc ? `<h3>Where is ${sc.name} going?</h3><p class="dim" style="font-size:13px;margin:2px 0 6px">From ${LOCBY[G.shelter].name}. Walking eats night-hours: ${CAMPUS.DIST[sz][pz]}h to ${CAMPUS.ZONES[pz].name}.</p><div class="row">${zoneBtns}</div><div class="locs">${locList}</div>` : '<p class="dim">Choose someone to go out in the Roles tab.</p>';
-  const tabs = tabsHtml('night', [['roles', '🛏 Roles'], ['where', '🗺 Where' + (sc && !G.pickLoc ? ' ·' : '')]]);
+  const locList = LOCS.filter((l) => l.zone === pz && l.id !== G.shelter).map((l) => `<button class="${G.pickLoc === l.id ? 'on' : ''}" data-a="loc" data-id="${l.id}"><b>${l.name}</b> <span class="risk">${'●'.repeat(l.risk)}</span>${G.tonight.danger === l.id ? ' <span class="tag bad">patrols ' + (trip ? 'today' : 'tonight') + '</span>' : ''}${G.flags.cache === l.id ? ' <span class="tag warn">cache?</span>' : ''}${G.locs[l.id].rich <= 0 ? ' <span class="tag">picked clean</span>' : ''}${groupAt(l.id) && groupAt(l.id).met ? ` <span class="tag">${groupAt(l.id).alive ? ATTN[groupAt(l.id).att] : 'silent'}</span>` : ''}</button>`).join('');
+  const warn = trip ? `<div class="news" style="border-left-color:var(--bad)">⚠ Bandits patrol openly in daylight. Expect more patrols and less cover. The night is darker, but no safer.</div>` : '';
+  const where = sc ? `${warn}<h3>Where is ${sc.name} going?</h3><p class="dim" style="font-size:13px;margin:2px 0 6px">From ${LOCBY[G.shelter].name}. Walking eats ${trip ? 'daylight' : 'night'}-hours: ${CAMPUS.DIST[sz][pz]}h to ${CAMPUS.ZONES[pz].name}.</p><div class="row">${zoneBtns}</div><div class="locs">${locList}</div>` : '<p class="dim">Choose someone to go out in the Roles tab.</p>';
+  const goAttr = `data-a="begin" ${sc && !G.pickLoc ? dis('Choose where ' + sc.name + ' is going first.') : ''}`;
+  const nav = trip ? navBtn('', '←', 'Back', 'data-a="back"') + navBtn('go', '🚪', 'Go out', goAttr)
+    : navBtn(tab === 'roles' ? 'on' : '', '🛏', 'Roles', 'data-a="tab" data-k="night" data-t="roles"') + navBtn(tab === 'where' ? 'on' : '', '🗺', 'Where', 'data-a="tab" data-k="night" data-t="where"', sc && !G.pickLoc) + navBtn('', '←', 'Back', 'data-a="back"') + navBtn('go', '🌙', sc ? 'Go out' : 'Hold night', goAttr);
   const stage = memoize('qd' + G.day, () => CR.Scenes.quad({ seed: G.day }));
-  return shell(hud(`Night ${G.day}`, 'Nightfall'), stage, tabs, tab === 'roles' ? roles : where, `<button data-a="back">← Back</button><button class="primary" data-a="begin" ${sc && !G.pickLoc ? dis('Choose where ' + sc.name + ' is going first (Where tab).') : ''}>${sc ? 'Go out' : 'Hold the night'} →</button>`, 'night:' + tab);
+  return shell(hud(trip ? 'Leaving the shelter' : `Night ${G.day}`, trip ? 'Daylight · bandits are out' : 'Nightfall'), stage, nav, safe(() => (tab === 'roles' ? roles : where), tab), 'night:' + tab, 'wide');
 }
 function renderExp() {
   const e = G.exp, L = LOCBY[e.loc], s = person(e.sid);
   const bag = Object.entries(e.bag).filter(([, v]) => v > 0).map(([k, v]) => `<button data-a="drop" data-i="${k}" title="drop one">${ITEMS[k][0]} ${v}</button>`).join('') || '<span class="dim">Empty</span>';
-  const f = e.found; const gp = groupAt(L.id);
-  const stage = '<div id="xstage"></div>';
-  const panel = `<div class="panel story">${e.msg}</div><div class="panel"><b>Bag ${bagUsed()}/${bagCap()}</b> <span class="dim">(tap to drop one)</span><div class="bag">${bag}</div>${f ? `<div class="sub">Found</div><div class="row"><button class="primary" data-a="take" data-n="99">Take ${f.qty} × ${ITEMS[f.item][1]}</button><button data-a="take" data-n="1">Take 1</button><button data-a="take" data-n="0">Leave</button></div>` : ''}</div><div class="dim" style="font-size:13px">Health ${Math.round(s.hp)} · Noise ${e.noise} · ${e.hours} search${e.hours === 1 ? '' : 'es'} left</div><div class="dim" style="font-size:13px;margin-top:6px">Tap the floor to walk. Tap glowing spots to search. Tap a wardrobe to hide. Stay out of the pale cones. The green door is home.</div>`;
-  return shell(hud(L.name, `${s.name} · ${e.hours} hr until dawn`), stage, '', panel, `<button class="danger" style="flex:1" data-a="home">${e.hours <= 0 ? 'Run home (dawn)' : 'Head home'}</button>`, 'exp');
+  const f = e.found;
+  const panel = `<div class="panel story">${e.msg}</div><div class="panel"><b>Bag ${bagUsed()}/${bagCap()}</b> <span class="dim">(tap to drop one)</span><div class="bag">${bag}</div>${f ? `<div class="sub">Found</div><div class="row"><button class="primary" data-a="take" data-n="99">Take ${f.qty} × ${ITEMS[f.item][1]}</button><button data-a="take" data-n="1">Take 1</button><button data-a="take" data-n="0">Leave</button></div>` : ''}</div><div class="dim" style="font-size:13px">Health ${Math.round(s.hp)} · Noise ${e.noise} · ${e.hours} search${e.hours === 1 ? '' : 'es'} left</div><div class="dim" style="font-size:13px;margin-top:6px">Tap to walk. Tap glowing spots to search. Tap a wardrobe to hide. Stay out of the pale cones. Stairs go up and down. The green door is home.</div>`;
+  const nav = navBtn('go', '🏠', e.hours <= 0 ? 'Run home' : 'Head home', 'data-a="home"');
+  return shell(hud(L.name, `${s.name} · ${e.day ? Math.ceil(e.hours) + ' hr of daylight left' : Math.ceil(e.hours) + ' hr until dawn'}`), '<div id="xstage"></div>', nav, panel, 'exp', 'tall');
 }
 
 /* ---------- how it ended ---------- */
@@ -990,25 +1034,33 @@ function renderOver() {
 }
 function renderTitle() {
   const has = (() => { try { return !!localStorage.getItem('crisis_save'); } catch (e) { return false; } })();
-  return `<div class="fullpage"><div class="title"><div class="crest">${CR.Scenes.emblem(4)}</div><h1>CRISIS</h1><div class="loc">Veritas University</div>
+  return `<div class="fullpage"><div class="title"><div class="crest">${CR.Scenes.logo(5)}</div><h1>CRISIS</h1><div class="loc">Veritas University</div>
   <div class="btns"><button class="primary" data-a="new">New game</button>${has ? '<button class="primary" style="background:var(--vgreen);border-color:var(--vgreen);color:#fff" data-a="resume">Continue</button>' : ''}<button data-a="howto">How to play</button><button data-a="settings">Settings</button><button data-a="about">About</button></div>
   <div class="note">A work of fiction. Characters, events and the siege are imagined and are not based on real events at the real institution.</div></div></div>`;
 }
 /* the sheet opens exactly over the panel area, so the scene stays in view */
 function placeModal() {
   const el = $('#modal'); if (!el || !el.style) return;
+  const app = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('#app') : null;
   const pw = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('.panelwrap') : null;
   if (pw && pw.getBoundingClientRect) { const r = pw.getBoundingClientRect(); el.classList.remove('full'); el.style.left = r.left + 'px'; el.style.top = r.top + 'px'; el.style.width = r.width + 'px'; el.style.height = r.height + 'px'; }
   else { el.classList.add('full'); el.style.left = '0'; el.style.top = '0'; el.style.width = '100%'; el.style.height = '100%'; }
 }
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', placeModal);
 function render() {
+  try { render0(); } catch (err) {
+    reportError(err); const app = $('#app'); if (!app) return;
+    app.innerHTML = `<div class="fullpage"><div class="endwrap"><h2>Something went wrong</h2><div class="story dim" style="font-size:13px">${String(err && err.message || err).replace(/</g, '&lt;')}</div><div class="btns" style="display:flex;gap:8px;margin-top:14px"><button class="primary" style="flex:1" data-a="recover">Go back to the shelter</button></div></div></div>`;
+  }
+}
+function render0() {
   const app = $('#app'); if (!app) return;
   const prev = app.querySelector ? app.querySelector('.panel-area') : null; const prevKey = prev && prev.dataset ? prev.dataset.tab : null; const prevTop = prev ? prev.scrollTop : 0;
   if (!G) { app.innerHTML = renderTitle(); placeModal(); try { if (CR.Audio) CR.Audio.mood('title'); } catch (e) {} return; }
-  const f = { day: renderDay, night: renderNight, exp: renderExp, end: renderEnd, over: renderOver }[G.screen] || renderDay;
+  const f = { day: renderDay, night: renderDay, exp: renderExp, end: renderEnd, over: renderOver }[G.screen] || renderDay;
+  if (G.screen === 'night') G.screen = 'day';
   app.innerHTML = f();
-  if (G.screen === 'day') mountCutaway();
+  if (G.screen === 'day') mountHouse();
   if (G.screen === 'exp') mountExp(); else if (CR.Expedition) CR.Expedition.stop();
   if (CR.Tutorial) CR.Tutorial.place();
   const cur = app.querySelector ? app.querySelector('.panel-area') : null; if (cur && cur.dataset && cur.dataset.tab === prevKey) cur.scrollTop = prevTop;
@@ -1022,7 +1074,7 @@ document.addEventListener('click', (e) => {
   if (CR.Menu && (a === 'menu' || a === 'howto' || a === 'settings' || a === 'about')) { CR.Menu.open(a === 'menu' ? 'pause' : a, { from: a === 'menu' ? null : (G ? 'pause' : 'close') }); return; }
   if (a === 'resume') { sfx('tap'); if (load()) render(); else render(); return; }
   if (!G && a !== 'new') return;
-  if (modalOpen && G && G.screen !== 'over') return;
+  if (modalOpen) { const me = $('#modal'); if (me && me.classList.contains('hidden') && !Q.length) modalOpen = false; else if (G && G.screen !== 'over') return; }
   sfx('tap'); act(a, b.dataset);
 });
 
@@ -1057,6 +1109,7 @@ function lookOut(s) {
   const d = LOCBY[G.tonight.danger]; const z = Object.values(G.zones || {}).filter((q) => q.holder && PO.fac(q.holder) && PO.fac(q.holder).met).map((q) => `${q.name}: ${PO.fac(q.holder).name} (${q.tension > 60 ? 'on the brink' : q.tension > 35 ? 'tense' : 'quiet'})`);
   say('From the window', `<i>${pick(MORNING)}</i>\n\nYou watch the dark lines of the campus. Tonight, torchlight moves near <b>${d.name}</b>: patrols, most likely.${z.length ? '\n\n' + z.join('\n') : ''}`, { sp: s.sp, state: stateOf(s) });
 }
+function startDayTrip(s) { G.dayTrip = true; G.screen = 'night'; G.assign = {}; alive().forEach((x) => { G.assign[x.id] = x.id === s.id ? 'scav' : 'sleep'; }); G.pickZone = LOCBY[G.shelter].zone; G.pickLoc = null; ui.night = 'where'; }
 function useObject(obj, sid) {
   const s = person(sid); if (!s || !s.alive) return; G.sel = sid; if (CR.Tutorial) CR.Tutorial.notify('object');
   switch (obj) {
@@ -1071,7 +1124,12 @@ function useObject(obj, sid) {
       break;
     case 'window': lookOut(s); break;
     case 'cupboard': invMenu(s); break;
-    case 'door': ask('The door', '<i>Night is coming. The barricade holds, for now.</i>', [{ label: 'Nightfall', fn() { act('night', {}); return ''; } }, { label: 'Not yet' }], { sp: s.sp, state: stateOf(s) }); break;
+    case 'door': {
+      const bad = s.hp < 25 || s.mood < 15 || s.slots < 1;
+      ask('The door', `<i>${pick(['Voices outside, then none.', 'A boot on gravel, slow.', 'Somewhere nearby a door slams, and nobody answers it.'])}</i>\n\n⚠ <b>Bandits are out on the campus in daylight.</b> Going out now is dangerous: more patrols, less cover. Night is no safer, only darker.`, [
+        { label: `Go out now (${s.name})`, off: bad, why: s.slots < 1 ? `${s.name} has no tasks left today.` : `${s.name} is in no state to go out.`, fn() { startDayTrip(s); return ''; } },
+        { label: 'Wait inside' }], { sp: s.sp, state: stateOf(s) }); break;
+    }
     case 'mat': if (hasTrait(s, 'devout')) act('pray', {}); else { mood(s, 1); say(s.name, `<i>${ST.first(s)} sits on the mat a while, and breathes.</i>`); } break;
   }
   flush(); save(); render();
@@ -1099,15 +1157,477 @@ if (typeof document !== 'undefined' && document.addEventListener) { document.add
 const host = {
   get G() { return G; }, alive, person, log, add, inv, mood, moodAll, hurt, kill, say, ask, flush, stateOf, stealSome, joinNamed
 };
+host.knock = knockRun;
 CR.Story.host = host;
-if (CR.Expedition) CR.Expedition.hooks = { modalOpen: () => modalOpen, search: (i) => spotSearch(i), spotted: () => forceEnc('patrol'), meet: (k) => forceEnc(k), stateNow: () => (G.exp ? stateOf(person(G.exp.sid)) : 'ok'),
+if (CR.Expedition) CR.Expedition.hooks = { holeUp: () => holeUpSheet(), modalOpen: () => modalOpen, search: (i) => spotSearch(i), spotted: () => forceEnc('patrol'), meet: (k) => forceEnc(k), stateNow: () => (G.exp ? stateOf(person(G.exp.sid)) : 'ok'),
   exit: () => { const s = person(G.exp.sid); ask('Head home?', '<i>Whatever you are carrying goes back to the shelter with you.</i>', [{ label: 'Head home', fn() { flush(() => goHome()); return ''; } }, { label: 'Stay a little longer' }], { sp: s.sp, state: stateOf(s) }); flush(); } };
 if (CR.Cutaway) CR.Cutaway.hooks = { G: () => G, person: (id) => person(id), stateOf, poseFor, selected: () => G.sel, select: (id) => { G.sel = id; if (CR.Tutorial) CR.Tutorial.notify('select'); render(); }, use: useObject, talk: (tid, sid) => { G.sel = sid; act('talk', { id: tid }); }, talkMenu: (tid) => { act('talk', { id: tid }); }, bark: barkFor, modalOpen: () => modalOpen, notify: (n) => { if (CR.Tutorial) CR.Tutorial.notify(n); }, egg: () => { if (CR.Life) CR.Life.egg(); } };
-[['beg', 'visitor', 3, evBeg], ['trade', 'visitor', 2, evTrade], ['levy', 'politics', 1.6, evLevy, () => G.day >= 3], ['gun', 'camp', 1.2, evGunfire], ['rain', 'camp', 1.2, evRain], ['body', 'horror', 1.1, evBody], ['lights', 'camp', 0.9, evLights], ['note', 'camp', 0.8, evNote, () => !G.flags.cache], ['grate', 'camp', 5, evGrateful, () => G.grateful.length], ['scream', 'horror', 1.1, evScreams]].forEach(([id, kind, w, fn, when]) => {
-  ST.add({ id: 'legacy_' + id, kind, w, cd: 4, when: when ? () => when() : undefined, run() { fn(); curArt = null; } });
+[['beg', 'visitor', 3, evBeg], ['trade', 'visitor', 2, evTrade], ['levy', 'politics', 1.6, evLevy, () => G.day >= 3], ['gun', 'camp', 1.2, evGunfire], ['rain', 'camp', 1.2, evRain], ['body', 'horror', 1.1, evBody], ['note', 'camp', 0.8, evNote, () => !G.flags.cache], ['grate', 'camp', 5, evGrateful, () => G.grateful.length], ['scream', 'horror', 1.1, evScreams]].forEach(([id, kind, w, fn, when]) => {
+  ST.add({ id: 'legacy_' + id, kind, door: ['beg', 'trade', 'levy'].includes(id), w, cd: 4, when: when ? () => when() : undefined, run() { fn(); curArt = null; } });
 });
 
+/* ---------- v2 runtime: the real-time house ---------- */
+const SIM = CR.Sim, HOUSE = CR.House;
+const CAUSE = { starvation: 'Starved.', thirst: 'Died of thirst.', wounds: 'Bled out.', sickness: 'Fever took them.', 'a raid': 'Killed in a raid.', fighting: 'Killed fighting at the door.' };
+const notice = (t) => { try { if (CR.UI && CR.UI.toast) CR.UI.toast(t); } catch (e) {} };
+const SPEEDI = ['⏸', '▶', '▶▶', '▶▶▶'];
+const stripT = (t) => String(t).replace(/^\d\d:\d\d /, '');
+
+function takeControl(id) { G.sel = id; const p = person(id); if (p && p.act && p.act.interrupt && /^(life|chat)$/.test(p.act.k)) SIM.abort(p); chromeSig = ''; }
+function chatLine(a, b) { const c = ST.cd(a); if (!c || !c.barks) return ''; const arr = c.barks.idle || []; return arr.length ? String(ST.voiced(a, pick(arr))).replace(/<[^>]+>/g, '') : ''; }
+
+/* ---------- words for needs, so the screen can say "hungry" instead of "62" ---------- */
+function needWords(s) {
+  const w = [];
+  if (s.wound) w.push('bleeding'); if (s.sick) w.push('sick');
+  if (s.hunger >= 85) w.push('starving'); else if (s.hunger >= 55) w.push('hungry');
+  if (s.thirst >= 85) w.push('desperate for water'); else if (s.thirst >= 50) w.push('thirsty');
+  if (s.fatigue >= 85) w.push('exhausted'); else if (s.fatigue >= 60) w.push('tired');
+  if (s.mood < 28) w.push('low in spirit');
+  return w.length ? w.join(', ') : 'managing';
+}
+function badges(s) {
+  const b = [];
+  if (s.wound) b.push(['🩸', 'red']); if (s.sick) b.push(['🤒', 'grn']);
+  if (s.hunger >= 85) b.push(['🍞', 'red']); else if (s.hunger >= 55) b.push(['🍞', 'amb']);
+  if (s.thirst >= 50) b.push(['💧', s.thirst >= 85 ? 'red' : 'blu']);
+  if (s.fatigue >= 70) b.push(['🌙', 'amb']); if (s.mood < 28) b.push(['☁', 'gry']);
+  if (s.act && s.act.k === 'watch') b.push(['👁', 'amb']);
+  return b.slice(0, 2).map(([e, c]) => `<i class="bd ${c}">${e}</i>`).join('');
+}
+const PHASEN = { dawn: 'Dawn', day: 'Day', dusk: 'Dusk', night: 'Night' };
+let chromeSig = '';
+function chrome() {
+  if (!G || typeof document === 'undefined') return;
+  const el = document.getElementById('clk'); if (el) { const t = `Day ${G.day} · ${SIM.clock(G.t)}`; if (el.textContent !== t) el.textContent = t; }
+  const ph = document.getElementById('phz'); if (ph) { const t = PHASEN[SIM.phaseOf(G.t)] + (G.speed === 0 ? ' · paused' : ''); if (ph.textContent !== t) ph.textContent = t; }
+  const sig = G.speed + '|' + Object.keys(G.inv).map((k) => k + G.inv[k]).join(',');
+  if (sig !== chromeSig) { chromeSig = sig; const sb = document.getElementById('spdb'); if (sb) sb.textContent = SPEEDI[G.speed || 0]; const ch = document.querySelector('.hud .chips'); if (ch) ch.outerHTML = chipsHtml(); }
+}
+let panelT = 0, pointerDown = false;
+if (typeof document !== 'undefined' && document.addEventListener) { document.addEventListener('pointerdown', () => { pointerDown = true; }, true); const up = () => { setTimeout(() => { pointerDown = false; }, 250); }; document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true); }
+function dayPanel() {
+  const s = person(G.sel) || alive()[0]; if (!s) return ['people', ''];
+  const tab = ['people', 'work', 'world', 'notes'].includes(ui.day) ? ui.day : 'people';
+  return [tab, safe({ people: peopleTab, work: () => workTab(s), world: () => worldTab(s), notes: () => notesTab(s) }[tab], tab)];
+}
+function refreshPanel() {
+  if (typeof document === 'undefined' || !G || G.screen !== 'day' || modalOpen || pointerDown) return;
+  const pa = document.querySelector('.panel-area'); if (!pa) return; const [tab, html] = dayPanel(); if (pa.dataset.tab !== 'day:' + tab) return;
+  if (pa._h !== html) { const top = pa.scrollTop; pa.innerHTML = html; pa._h = html; pa.scrollTop = top; if (CR.UI) CR.UI.soon(); }
+}
+function renderDay() {
+  const s = person(G.sel) || alive()[0]; if (s && G.sel !== s.id) G.sel = s.id; chromeSig = '';
+  const [tab, panel] = dayPanel();
+  const t = (id, icon, label, dot) => navBtn(tab === id ? 'on' : '', icon, label, `data-a="tab" data-k="day" data-t="${id}"`, dot);
+  const nav = t('people', '👥', 'Group') + t('work', '🎒', 'Items') + t('world', '🌍', 'World', (G.envoys || []).length) + t('notes', '📓', 'Journal');
+  const hudH = `<header class="hud"><button class="menubtn" data-a="menu" aria-label="Menu">☰</button><div class="hudt"><b id="clk">Day ${G.day} · ${SIM.clock(G.t)}</b><span class="phase" id="phz">${PHASEN[SIM.phaseOf(G.t)]}${G.speed === 0 ? ' · paused' : ''}</span></div>${chipsHtml()}<button id="spdb" class="spd" data-a="speed" aria-label="Speed">${SPEEDI[G.speed || 0]}</button></header>`;
+  return shell(hudH, '<div id="hstage"></div>', nav, panel, 'day:' + tab, 'v2old');
+}
+function mountHouse() { const el = $('#hstage'); if (el && typeof el.appendChild === 'function' && HOUSE) HOUSE.attach(el, G); }
+
+/* ---------- the clock loop ---------- */
+function stepV2(dt) {
+  if (!G) return;
+  if (G.screen === 'day') {
+    if (Q.length && !modalOpen) flush();
+    else if (!modalOpen && !CR.paused) { try { SIM.drive(dt); } catch (err) { reportError(err); G.speed = 0; chromeSig = ''; } if (Q.length && !modalOpen) flush(); }
+  }
+  chrome(); panelT += dt; if (panelT > 2.5) { panelT = 0; refreshPanel(); }
+}
+
+/* ---------- what the simulation tells the game ---------- */
+const simHost = {
+  get G() { return G; }, R, inv, add,
+  log: (t, c) => { log(t, c); if (c === 'good' || c === 'bad') notice(stripT(t)); },
+  bond: (a, b, f, t) => { try { if (a.cid && b.cid) ST.bond(a, b, f, t); } catch (e) { reportError(e); } },
+  kill: (s, c) => kill(s, CAUSE[c] || String(c)),
+  bestWeapon,
+  halt: () => !G.away && (modalOpen || Q.length > 0),
+  chatLine,
+  controlled: () => G.sel,
+  onBuilt: (id, p) => { sfx('open'); if (CR.Tutorial && CR.Tutorial.notify) CR.Tutorial.notify('built'); },
+  onLook: (p, f) => lookSheet(p, f),
+  onUse: (p, what) => useStation(p, what),
+  onDawn: (day) => dawnV2(day),
+  onHour: (h, day) => hourV2(h, day),
+  onRaidWarn: (r) => raidWarn(r),
+  onRaidDone: (o) => raidDone(o)
+};
+SIM.init(simHost);
+
+function dawnV2(day) {
+  const lines = [];
+  if (G.thiefId) { const t = person(G.thiefId); if (t && t.alive && chance(0.5)) { stealSome(0.4); t.alive = false; t.gone = true; lines.push(`${t.name} is gone, and so are some supplies.`); G.thiefId = 0; G.stats.left++; moodAll(-3); } }
+  alive().forEach((s) => { s.slots = 3; });
+  alive().forEach((s) => {
+    if (s.mood < 15 && chance(0.3)) {
+      s.alive = false; s.gone = true; s.pack = {}; G.stats.left++; moodAll(-8);
+      lines.push(s.cid && CR.Life && CR.Life.turnSurvivor(s) ? `${s.name} is gone. Somebody swears they saw them walk toward the Gate Boys' fire.` : `${s.name} left in the dark and did not come back.`);
+    }
+  });
+  PO.tick(); CR.World.tick(); ST.tick(); if (CR.Life) CR.Life.tick();
+  try { ST.morning({ n: 0 }); } catch (e) { reportError(e); }
+  lines.forEach((l) => log(l, 'bad'));
+  if (day % 4 === 0) LOCS.forEach((l) => { if (G.locs[l.id]) G.locs[l.id].rich = Math.min(l.rich[1], G.locs[l.id].rich + 1); });
+  if (!alive().length) { G.screen = 'over'; save(); flush(); render(); return; }
+  if (day >= G.rescueDay) { G.screen = 'end'; save(); render(); return; }
+  rollTonight();
+  const n = 2 + (chance(0.55) ? 1 : 0) + (day % 6 === 0 ? 1 : 0); const hrs = []; while (hrs.length < n) { const h = rnd(8, 23); if (!hrs.includes(h)) hrs.push(h); } G.sched = hrs.sort((a, b) => a - b);
+  if (!person(G.sel) || !person(G.sel).alive) G.sel = alive()[0].id;
+  log(`Day ${day}.`); notice(`Day ${day}. ${pick(MORNING)}`);
+  if (lines.length) say(`Day ${day}`, lines.join('\n'));
+  flush();
+}
+function hourV2(h, day) {
+  if (G.sched && G.sched.length && h >= G.sched[0]) { G.sched.shift(); try { ST.morning({ n: 1, mixed: true }); } catch (e) { reportError(e); } flush(); }
+  returnParties();
+  if (h % 3 === 0) save();
+}
+
+/* ---------- raids: the watch decides how much you know ---------- */
+const banditCache = new Map();
+function banditSp(key, i) { const k = key + ':' + i; if (!banditCache.has(k)) { banditCache.set(k, CR.Sprites.gen(['bandit_soldier', 'bandit_heavy', 'bandit_scout', 'bandit_soldier'][i % 4], (key * 31 + i * 97) | 0)); if (banditCache.size > 40) banditCache.delete(banditCache.keys().next().value); } return banditCache.get(k); }
+function raidWarn(r) {
+  if (G.away || !r.warned) return;
+  const lk = SIM.lookout(); if (!lk) return;
+  r.choice = 'hold';
+  const arts = [{ side: true, sp: banditSp(r.born, 0), kind: 'aim', state: 'ok' }, { sp: lk.sp, state: stateOf(lk) }];
+  const ch = [
+    { label: 'Hold the line', fn() { r.choice = 'hold'; return ''; } },
+    { label: 'Lights out', fn() { r.choice = 'dark'; return ''; } },
+    { label: 'Fight at the door', fn() { r.choice = 'fight'; return ''; } },
+    { label: 'Pay them', fn() { r.choice = 'pay'; return ''; } }
+  ];
+  ask('Figures at the gate', `${bubbleLine(lk, `${r.size > 2 ? 'Several' : 'Two'} of them. Armed. Coming up the path.`)}`, ch, arts);
+}
+const bubbleLine = (s, text) => ST.bubble(ST.first(s), 'you', text);
+function raidDone(o) {
+  const lost = Object.entries(o.lost || {}).map(([k, v]) => `${v} ${ITEMS[k][1].toLowerCase()}`).join(', ');
+  const T = {
+    passed: 'You sat in the dark and held your breath. Boots on the path, then nothing. They went past.',
+    paid: `They took the offer and the bags, and left. It will not hold for long.${lost ? ` You gave up ${lost}.` : ''}`,
+    repelled: 'The barricade held. They tried the door twice, cursed, and went away.',
+    'repelled-damaged': 'They broke some of the barricade before they gave up. It will need fixing.',
+    breached: `They got in. By the time they left the room was torn apart.${lost ? ` They took ${lost}.` : ''}${o.hurt && o.hurt.length ? ` ${o.hurt.join(' and ')} ${o.hurt.length > 1 ? 'were' : 'was'} hurt.` : ''}`
+  };
+  const bad = o.result === 'breached';
+  say(bad ? 'They broke in' : 'The raid', T[o.result] || 'It is over.', { side: true, sp: banditSp((G.pend && G.pend.born) || G.t, 1), kind: bad ? 'aim' : 'walk', state: 'ok' });
+  log(bad ? 'Raiders broke in.' : 'A raid was turned away.', bad ? 'bad' : 'good'); sfx(bad ? 'alarm' : 'tap'); if (bad) buzz([80, 40, 80]);
+}
+
+/* ---------- the window and the radio: two different kinds of knowing ---------- */
+function lookSheet(p, f) {
+  const top = SIM.floors() - 1, night = SIM.isNight(G.t), seen = [];
+  (G.yard || []).filter((v) => v.until > G.t).forEach((v) => seen.push(v.text));
+  if (G.pend) seen.push(`${Math.min(G.pend.size, 4)} armed people are coming up the path.`);
+  const d = LOCBY[(G.tonight || {}).danger];
+  if (d && f >= 1) seen.push(night ? `Torchlight moves near ${d.name}.` : `Figures cross open ground near ${d.name}.`);
+  if (f >= Math.max(2, top)) Object.values(G.zones || {}).forEach((q) => { if (q.tension > 55) seen.push(`Smoke and raised voices from ${q.name}.`); else if (q.holder && q.tension > 30) seen.push(`${q.name} looks tense.`); });
+  if (!seen.length) seen.push(pick(night ? ['Nothing moves. Somewhere a dog stops barking.', 'The dark is total. You count your own breaths.', 'A far-off fire, too small to name.'] : ['The path is empty. The grass has started to take it.', 'Heat on the roofs. Nothing walking.', 'A plastic bag crosses the yard in the wind. Nothing else.']));
+  say(f === 0 ? 'From the ground-floor window' : `From the window, floor ${f + 1}`, seen.map((t) => '• ' + t).join('\n'), { sp: p.sp, state: stateOf(p) });
+}
+function useStation(p, what) {
+  if (what === 'door') { doorSheet(p); return; }
+  if (what === 'radio') {
+    sfx('radio'); const b = CR.World.bulletin('radio'); G.newsLog = G.newsLog || []; G.newsLog.unshift({ d: G.day, t: b.text }); G.newsLog.length = Math.min(G.newsLog.length, 6);
+    say('On the radio', `<i>${ST.first(p)} turns the dial through the static.</i>\n\n“${b.text}”`, { sp: p.sp, state: stateOf(p) });
+  }
+}
+function worldSheet() {
+  const s = person(G.sel);
+  if (!G.build.radio) { ask('Beyond the walls', `${rescueLine()}<div class="dim">Static.</div>`, [{ label: 'Close' }], { icon: '🌍' }); return; }
+  ask('The wider campus', `${rescueLine()}${newsPanel()}${zonePanel()}<div class="sub">The groups</div>${facRows()}`, [{ label: 'Close' }], { icon: '🌍' });
+}
+
+/* ---------- menus ---------- */
+function homeMenu() {
+  const s = person(G.sel);
+  const ch = [
+    { label: '🎒 Items and the cupboard', fn() { invMenu(s); return ''; } },
+    { label: '📓 Journal and how it happened', fn() { ask('Journal', notesTab(s), [{ label: 'Close' }], { icon: '📓' }); return ''; } },
+    { label: '🌍 The wider campus', fn() { worldSheet(); return ''; } },
+    { label: '📜 Copy a problem report', fn() { copyReport(); return ''; } },
+    { label: '⚙ Pause, settings, help', fn() { setTimeout(() => { if (CR.Menu) CR.Menu.open('pause', { from: null }); }, 0); return ''; } },
+    { label: 'Close' }
+  ];
+  ask('Menu', `<i>Day ${G.day}, ${SIM.clock(G.t)}. ${LOCBY[G.shelter].name}.</i>`, ch, { icon: '☰' });
+}
+function selfMenu(s) {
+  const watch = { null: 'none', early: 'early (8 pm to 1 am)', late: 'late (1 am to 5:30 am)' };
+  const ch = [
+    { label: 'Items and pack', fn() { invMenu(s); return ''; } },
+    { label: 'Notebook', fn() { showNotebook(s.id); return ''; } },
+    { label: `Night watch: ${watch[s.shift || null]}`, fn() { s.shift = s.shift === null || !s.shift ? 'early' : s.shift === 'early' ? 'late' : null; G.watchSet = true; notice(`${s.name}: night watch ${watch[s.shift || null]}.`); return ''; } },
+    { label: 'Close' }
+  ];
+  ask(`${s.name} (you)`, `${ST.describe(s)}`, ch, { sp: s.sp, state: stateOf(s) });
+}
+function otherMenu(t) {
+  const me = person(G.sel); if (!me) return;
+  const ch = [
+    { label: `Talk to ${t.name} (as ${me.name})`, off: t.out, why: `${t.name} is away.`, fn() { ST.talk(t); return ''; } },
+    { label: `Become ${t.name}`, fn() { takeControl(t.id); return ''; } },
+    { label: t.auto === false ? 'Let them find their own work' : 'Have them wait for orders', fn() { t.auto = t.auto === false; return ''; } },
+    { label: `Send ${t.name} out to scavenge`, off: t.out || t.hp < 25 || t.mood < 15, why: t.out ? `${t.name} is already away.` : `${t.name} is in no state to go.`, fn() { pickDest(t, 'auto'); return ''; } },
+    { label: `${t.name}'s notebook`, fn() { showNotebook(t.id); return ''; } },
+    { label: 'Close' }
+  ];
+  ask(t.name, `<i>${t.out ? 'Away. Back about ' + SIM.clock(t.out.back || G.t) + '.' : (t.act ? t.act.label : 'Doing nothing') + '. ' + needWords(t) + '.'}</i>`, ch, { sp: t.sp, state: stateOf(t) });
+}
+
+/* ---------- going out ---------- */
+const hashS = (str) => hashN(String(str).split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7));
+const FLOORS = { hostel: [3, 6], class: [2, 4], hall: [1, 3], cafe: [1, 2], clinic: [1, 3], admin: [3, 5], library: [2, 4], chapel: [1, 2], field: [0, 0], gate: [1, 1], misc: [2, 3] };
+function floorsOf(l) { const r = FLOORS[l.kind] || [2, 3]; return r[0] + hashS(l.id) % (r[1] - r[0] + 1); }
+function intelOf(l) {
+  const fl = floorsOf(l); const rich = (G.locs[l.id] || {}).rich || 0;
+  const loot = rich >= 5 ? 'well stocked' : rich >= 3 ? 'some left' : rich >= 1 ? 'little left' : 'picked clean';
+  const risk = l.risk >= 5 ? 'deadly' : l.risk >= 4 ? 'very dangerous' : l.risk >= 3 ? 'dangerous' : l.risk >= 2 ? 'some risk' : 'quiet';
+  const f = (G.fac || []).find((x) => x.loc === l.id && x.status === 'active'); const g = groupAt(l.id);
+  const people = f ? (f.met ? `${f.name} (about ${PO.size(f)})` : 'a group holds it') : (g && g.alive ? 'survivors inside' : 'nobody known');
+  return { fl, loot, risk, people, hot: G.tonight && G.tonight.danger === l.id };
+}
+function destLabel(l, d) {
+  const i = intelOf(l);
+  return `<b>${l.name}</b> · ${i.fl ? i.fl + (i.fl > 1 ? ' floors' : ' floor') : 'open ground'} · ${d} hr away<small>🎒 ${i.loot} · ⚠ ${i.risk}${i.hot ? ' · patrols tonight' : ''} · 👥 ${i.people}</small>`;
+}
+function pickDest(s, mode, page) {
+  page = page || 0; const per = 6;
+  const all = LOCS.filter((l) => l.id !== G.shelter).map((l) => ({ l, d: CAMPUS.travel(G.shelter, l.id) })).sort((a, b) => a.d - b.d || a.l.name.localeCompare(b.l.name));
+  const ch = all.slice(page * per, page * per + per).map(({ l, d }) => ({ label: destLabel(l, d), fn() { if (mode === 'ctrl') startControlled(s, l.id); else sendOut(s, l.id); return ''; } }));
+  if ((page + 1) * per < all.length) ch.push({ label: 'Farther places…', fn() { pickDest(s, mode, page + 1); return ''; } });
+  if (page > 0) ch.push({ label: 'Closer places…', fn() { pickDest(s, mode, page - 1); return ''; } });
+  ch.push({ label: 'Never mind' }); ch.prompt = 'Where?';
+  ask(mode === 'ctrl' ? 'Where to?' : `Where should ${s.name} go?`, '', ch, { sp: s.sp, state: stateOf(s) });
+}
+function doorSheet(who) {
+  const s = who || person(G.sel); if (!s) return; const night = SIM.isNight(G.t);
+  const bad = s.out || s.hp < 25 || s.mood < 15 || s.fatigue > 92;
+  const others = alive().filter((x) => x.id !== s.id && !x.out && x.hp >= 25 && x.mood >= 15);
+  const ch = [
+    { label: `Go yourself`, off: bad, why: `${s.name} is in no state to go out.`, fn() { pickDest(s, 'ctrl'); return ''; } },
+    { label: 'Send someone else', off: !others.length, why: 'Nobody else is fit to go.', fn() { pickWho(others); return ''; } },
+    { label: 'Stay inside' }
+  ];
+  ask('The door', `<i>${pick(['Voices outside, then none.', 'A boot on gravel, slow.', 'Somewhere nearby a door slams, and nobody answers it.'])}</i>`, ch, { sp: s.sp, state: stateOf(s) });
+}
+function pickWho(others) {
+  const ch = others.map((o) => ({ label: `${o.name}<small>${needWords(o)}${o.pack && Object.keys(o.pack).length ? ' · carrying a pack' : ''}</small>`, fn() { pickDest(o, 'auto'); return ''; } })); ch.push({ label: 'Never mind' });
+  ask('Who goes?', '', ch, { icon: '🚪' });
+}
+function startControlled(s, locId) {
+  const L = LOCBY[locId]; const trv = CAMPUS.travel(G.shelter, locId), tot = Math.max(2, 4 - trv); const dayish = !SIM.isNight(G.t);
+  G.exp = { day: dayish, xseed: rnd(1, 1e9), xs: [], sid: s.id, loc: locId, hours: tot, total: tot, travel: trv, bag: {}, found: null, noise: 0, dead: false, msg: L.flavor, floors: floorsOf(L) };
+  s.out = { mode: 'ctrl', loc: locId }; SIM.abort(s); s.q = []; G.dayTrip = dayish; G.screen = 'exp'; log(`${s.name} slipped out to ${L.name}.`); save(); render();
+}
+function sendOut(s, locId) {
+  const L = LOCBY[locId]; const trv = CAMPUS.travel(G.shelter, locId); const hours = Math.max(3, trv * 2 + 3);
+  SIM.abort(s); s.q = []; s.out = { mode: 'auto', loc: locId, back: G.t + hours * 60 };
+  log(`${s.name} slipped out toward ${L.name}.`); notice(`${s.name} slipped out.`);
+}
+function returnParties() {
+  G.S.filter((s) => s.alive && s.out && s.out.mode !== 'ctrl' && s.out.back <= G.t).forEach((s) => {
+    const o = s.out; s.out = null; s.f = 0; s.x = 14; s.up = 0; s.at = null; s.act = null;
+    if (o.mode === 'auto') resolveScav(s, o); else { log(`${s.name} is back from ${o.what || 'their errand'}.`, 'good'); notice(`${s.name} is back.`); }
+  });
+}
+function resolveScav(s, o) {
+  const L = LOCBY[o.loc]; const st = G.locs[L.id]; const bag = {}; const cap = bagCapOf(s); let used = 0; const lines = []; let dead = false, wounded = 0;
+  const weapon = bestWeapon();
+  for (let i = 0; i < 3 && !dead; i++) {
+    const pEnc = clamp(0.2 + L.risk * 0.06 + (G.tonight && G.tonight.danger === L.id ? 0.12 : 0) - (hasTrait(s, 'runner') ? 0.1 : 0) - weapon * 0.03, 0.05, 0.8);
+    if (chance(pEnc)) {
+      const r = R();
+      if (r < 0.04 + L.risk * 0.012 - weapon * 0.01) { dead = true; lines.push('A burst from the dark.'); }
+      else if (r < 0.34 + L.risk * 0.03) { const h = rnd(8, 26); wounded += h; lines.push(pick([`A patrol saw ${ST.first(s)} and fired.`, `${ST.first(s)} fell through a rotten stair.`, 'A rival scavenger swung first.'])); }
+      else if (r < 0.55) { Object.keys(bag).forEach((k) => delete bag[k]); used = 0; lines.push(pick(['Held up at gunpoint. The bag was taken.', 'Someone stronger took what was found.'])); }
+      else lines.push(pick(['Hid behind a door for an hour while boots passed.', 'A patrol went by. ' + ST.first(s) + ' held their breath.']));
+    } else if (st && st.rich > 0 && used < cap) {
+      st.rich--; const item = wpick(L.loot); let qty = WEAPON[item] ? 1 : (item === 'food' || item === 'water') ? rnd(2, 4) : rnd(1, 3); qty = Math.min(qty, cap - used); bag[item] = (bag[item] || 0) + qty; used += qty;
+    }
+  }
+  const got = Object.entries(bag).map(([k, v]) => `${v} ${ITEMS[k][1].toLowerCase()}`).join(', ');
+  s.fatigue = clamp(s.fatigue + 25, 0, 100); s.hunger = clamp(s.hunger + 12, 0, 100); s.thirst = clamp(s.thirst + 12, 0, 100);
+  if (dead) { kill(s, 'Killed by a patrol out on the campus.'); log(`${s.name} never came back from ${L.name}.`, 'bad'); return; }
+  depositBag(bag, s); if (wounded) hurt(s, wounded, 'Caught by a patrol.');
+  const txt = `<i>${ST.first(s)} comes back from ${L.name}${wounded ? ', bleeding' : ''}${got ? `, carrying ${got}` : ', with nothing'}.</i>${lines.length ? '\n\n' + lines.join(' ') : ''}`;
+  say(`${s.name} is back`, txt, { sp: s.sp, state: stateOf(s) }); log(`${s.name} returned from ${L.name}${got ? ' with ' + got : ' empty-handed'}.`, got ? 'good' : '');
+}
+const bagCapOf = (s) => 8 + (hasTrait(s, 'strong') ? 2 : 0);
+
+/* ---------- taps on the house ---------- */
+let tallyKnocks = [];
+function tallyKnock() {
+  const now = Date.now(); tallyKnocks = tallyKnocks.filter((t) => now - t < 14000); tallyKnocks.push(now); sfx('hit');
+  const groups = []; tallyKnocks.forEach((t, i) => { if (i === 0 || t - tallyKnocks[i - 1] > 650) groups.push(1); else groups[groups.length - 1]++; });
+  const n = groups.length; if (n >= 3 && groups[n - 3] === 3 && groups[n - 2] === 2 && groups[n - 1] === 1) { tallyKnocks = []; setTimeout(() => { if (CR.Life && CR.Life.egg) { CR.Life.egg(); flush(); } }, 700); return true; }
+  return false;
+}
+function giveOrder(s, j) { const r = SIM.order(s.id, j.job, true); if (!r.ok) toastWhy(r.why); }
+function tapStation(id) {
+  const s = person(G.sel); if (!s || !s.alive || s.out) return;
+  if (id === 'yard' || id === 'door') { const r = SIM.order(s.id, { k: 'use', st: 'door', what: 'door', min: 2, label: 'At the door' }, true); if (!r.ok) toastWhy(r.why); return; }
+  if (id === 'cupboard') { resourceWheel(s); return; }
+  if (id === 'bench') { openWheel('craft'); return; }
+  if (id === 'stove') { openWheel('cook'); return; }
+  if ((SIM.stations()[id] || {}).built === false) { buildWheel(s, SIM.stations()[id].id === 'roof' ? 'roof' : (Object.values(SIM.BUILDS).find((d) => d.at === id) || {}).at || id); return; }
+  const S = SIM.stations(); const st = S[id]; if (!st) return;
+  const jobs = SIM.jobsAt(id, s);
+  if (jobs.length === 1) { giveOrder(s, jobs[0]); return; }
+  const ch = jobs.map((j) => ({ label: j.label, off: !!j.why, why: j.why, fn() { giveOrder(s, j); return ''; } })); ch.push({ label: 'Close' });
+  ask(st.label, `<i>${s.name} (you): ${s.act ? s.act.label.toLowerCase() : 'free'}.</i>`, ch, { sp: s.sp, state: stateOf(s) }); flush();
+}
+function tapFloor(f, x) { const s = person(G.sel); if (!s || !s.alive || s.out) return; SIM.order(s.id, { k: 'walk', pt: { f, x } }, true); }
+function tapPerson(id) {
+  const t = person(id); if (!t || !t.alive) return;
+  if (id === G.sel) { selfMenu(t); flush(); } else { takeControl(id); render(); }
+}
+const yardSp = new Map();
+function yardList() {
+  const looking = SIM.lookout() || G.S.some((s) => s.alive && !s.out && s.act && s.act.k === 'look' && s.act.walkLeft <= 0);
+  if (!looking) return [];
+  const out = (G.yard || []).filter((v) => v.until > G.t).map((v, i) => ({ id: 'y' + i, sp: v.sp, kind: v.kind, x: -12 - i * 11, state: v.state }));
+  if (G.pend) for (let i = 0; i < Math.min(4, G.pend.size); i++) out.push({ id: 'r' + i, sp: banditSp(G.pend.born, i), kind: 'aim', x: -12 - (out.length + i) * 9, state: 'ok' });
+  return out;
+}
+/* ---------- encounters decided by stats, shown as scenes (no player skill) ---------- */
+function sceneHtml(pl, plKind, foes) {
+  const SDx = CR.Side; if (!SDx) return '';
+  const one = (sp, kind, state, dir) => `<div class="scf">${SDx.render(sp, kind, { scale: 3, state: state || 'ok', dir })}</div>`;
+  return `<div class="scn">${one(pl.sp, plKind, stateOf(pl), 1)}<div class="scgap"></div>${foes.map((f) => one(f.sp, f.kind || 'idle', f.state, -1)).join('')}</div>`;
+}
+const sig = (x) => 1 / (1 + Math.exp(-2.2 * x));
+/* how strong is this person for this kind of moment. Every factor is visible to the player. */
+function powerFor(s, mode) {
+  const f = []; const add = (t, d) => { if (d) f.push({ t, d }); }; const e = G.exp || { noise: 0 };
+  const w = bestWeapon(); add(w ? ['a club', 'a machete', 'a pistol'][w - 1] || 'armed' : 'unarmed', w ? 0.35 * w : -0.25);
+  if (hasTrait(s, 'strong')) add('strong', mode === 'flee' ? 0 : 0.3); if (hasTrait(s, 'hardened')) add('hardened', mode === 'fight' || mode === 'threaten' ? 0.25 : 0);
+  if (hasTrait(s, 'runner')) add('fast', mode === 'flee' || mode === 'hide' ? 0.4 : 0); if (hasTrait(s, 'devout') && (mode === 'fight' || mode === 'threaten')) add('devout', -0.15);
+  if (hasTrait(s, 'hustler') && mode === 'talk') add('smooth talker', 0.35);
+  if (s.hp < 70) add('hurt', (s.hp - 70) / 120); if (s.wound) add('bleeding', -0.25); if (s.sick) add('feverish', -0.2);
+  if (s.hunger >= 70) add('hungry', -0.25); if (s.thirst >= 70) add('thirsty', -0.2); if (s.fatigue >= 70) add('exhausted', -0.3); if (s.mood < 30) add('shaken', -0.15);
+  if (mode === 'hide' || mode === 'flee') { add('noisy', -0.05 * Math.min(8, e.noise || 0)); if (G.exp && G.exp.sneak) add('sneaking', mode === 'hide' ? 0.4 : 0); if (G.exp && bagUsed() >= 6) add('heavy bag', -0.2); }
+  if (mode === 'hide' && G.exp && !G.exp.day) add('night cover', 0.3);
+  if (mode === 'hide' && G.exp && G.exp.day) add('daylight', -0.3);
+  return { v: f.reduce((a, x) => a + x.d, 0), f };
+}
+function oddsText(p) {
+  const n = p >= 0.75 ? 4 : p >= 0.5 ? 3 : p >= 0.3 ? 2 : 1;
+  return `<small class="pips p${n}">${'\u25CF'.repeat(n)}${'\u25CB'.repeat(4 - n)}</small>`;
+}
+function odds(s, mode, foePower) { const P = powerFor(s, mode); return { p: clamp(sig(P.v - foePower), 0.05, 0.95), f: P.f }; }
+function showScene(title, text, pl, plKind, foes) { say(title, text, { html: sceneHtml(pl, plKind, foes) }); }
+
+function encPatrol(L, s, e) {
+  const n = 1 + (chance(0.5) ? 1 : 0) + (L.risk >= 4 ? 1 : 0); const sps = []; for (let i = 0; i < n; i++) sps.push(CR.Sprites.gen(pick(BANDIT_ARCH), rnd(1, 1e6)));
+  const foes = (k, st) => sps.map((sp) => ({ sp, kind: k, state: st }));
+  const F = 1.0 + n * 0.3 + L.risk * 0.08;
+  const hide = odds(s, 'hide', F - 0.4), fight = odds(s, 'fight', F), run = odds(s, 'flee', F - 0.2);
+  const loseBag = () => { const ks = Object.keys(e.bag).filter((x) => e.bag[x] > 0); if (ks.length) { const x = pick(ks); const q = Math.ceil(e.bag[x] / 2); e.bag[x] -= q; return ` You drop ${q} ${ITEMS[x][0]} in the dark.`; } return ''; };
+  const ch = [
+    { label: `Hide${oddsText(hide.p)}`, fn() { if (chance(hide.p)) { e.msg = 'They pass. You count to a thousand.'; showScene('They pass', `Their torches slide over the wall above you. Boots. A cough. Then the corridor is empty.`, s, 'sitfloor', foes('walk', 'ok')); return ''; } hurt(s, rnd(10, 25), 'Shot by a patrol.'); showScene('Found', `A torch swings back and stops on you. A beating. You crawl away.${loseBag()}`, s, 'sitfloor', foes('aim', 'ok')); return ''; } },
+    { label: `Fight${oddsText(fight.p)}`, off: !bestWeapon(), why: 'You have nothing to fight with.', fn() { if (chance(fight.p)) { G.stats.kills++; moral(s, 6); showScene('It is over fast', `You are not sure you can stand. They are not standing either.`, s, 'aim', foes('dead', 'dead')); return ''; } hurt(s, rnd(20, 45), 'Killed by a patrol.'); showScene('It goes badly', `They were more, and readier. The floor comes up to meet you.`, s, 'sitfloor', foes('aim', 'ok')); return ''; } },
+    { label: `Run${oddsText(run.p)}`, fn() { e.noise += 3; const t = loseBag(); if (chance(run.p)) { showScene('You get away', `Something whines past your ear. You do not stop.${t}`, s, 'run', foes('aim', 'ok')); return ''; } hurt(s, rnd(8, 20), 'Shot in the back.'); showScene('Not fast enough', `A burst. A burning line across your back.${t}`, s, 'limp', foes('aim', 'ok')); return ''; } }
+  ];
+  ask('Patrol', `Torch beams. Voices. ${n > 1 ? n + ' armed men sweep' : 'An armed man sweeps'} the corridor. You are in their path.`, ch, { html: sceneHtml(s, 'sneak', foes('walk', 'ok')) });
+}
+function encRival(L, s, e) {
+  const r = mkPerson(null, 'visitor'); const k2 = () => pick(Object.keys(L.loot).filter((x) => !WEAPON[x]));
+  const hungry = chance(0.5); const F = 0.7 + (hungry ? 0.2 : 0);
+  const th = odds(s, 'threaten', F - 0.1), fi = odds(s, 'fight', F);
+  const foe = (k) => [{ sp: r.sp, kind: k, state: hungry ? 'hungry' : 'ok' }];
+  const ch = [
+    { label: 'Split it', fn() { const q = k2(); e.bag[q] = (e.bag[q] || 0) + (bagUsed() < bagCap() ? 1 : 0); mood(s, 2); showScene('You share', `${r.name} nods once. Neither of you says thank you.`, s, 'idle', foe('idle')); return ''; } },
+    { label: `Threaten them off${oddsText(th.p)}`, fn() { G.stats.thefts++; moral(s, 3); const q = k2(); if (chance(th.p)) { e.bag[q] = (e.bag[q] || 0) + Math.min(2, bagCap() - bagUsed()); showScene('They back off', `${r.name} looks at your hands, then your face, and leaves the room to you.`, s, 'aim', foe('sitfloor')); return ''; } hurt(s, rnd(5, 15), 'Stabbed over scraps.'); showScene('They do not back off', `${r.name} swings first. You get away with a cut and nothing else.`, s, 'sitfloor', foe('aim')); return ''; } },
+    { label: `Fight for it${oddsText(fi.p)}`, fn() { G.stats.thefts++; moral(s, 6); const q = k2(); if (chance(fi.p)) { e.bag[q] = (e.bag[q] || 0) + Math.min(3, bagCap() - bagUsed()); if (chance(0.15)) { G.stats.kills++; moral(s, 5); } showScene('You win it', `${r.name} stays down. Your hands are not steady.`, s, 'aim', foe('dead')); return ''; } hurt(s, rnd(10, 28), 'Stabbed over scraps.'); showScene('You lose it', `${r.name} is stronger than they looked. You leave bleeding.`, s, 'sitfloor', foe('aim')); return ''; } },
+    { label: 'Back away', fn() { return 'Neither of you says anything. You go.'; } }
+  ];
+  ask('Another scavenger', `${r.name} is also out here, ${hungry ? 'thin and pale' : 'steady'}, eyes on the same room as you.`, ch, { html: sceneHtml(s, 'idle', foe('idle')) });
+}
+function encHostile(g, L, s, e) {
+  const n = Math.min(3, Math.max(1, g.size)); const sps = (g.faces && g.faces.length ? g.faces : [CR.Sprites.gen('refugee', 7)]).slice(0, n);
+  const foes = (k) => sps.map((sp) => ({ sp, kind: k, state: 'ok' })); const F = 0.9 + g.size * 0.12;
+  const fi = odds(s, 'fight', F), ta = odds(s, 'talk', F + 0.1);
+  ask(`${g.name}`, `You walked into ${g.name}'s floor. They were waiting. ${g.size} of them. Somebody has a blade.`, [
+    { label: `Fight${oddsText(fi.p)}`, off: !bestWeapon(), why: 'You have nothing to fight with.', fn() { if (chance(fi.p)) { G.stats.kills++; moral(s, 8); setRel(g, -25); G.flags.groupRaid = g.id; g.size = Math.max(1, g.size - 1); showScene('You get out', `Someone does not. They will come for you.`, s, 'aim', foes('dead')); return ''; } hurt(s, rnd(20, 45), 'Killed by ' + g.name + '.'); showScene('It goes badly', `There were too many. The floor is cold.`, s, 'sitfloor', foes('aim')); return ''; } },
+    { label: 'Hand over your bag', fn() { Object.keys(e.bag).forEach((x) => { e.bag[x] = 0; }); mood(s, -4); showScene('They take everything', `They let you walk. That is the mercy.`, s, 'idle', foes('aim')); return ''; } },
+    { label: `Try to talk${oddsText(ta.p)}`, fn() { if (chance(ta.p)) { setRel(g, 10); showScene('They let you go', `Something in your voice works. They lower the blade.`, s, 'idle', foes('idle')); return ''; } hurt(s, rnd(10, 25), 'Beaten to death by ' + g.name + '.'); showScene('It does not work', `The first blow comes before you finish the sentence.`, s, 'sitfloor', foes('aim')); return ''; } }
+  ], { html: sceneHtml(s, 'idle', foes('aim')) });
+}
+
+/* ---------- holing up until the patrols change: allowed, and it costs ---------- */
+function holeUpSheet() {
+  const e = G.exp; if (!e) return; const s = person(e.sid); const L = LOCBY[e.loc];
+  const found = clamp(0.12 + L.risk * 0.05 + e.noise * 0.02 + (e.day ? 0.12 : 0) - (e.sneak ? 0.06 : 0), 0.05, 0.85);
+  ask('Hole up?', `<i>A corner, a door pulled to, and the long wait for the patrols to change.</i>`, [
+    { label: 'Hole up', fn() { s.fatigue = clamp(s.fatigue - 22, 0, 100); s.hunger = clamp(s.hunger + 12, 0, 100); s.thirst = clamp(s.thirst + 14, 0, 100); e.noise = 0; e.waited = (e.waited || 0) + 6; e.hours = Math.min(e.total, e.hours + 3); G.exp.xs = []; if (chance(found)) { Q.push({ title: 'Found', text: 'Footsteps stop outside your hiding place.', choices: [{ label: 'Continue', fn() { forceEnc('patrol'); return ''; } }], art: { sp: s.sp, state: stateOf(s) } }); return ''; } return `<i>Hours of dust and thirst. Nobody comes. The light has changed when you wake.</i>`; } },
+    { label: 'Keep going' }
+  ], { sp: s.sp, state: stateOf(s) });
+}
+
+/* ---------- wheels ---------- */
+const WHEEL = CR.Wheel;
+const plainCost = (c) => Object.entries(c).map(([k, v]) => v + ' ' + (k === 'parts' ? 'scrap' : k)).join(', ');
+const BICON = { stove: 'wood', bench: 'tools', barr1: 'wood', barr2: 'wood', barr3: 'wood', bunk: 'bed', bucket: 'water', filter: 'water', garden: 'bread', radio: 'radio', alarm: 'bolt', curtains: 'cloth', infirm: 'meds', cupboard: 'bag', still: 'ogogoro' };
+function wheelOrder(s, job) { const r = SIM.order(s.id, job, true); if (!r.ok) toastWhy(r.why); }
+function craftWheel(s) {
+  WHEEL.open({ title: 'Make', items: Object.entries(SIM.CRAFTS).map(([id, c]) => { const w = SIM.why({ k: 'craft', id }, s); return { id, label: c.name, icon: Object.keys(c.out)[0], sub: `${plainCost(c.cost)} · ${c.min} min`, off: !!w, why: w }; }), onPick: (it) => wheelOrder(s, { k: 'craft', id: it.id }) });
+}
+function cookWheel(s) {
+  const opts = [['Small pot', 2], ['Full pot', 4]];
+  WHEEL.open({ title: 'Cook', items: opts.map(([label, n]) => { const w = SIM.why({ k: 'cook', n }, s) || (inv('food') < n ? `You need ${n} food for that.` : null); return { id: n, label, icon: 'meal', sub: `${n} food + 1 wood · ${n === 2 ? 25 : 40} min`, off: !!w, why: w }; }), onPick: (it) => wheelOrder(s, { k: 'cook', n: it.id }) });
+}
+function buildWheel(s, only) {
+  const items = Object.entries(SIM.BUILDS).filter(([, d]) => d.can(G.build) && (!only || d.at === only)).map(([id, d]) => { const w = SIM.why({ k: 'build', id }, s); return { id, label: d.name, icon: BICON[id] || 'tools', sub: `${plainCost(d.cost)} · ${Math.round(d.min / 6) / 10} h`, off: !!w, why: w }; });
+  if (!items.length) { toastWhy('Nothing more to build here.'); return; }
+  WHEEL.open({ title: 'Build', items, onPick: (it) => wheelOrder(s, { k: 'build', id: it.id }) });
+}
+function resourceWheel(s) {
+  const items = Object.keys(ITEMS).filter((k) => inv(k) > 0).map((k) => ({ id: k, label: ITEMS[k][1], icon: k, count: inv(k) }));
+  if (!items.length) { toastWhy('The cupboard is empty.'); return; }
+  WHEEL.open({ title: 'Cupboard', items, onPick: (it) => itemWheel(s, it.id) });
+}
+function itemWheel(s, k) {
+  const usable = ['food', 'meal', 'water', 'meds', 'bandage', 'ogogoro'].includes(k); const room = packCount(s) < packCap(s);
+  const others = alive().filter((o) => o.id !== s.id && !o.out);
+  WHEEL.open({ title: ITEMS[k][1], items: [
+    { id: 'use', label: k === 'meds' || k === 'bandage' ? 'Treat' : k === 'food' ? 'Eat raw' : k === 'water' ? 'Drink' : 'Use', icon: k, off: !usable || (k === 'meds' && !s.sick) || (k === 'bandage' && !s.wound), why: !usable ? 'It is not something you use directly.' : k === 'meds' ? `${s.name} is not sick.` : `${s.name} has no wound.` },
+    { id: 'take', label: 'Carry', icon: 'bag', sub: 'to pack', off: !room || inv(k) < 1, why: !room ? `${s.name}'s pack is full.` : 'None left.' },
+    { id: 'give', label: 'Give', icon: 'people', sub: 'to someone', off: !others.length || inv(k) < 1, why: 'Nobody else is here.' },
+    { id: 'back', label: 'Put back', icon: 'house', sub: 'from pack', off: !(s.pack && s.pack[k] > 0) || stashRoom() < 1, why: !(s.pack && s.pack[k] > 0) ? `${s.name} is not carrying any.` : 'The cupboard is full.' }
+  ], onPick: (it) => {
+    if (it.id === 'use') { useItem(s, k); flush(); save(); render(); }
+    else if (it.id === 'take') { add(k, -1); s.pack = s.pack || {}; s.pack[k] = (s.pack[k] || 0) + 1; notice(`${s.name} takes ${ITEMS[k][1].toLowerCase()}.`); save(); render(); }
+    else if (it.id === 'back') { s.pack[k]--; if (!s.pack[k]) delete s.pack[k]; add(k, 1); save(); render(); }
+    else if (it.id === 'give') WHEEL.open({ title: 'Give to', items: others.map((o) => ({ id: o.id, label: ST.first(o), icon: 'people', sub: `${packCount(o)}/${packCap(o)} carried`, off: packCount(o) >= packCap(o), why: `${o.name}'s pack is full.` })), onPick: (w) => { const o = person(w.id); add(k, -1); o.pack = o.pack || {}; o.pack[k] = (o.pack[k] || 0) + 1; o.trust = clamp((o.trust || 0) + 1, 0, 100); notice(`${o.name} takes it. They remember.`); save(); render(); } });
+  } });
+}
+function openWheel(kind) {
+  const s = person(G.sel); if (!s || s.out) return;
+  if (kind === 'craft') { if (!G.build.bench) { buildWheel(s, 'bench'); return; } craftWheel(s); }
+  else if (kind === 'cook') { if (!G.build.stove) { buildWheel(s, 'stove'); return; } cookWheel(s); }
+  else if (kind === 'build') buildWheel(s);
+  else if (kind === 'stock') resourceWheel(s);
+}
+
+/* ---------- testers: copy a report, export a save ---------- */
+function reportText() {
+  try { return JSON.stringify({ v: 'crisis-v2', day: G.day, clock: SIM.clock(G.t), screen: G.screen, speed: G.speed, floors: G.floors, build: G.build, inv: G.inv, people: G.S.map((s) => ({ n: s.name, a: s.alive, o: !!s.out, hp: Math.round(s.hp), h: Math.round(s.hunger), t: Math.round(s.thirst), f: Math.round(s.fatigue), m: Math.round(s.mood), act: s.act ? s.act.k : null })), log: G.log.slice(0, 20).map((l) => l.t), errors: (window.__errors || []).slice(-5) }); } catch (e) { return 'report failed: ' + e.message; }
+}
+function copyReport() { const t = reportText(); try { navigator.clipboard.writeText(t).then(() => notice('Report copied. Paste it to the developer.'), () => notice('Could not copy. Long-press the text instead.')); } catch (e) { notice('Could not copy the report.'); } }
+
+function badgeNames(s) {
+  const b = [];
+  if (s.wound) b.push('blood'); if (s.sick) b.push('sick');
+  if (s.hunger >= 55) b.push('bread'); if (s.thirst >= 50) b.push('water');
+  if (s.fatigue >= 70) b.push('moon'); if (s.mood < 28) b.push('cloud');
+  if (s.act && s.act.k === 'watch') b.push('eye');
+  return b.slice(0, 2);
+}
+if (HOUSE) HOUSE.hooks = { knock: () => tallyKnock(), badges: badgeNames, G: () => G, person, selected: () => G.sel, stateOf, modalOpen: () => modalOpen, step: stepV2, tapPerson, tapStation, tapFloor, yard: yardList };
+
 /* test hook (used by the smoke test; harmless in the browser) */
-if (typeof window !== 'undefined') window.__crisis = { get G() { return G; }, newGame, act, Q, dawn, search, nextModal, host };
+if (typeof window !== 'undefined') window.__crisis = { forceEnc, holeUpSheet, openWheel, goHome, get G() { return G; }, newGame, act, Q, dawn: dawnV2, search, nextModal, host, Sim: CR.Sim, stepV2, tapStation, tapFloor, tapPerson, doorSheet, pickDest, sendOut, startControlled, returnParties, lookSheet, homeMenu, get modalOpen() { return modalOpen; } };
 render();
 })();

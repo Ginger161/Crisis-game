@@ -1,5 +1,5 @@
-const CACHE = 'crisis-v9';
-const FILES = ['./', 'index.html', 'style.css', 'game.js', 'settings.js', 'ui.js', 'audio.js', 'menu.js', 'campus.js', 'emblem.js', 'sprites.js', 'side.js', 'scenes.js', 'cutaway.js', 'expedition.js', 'voice.js', 'cast.js', 'groups.js', 'story.js', 'storylets.js', 'politics.js', 'polylets.js', 'procedural.js', 'life.js', 'tutorial.js', 'manifest.json', 'icon.svg'];
+const CACHE = 'crisis-v14';
+const FILES = ['./', 'index.html', 'style.css', 'game.js', 'settings.js', 'ui.js', 'audio.js', 'menu.js', 'campus.js', 'sprites.js', 'side.js', 'scenes.js', 'icons.js', 'wheel.js', 'sim.js', 'house.js', 'expedition.js', 'voice.js', 'cast.js', 'groups.js', 'lore.js', 'story.js', 'storylets.js', 'politics.js', 'polylets.js', 'procedural.js', 'life.js', 'tutorial.js', 'manifest.json', 'icon.svg'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
   self.skipWaiting();
