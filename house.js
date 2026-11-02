@@ -223,7 +223,7 @@ function buildStatic(G) {
   const gk = (G.seed || 1337) + '|' + N; if (GRC.key !== gk) { GRC.key = gk; GRC.wall = []; GRC.fl = []; }
   let o = '';
   const sky = (G.wx === 'dust' ? ['#8c6e48', '#b08a5a'] : ['#6f6a5e', '#a99f86']);
-  o += `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient><radialGradient id="hglow"><stop offset="0" stop-color="#ffb040" stop-opacity=".65"/><stop offset="1" stop-color="#ff9a30" stop-opacity="0"/></radialGradient></defs>`;
+  o += `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient>${[0.8, 0.64, 0.5, 0.4].map((b, i) => `<filter id="dim${i + 1}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${(b * 0.9).toFixed(2)} ${(b * 0.1).toFixed(2)} 0 0 0 ${(b * 0.05).toFixed(2)} ${(b * 0.9).toFixed(2)} ${(b * 0.05).toFixed(2)} 0 0 ${(b * 0.05).toFixed(2)} ${(b * 0.1).toFixed(2)} ${(b * 0.9).toFixed(2)} 0 0 0 0 1 0"/></filter>`).join('')}<radialGradient id="hglow"><stop offset="0" stop-color="#ffb040" stop-opacity=".65"/><stop offset="1" stop-color="#ff9a30" stop-opacity="0"/></radialGradient></defs>`;
   o += rect(VX - 600, -900, VW + 1200, VH + 900, 'url(#sky)');
   /* distant campus skyline, hills and clouds, behind the yard and the house */
   { const Rr = mulberry(55); let x = VX - 600; while (x < VX + VW + 600) { const out = x < 0 || x > W; const w = 14 + Rr() * 26, h = out ? 30 + Rr() * (N * FH * 0.95) : 10 + Rr() * 52; const t = Rr(); o += rect(x, yb(0) - h, w, h, t < 0.5 ? '#6e6658' : t < 0.8 ? '#5e574c' : '#544f52', 'opacity=".62"');
@@ -351,7 +351,7 @@ function draw(ts) {
     const y = yb(pos.f) - (pos.up || 0) - (kind === 'sleep' ? 9 : 0); const x = pos.x;
     const dp = pos.depth || 0; const back = dp > 0.02; if (a.back !== back) { a.back = back; (back ? H.layerB : H.layer).appendChild(a.el); }
     const sc = 1 - 0.17 * dp; a.el.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)})`);
-    const br = dp > 0.02 ? (1 - 0.58 * dp).toFixed(2) : ''; if (a.br !== br) { a.br = br; a.el.style.filter = br ? `brightness(${br}) saturate(${(1 - 0.3 * dp).toFixed(2)})` : ''; }
+    const lvl = dp > 0.02 ? Math.min(4, 1 + Math.floor(dp * 3.999)) : 0; if (a.lvl !== lvl) { a.lvl = lvl; if (lvl) a.el.setAttribute('filter', `url(#dim${lvl})`); else a.el.removeAttribute('filter'); }
     /* progress over the head for timed jobs at a station */
     let bar = '';
     if (act && act.walkLeft <= 0 && act.total > 6 && /build|cook|craft/.test(act.k)) { const q = act.k === 'build' ? (G.bq || []).find((z) => z.id === act.job.id) : null; const pr = q ? q.prog / Math.max(1, q.need) : 1 - act.left / act.total; bar = `<rect x="-9" y="${-36 * SC - 14}" width="18" height="2.6" fill="#1a1410" stroke="#f2ebcf" stroke-width=".3"/><rect x="-9" y="${-36 * SC - 14}" width="${(18 * clamp(pr, 0, 1)).toFixed(1)}" height="2.6" fill="#7bbf6a"/>`; }
@@ -449,7 +449,7 @@ H.attach = function (container, G) {
     H.root.addEventListener('pointerdown', onTap);
   }
   const bunks = Object.keys(SIM().stations()).filter((k) => k.indexOf('bunk') === 0).length;
-  const key = JSON.stringify([G.build, N, bunks, G.wx, G.seed]);
+  const key = JSON.stringify([G.build, N, bunks, G.wx === 'dust', G.seed]);
   if (key !== H.key || !H.svg) {
     H.key = key; const old = H.layer; H.actors = {}; H.bub = {};
     const staticSvg = buildStatic(G);
