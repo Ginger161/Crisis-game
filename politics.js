@@ -32,6 +32,7 @@ const stance = (f) => { const p = f.p || 0; return p >= 40 ? 'Allied' : p >= 15 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /* ---------- setup ---------- */
+P.setHost = function (host) { H = host; };
 P.init = function (host, party) {
   H = host; const G = H.G; const cast = K(); const used = new Set([G.shelter]);
   const inParty = new Set(party || []);

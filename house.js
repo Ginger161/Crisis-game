@@ -207,10 +207,20 @@ const DECOR = [
   (x, y, R) => rect(x - 3, y - 6, 6, 6, '#c8a050') + rect(x - 1, y - 9, 1.5, 3, '#f0e0a0'),                                                                        // candle on box
   (x, y, R) => rect(x - 8, y - 14, 16, 14, '#3a3a40') + rect(x - 7, y - 13, 14, 11, '#1a1a1e') + rect(x - 5, y - 2, 10, 2, '#555'),                                // dead TV
 ];
+const DYN = new Set(['cupboard', 'water', 'tally']);
+function buildDyn(G) {
+  const B = G.build || {}; const S = SIM().stations(); let d = '';
+  DYN.forEach((id) => { const s = S[id]; if (!s) return; const y1 = yb(s.f); const art = furniture(id, s, y1, B, G); const k = FSCALE[id] || 1; d += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
+  return d;
+}
+function dynKey(G) { const n = Object.values(G.inv || {}).reduce((a, b) => a + b, 0); return [G.day, Math.min(3, Math.floor(n / 14)), Math.min(4, Math.ceil(((G.inv && G.inv.water) || 0) / 3)), (G.build || {}).cupboard].join('|'); }
+function refreshDyn(G) { if (!H.dynG) return; const k = dynKey(G); if (k !== H.dynK) { H.dynK = k; H.dynG.innerHTML = buildDyn(G); } }
+const GRC = { key: '', wall: [], fl: [] };
 let railOut = '';
 function buildStatic(G) {
   let rail = '';
   const B = G.build || {}; const S = SIM().stations(); curS = S; const R = mulberry(G.seed || 1337); const Rg = mulberry((G.seed || 1337) + 4242);
+  const gk = (G.seed || 1337) + '|' + N; if (GRC.key !== gk) { GRC.key = gk; GRC.wall = []; GRC.fl = []; }
   let o = '';
   const sky = (G.wx === 'dust' ? ['#8c6e48', '#b08a5a'] : ['#6f6a5e', '#a99f86']);
   o += `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky[0]}"/><stop offset="1" stop-color="${sky[1]}"/></linearGradient><radialGradient id="hglow"><stop offset="0" stop-color="#ffb040" stop-opacity=".65"/><stop offset="1" stop-color="#ff9a30" stop-opacity="0"/></radialGradient></defs>`;
@@ -233,7 +243,7 @@ function buildStatic(G) {
     const y1 = yb(f), y0 = y1 - FH;
     o += rect(0, y0, W, FH, WALL) + rect(0, y0, W, 5, WALL2) + rect(0, y1 - 14, W, 14, PAINT, 'opacity=".85"') + rect(0, y1 - 14, W, 1, '#b07a4a');
     for (let k = 0; k < 8; k++) o += rect(k * 30 + (f % 2) * 8, y0 + 5, 0.6, FH - 19, WALL2, 'opacity=".45"');      // wall panels
-    o += wallGrime(Rg, f, y0, y1);
+    o += (GRC.wall[f] !== undefined ? GRC.wall[f] : (GRC.wall[f] = wallGrime(Rg, f, y0, y1)));
     o += rect(-6, y0, 6, FH, '#cf9a6c') + rect(W, y0, 6, FH, '#cf9a6c') + rect(-6, y0, 6, 2, '#d98a52') + rect(W, y0, 6, 2, '#d98a52');
     const gap = f > 0;
     if (gap) o += rect(-6, y1, STAIRX - 17 + 6, 3, TRIM) + rect(STAIRX + 17, y1, W - STAIRX - 17 + 6, 3, TRIM); else o += rect(-6, y1, W + 12, 3, TRIM);
@@ -261,13 +271,11 @@ function buildStatic(G) {
     for (let i = 0; i < n; i++) { const x = 8 + R() * (W - 16); if (used.some((u) => Math.abs(u - x) < 22) || Math.abs(x - STAIRX) < 26) continue; o += DECOR[Math.floor(R() * DECOR.length)](x, y1, R); }
     if (f === 0) o += rect(6, y1 - 3, 8, 3, '#2a2420') + rect(10, y1 - 3, 6, 3, '#4a3a2a');
   }
-  Object.values(S).forEach((s) => { const y1 = yb(s.f); const art = s.built === false ? siteArt(s.id, s.x, y1) : furniture(s.id, s, y1, B, G); const k = s.built === false ? 1 : (FSCALE[s.id] || 1); o += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
+  Object.values(S).forEach((s) => { if (DYN.has(s.id)) return; const y1 = yb(s.f); const art = s.built === false ? siteArt(s.id, s.x, y1) : furniture(s.id, s, y1, B, G); const k = s.built === false ? 1 : (FSCALE[s.id] || 1); o += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
   for (let f = 0; f < N; f++) {
     const y1 = yb(f), y0 = y1 - FH; const used = Object.values(S).filter((s) => s.f === f).map((s) => s.x);
-    o += floorGrime(Rg, y1); o += cobweb(0, y0 + 5, 1) + cobweb(W, y0 + 5, -1);
-    if (f % 2 === 0 || Rg() < 0.4) { const cands = [60, 90, 150, 190, 40, 205].filter((x) => !used.some((u) => Math.abs(u - x) < 22) && Math.abs(x - STAIRX) > 26); if (cands.length) o += toilet(cands[Math.floor(Rg() * cands.length)], y1); }
-    if (Rg() < 0.45) o += skeleton(Rg() < 0.5 ? 6 : W - 28, y1, 1);
-    o += critters(Rg, y1);
+    if (GRC.fl[f] === undefined) { let t = floorGrime(Rg, y1) + cobweb(0, y0 + 5, 1) + cobweb(W, y0 + 5, -1); if (f % 2 === 0 || Rg() < 0.4) { const cands = [60, 90, 150, 190, 40, 205].filter((x) => !used.some((u) => Math.abs(u - x) < 22) && Math.abs(x - STAIRX) > 26); if (cands.length) t += toilet(cands[Math.floor(Rg() * cands.length)], y1); } if (Rg() < 0.45) t += skeleton(Rg() < 0.5 ? 6 : W - 28, y1, 1); t += critters(Rg, y1); GRC.fl[f] = t; }
+    o += GRC.fl[f];
   }
   { const gy = yb(0); o += rect(W + 8, gy - 8, 28, 7, '#2a2420') + rect(W + 12, gy - 13, 16, 5, '#2a2420') + rect(W + 14, gy - 12, 5, 3, '#14100c') + rect(W + 21, gy - 12, 5, 3, '#14100c') + rect(W + 10, gy - 6, 6, 3, '#8a4a22', 'opacity=".8"') + rect(W + 26, gy - 5, 4, 2, '#8a4a22', 'opacity=".8"') + ell(W + 14, gy - 1.5, 3.2, 3, '#0e0b08') + ell(W + 31, gy - 1.5, 3.2, 3, '#0e0b08') + rect(W + 16, gy - 20, 3, 8, '#2c2824', 'opacity=".45"') + rect(W + 15, gy - 28, 6, 8, '#2c2824', 'opacity=".3"');
     for (let k = 0; k < 9; k++) o += rect(-26 + k * 3 + (k % 2) * 1.5, gy - 3 - (k % 3), 2.4, 2, k % 3 ? '#1b1815' : '#4a4a3a'); }
@@ -350,6 +358,7 @@ function draw(ts) {
     if (a.barKey !== bar) { a.bar.innerHTML = bar; a.barKey = bar; }
   });
   updateView(G);
+  if (!H.dynT || ts - H.dynT > 400) { H.dynT = ts; refreshDyn(G); }
   updateChips(G, ts);
   drawYard(G);
   placeBubbles(G);
@@ -440,12 +449,12 @@ H.attach = function (container, G) {
     H.root.addEventListener('pointerdown', onTap);
   }
   const bunks = Object.keys(SIM().stations()).filter((k) => k.indexOf('bunk') === 0).length;
-  const key = JSON.stringify([G.build, N, bunks, G.day, G.wx, Math.min(3, Math.floor(Object.values(G.inv || {}).reduce((a, b) => a + b, 0) / 14)), Math.min(4, Math.ceil(((G.inv && G.inv.water) || 0) / 3))]);
+  const key = JSON.stringify([G.build, N, bunks, G.wx, G.seed]);
   if (key !== H.key || !H.svg) {
     H.key = key; const old = H.layer; H.actors = {}; H.bub = {};
     const staticSvg = buildStatic(G);
-    H.root.querySelector('.hsvg').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VX} 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges"><g id="hstatic">${staticSvg}</g><g id="hhint" pointer-events="none"></g><g id="hactb"></g><g id="hrail">${railOut}</g><g id="hyard"></g><g id="hact"></g><rect id="hhaze" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#5a4c38" opacity=".16" pointer-events="none"/><rect id="hdark" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#060a22" opacity="0" pointer-events="none"/><g id="hstars" opacity="0" pointer-events="none">${Array.from({ length: 14 }, (_, i) => rect(VX + ((i * 37) % VW), 2 + ((i * 11) % 14), 0.8, 0.8, '#f2ebcf')).join('')}</g><g id="hglow" pointer-events="none"></g></svg>`;
-    H.svg = H.root.querySelector('svg'); H.layer = H.svg.querySelector('#hact'); H.layerB = H.svg.querySelector('#hactb'); H.hintG = H.svg.querySelector('#hhint'); H.hintSig = null; H.chipSig = null; H.active = new Set(); H.dark = H.svg.querySelector('#hdark'); H.stars = H.svg.querySelector('#hstars'); H.yard = H.svg.querySelector('#hyard'); H.glow = H.svg.querySelector('#hglow'); H.yardKey = null; H.tone = -1;
+    H.root.querySelector('.hsvg').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VX} 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges"><g id="hstatic">${staticSvg}</g><g id="hdyn"></g><g id="hhint" pointer-events="none"></g><g id="hactb"></g><g id="hrail">${railOut}</g><g id="hyard"></g><g id="hact"></g><rect id="hhaze" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#5a4c38" opacity=".16" pointer-events="none"/><rect id="hdark" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#060a22" opacity="0" pointer-events="none"/><g id="hstars" opacity="0" pointer-events="none">${Array.from({ length: 14 }, (_, i) => rect(VX + ((i * 37) % VW), 2 + ((i * 11) % 14), 0.8, 0.8, '#f2ebcf')).join('')}</g><g id="hglow" pointer-events="none"></g></svg>`;
+    H.svg = H.root.querySelector('svg'); H.layer = H.svg.querySelector('#hact'); H.layerB = H.svg.querySelector('#hactb'); H.dynG = H.svg.querySelector('#hdyn'); H.dynK = null; refreshDyn(G); H.hintG = H.svg.querySelector('#hhint'); H.hintSig = null; H.chipSig = null; H.active = new Set(); H.dark = H.svg.querySelector('#hdark'); H.stars = H.svg.querySelector('#hstars'); H.yard = H.svg.querySelector('#hyard'); H.glow = H.svg.querySelector('#hglow'); H.yardKey = null; H.tone = -1;
   }
   if (H.root.parentNode !== container) container.appendChild(H.root);
   if (!H.raf) H.raf = requestAnimationFrame(frame);

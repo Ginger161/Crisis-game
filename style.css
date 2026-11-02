@@ -68,9 +68,9 @@ button.on{border-color:var(--orange);background:#2b2214}
 .prow .mini i{display:block;height:5px;background:#2a2622;border-radius:3px;overflow:hidden}
 .prow .mini b{display:block;height:100%;background:var(--good)}
 .prow .mini .m-warn b{background:var(--warn)} .prow .mini .m-bad b{background:var(--bad)}
-.prow .mini small{display:block;font-size:9px;color:var(--dim);text-align:center;line-height:1.1}
+.prow .mini small{display:block;font-size:12px;color:var(--dim);text-align:center;line-height:1.1}
 .prow .btns2{display:flex;flex-direction:column;gap:4px}
-.prow .btns2 button{padding:3px 8px;min-height:28px;font-size:13px}
+.prow .btns2 button{padding:3px 8px;min-height:44px;min-width:44px;font-size:13px}
 .tag{font-size:10px;padding:1px 5px;border-radius:4px;background:var(--line);margin-left:3px;color:var(--text)}
 .tag.bad{background:var(--bad)} .tag.warn{background:#6b5314}
 .meter{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);margin-top:3px}
@@ -380,3 +380,71 @@ button[aria-disabled="true"]{opacity:.38;cursor:help}
 
 .house .actor .ss,.house .actor g:not([data-p]) svg{pointer-events:none}
 .house .actor rect:not([data-p]){pointer-events:none}
+
+/* ---- device QA: tap targets of at least 44px, text of at least 12px ---- */
+button{min-height:44px}
+.menubtn,.hud .spd,.hud2 .menubtn,.hud2 .spd{min-width:44px;min-height:44px}
+.house .hfl{width:44px;height:44px}
+.mback{min-height:44px}
+#modal .btns button{min-height:44px}
+.hud .phase{font-size:12px}
+.navb span{font-size:12px}
+.title .btns button{min-height:48px}
+.coach button,.cbtns button{min-height:44px}
+.chip{font-size:12px}
+@media (max-height:700px){ .prow .mini small{display:none} }
+
+/* landscape phones: the house on the left, the panel on the right */
+@media (orientation:landscape) and (max-height:560px){
+  .shell.v2old{max-width:none;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .shell.v2old .hud{grid-column:1/-1}
+  .shell.v2old .stage{grid-column:1;grid-row:2}
+  .shell.v2old .panelwrap{grid-column:2;grid-row:2;border-left:1px solid var(--line)}
+  .prow{padding:3px 6px;margin-bottom:4px}.prow .pic{height:40px}
+}
+
+.wgrid{width:100%;max-width:620px;padding:12px;display:flex;flex-direction:column;gap:6px;max-height:100%;overflow:hidden}
+.wgtop{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.wgtop b{font-family:Georgia,serif;font-weight:normal;font-size:16px;color:#f2ebcf}
+.wgcells{display:flex;flex-wrap:wrap;gap:6px 4px;justify-content:center}
+.wedge-pos.static{position:static;transform:none}
+.wedge .wi{width:56px;height:56px}
+
+/* ---- small screens ---- */
+.sub{font-size:12px}
+.tag{font-size:12px}
+#modal .story{min-height:64px}
+#modal .btns{max-height:46%}
+@media (max-height:640px){ #modal .art{display:none} #modal .mhead h3{font-size:17px} }
+@media (max-height:620px){
+  .crest svg{width:64px;height:64px}
+  .title h1{font-size:34px}
+  .title .loc{margin:2px 0 12px}
+  .title .btns{gap:6px}
+  .title .note{margin:12px auto 0}
+}
+@media (orientation:landscape) and (max-height:560px){
+  .title{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"c b" "h b" "l b" "n n";align-items:center;column-gap:20px;max-width:760px;margin:auto}
+  .title .crest{grid-area:c;margin:0}.title h1{grid-area:h}.title .loc{grid-area:l}.title .btns{grid-area:b;margin:0 auto}.title .note{grid-area:n}
+}
+/* settings + expedition: real 44px targets */
+.msub{font-size:12px}
+.seg button{min-height:44px}
+.tog{width:60px;height:44px;min-height:44px;padding:0;background:transparent;border:0;position:relative}
+.tog:before{content:"";position:absolute;left:4px;right:4px;top:7px;bottom:7px;border-radius:999px;background:#2a2622;border:1px solid var(--line)}
+.tog.on{background:transparent;border:0}
+.tog.on:before{background:var(--vgreen);border-color:var(--vgreen)}
+.tog i{position:absolute;top:11px;left:9px;width:22px;height:22px;z-index:1}
+.tog.on i{transform:translateX(22px)}
+.xsneak{min-height:44px;padding:4px 14px}
+.xhole{min-height:44px}
+
+/* never below 12px */
+small,.who,.prompt,.dim small,.news small,.chip small{font-size:12px}
+.bub .who{font-size:12px}
+@media (orientation:landscape) and (max-height:560px){
+  .shell.tall{max-width:none;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .shell.tall .hud{grid-column:1/-1}
+  .shell.tall .stage{grid-column:1;grid-row:2;aspect-ratio:auto}
+  .shell.tall .panelwrap{grid-column:2;grid-row:2;border-left:1px solid var(--line)}
+}

@@ -227,7 +227,7 @@ function load() {
     /* saves from older versions have no shelter, sprites or campus ids: discard them rather than crash */
     const ok = g && g.shelter && LOCBY[g.shelter] && Array.isArray(g.S) && g.S.every((x) => x.sp && x.sp.arch && x.cid) && g.tonight && g.build && g.fac && g.fac.length && g.rel && g.dir && typeof g.t === 'number';
     if (!ok) { localStorage.removeItem('crisis_save'); return false; }
-    G = g; if (CR.House) CR.House.reset(); G.pend = null; G.away = false; if (CR.Sim) CR.Sim.start(G); return true;
+    G = g; if (CR.House) CR.House.reset(); G.pend = null; G.away = false; if (CR.Sim) CR.Sim.start(G); if (PO && PO.setHost) PO.setHost(host); return true;
   } catch (e) { try { localStorage.removeItem('crisis_save'); } catch (e2) {} return false; }
 }
 
@@ -1561,7 +1561,7 @@ function holeUpSheet() {
   const e = G.exp; if (!e) return; const s = person(e.sid); const L = LOCBY[e.loc];
   const found = clamp(0.12 + L.risk * 0.05 + e.noise * 0.02 + (e.day ? 0.12 : 0) - (e.sneak ? 0.06 : 0), 0.05, 0.85);
   ask('Hole up?', `<i>A corner, a door pulled to, and the long wait for the patrols to change.</i>`, [
-    { label: 'Hole up', fn() { s.fatigue = clamp(s.fatigue - 22, 0, 100); s.hunger = clamp(s.hunger + 12, 0, 100); s.thirst = clamp(s.thirst + 14, 0, 100); e.noise = 0; e.waited = (e.waited || 0) + 6; e.hours = Math.min(e.total, e.hours + 3); G.exp.xs = []; if (chance(found)) { Q.push({ title: 'Found', text: 'Footsteps stop outside your hiding place.', choices: [{ label: 'Continue', fn() { forceEnc('patrol'); return ''; } }], art: { sp: s.sp, state: stateOf(s) } }); return ''; } return `<i>Hours of dust and thirst. Nobody comes. The light has changed when you wake.</i>`; } },
+    { label: 'Hole up', fn() { if (!G.exp) return ''; s.fatigue = clamp(s.fatigue - 22, 0, 100); s.hunger = clamp(s.hunger + 12, 0, 100); s.thirst = clamp(s.thirst + 14, 0, 100); e.noise = 0; e.waited = (e.waited || 0) + 6; e.hours = Math.min(e.total, e.hours + 3); G.exp.xs = []; if (chance(found)) { Q.push({ title: 'Found', text: 'Footsteps stop outside your hiding place.', choices: [{ label: 'Continue', fn() { forceEnc('patrol'); return ''; } }], art: { sp: s.sp, state: stateOf(s) } }); return ''; } return `<i>Hours of dust and thirst. Nobody comes. The light has changed when you wake.</i>`; } },
     { label: 'Keep going' }
   ], { sp: s.sp, state: stateOf(s) });
 }

@@ -13,7 +13,7 @@ function ensure() {
   el.addEventListener('click', (e) => {
     const w = e.target.closest('[data-w]'); const cur = stack[stack.length - 1];
     if (e.target.closest('[data-wclose]') || (!w && e.target === el)) { close(); return; }
-    if (e.target.closest('[data-wmore]')) { cur.page = (cur.page + 1) % Math.ceil(cur.items.length / 7); draw(); return; }
+    if (e.target.closest('[data-wmore]')) { const pp = ((typeof innerHeight === 'number' && innerHeight < 520) || (typeof innerWidth === 'number' && innerWidth < 340)) ? 8 : ((typeof innerWidth === 'number' ? innerWidth : 390) < 460 ? 6 : 8); cur.page = (cur.page + 1) % Math.ceil(cur.items.length / pp); draw(); return; }
     if (!w || !cur) return; const it = cur.items[+w.dataset.w]; if (!it) return;
     if (it.off) { toast(it.why || 'Not available right now.'); return; }
     try { if (C.Audio) C.Audio.sfx('choose'); } catch (x) {}
@@ -21,14 +21,23 @@ function ensure() {
   });
 }
 function draw() {
-  const cur = stack[stack.length - 1]; if (!cur) return; const per = cur.items.length > 8 ? 7 : 8;
-  const items = cur.items.slice(cur.page * per, cur.page * per + per); const more = cur.items.length > 8;
+  const cur = stack[stack.length - 1]; if (!cur) return;
   const W = Math.min(typeof innerWidth === 'number' ? innerWidth : 390, 620), Hh = typeof innerHeight === 'number' ? innerHeight : 800;
-  const R = Math.max(86, Math.min(128, Math.min(W, Hh) / 2 - 62)); const n = items.length + (more ? 1 : 0);
-  let o = `<div class="wcenter"><b>${cur.title}</b><button class="wx" data-wclose="1" aria-label="Back">← Back</button></div>`;
-  const place = (i, html) => { const a = -Math.PI / 2 + (i / Math.max(n, 1)) * Math.PI * 2; return `<div class="wedge-pos" style="left:calc(50% + ${(Math.cos(a) * R).toFixed(1)}px);top:calc(50% + ${(Math.sin(a) * R).toFixed(1)}px)">${html}</div>`; };
-  items.forEach((it, i) => { const gi = cur.page * per + i; o += place(i, `<button class="wedge${it.off ? ' off' : ''}" data-w="${gi}"><span class="wi">${it.icon && C.Icons ? C.Icons.html(it.icon) : ''}${it.count !== undefined ? `<em>${it.count}</em>` : ''}</span><span class="wl">${it.label}</span>${it.sub ? `<small>${it.sub}</small>` : ''}</button>`); });
-  if (more) o += place(items.length, `<button class="wedge more" data-wmore="1"><span class="wi">…</span><span class="wl">More</span></button>`);
+  const grid = Hh < 520 || W < 340;                                         /* short screens (landscape phones): a tidy grid instead of a ring */
+  const per = grid ? 8 : (W < 460 ? 6 : 8); const more = cur.items.length > per + (grid ? 0 : 1) || cur.items.length > per;
+  const perPage = more ? per - 0 : cur.items.length; const items = cur.items.slice(cur.page * per, cur.page * per + per); const hasMore = cur.items.length > per;
+  const btn = (it, gi) => `<button class="wedge${it.off ? ' off' : ''}" data-w="${gi}"><span class="wi">${it.icon && C.Icons ? C.Icons.html(it.icon) : ''}${it.count !== undefined ? `<em>${it.count}</em>` : ''}</span><span class="wl">${it.label}</span>${it.sub ? `<small>${it.sub}</small>` : ''}</button>`;
+  let o = '';
+  if (grid) {
+    o = `<div class="wgrid"><div class="wgtop"><b>${cur.title}</b><button class="wx" data-wclose="1" aria-label="Back">← Back</button></div><div class="wgcells">${items.map((it, i) => `<div class="wedge-pos static">${btn(it, cur.page * per + i)}</div>`).join('')}${hasMore ? `<div class="wedge-pos static"><button class="wedge wmore" data-wmore="1"><span class="wi">…</span><span class="wl">More</span></button></div>` : ''}</div></div>`;
+    el.innerHTML = o; el.classList.remove('hidden'); if (C.Icons) C.Icons.skin(el); return;
+  }
+  const n = items.length + (hasMore ? 1 : 0);
+  const Rx = Math.max(96, Math.min(150, W / 2 - 52)), Ry = Math.max(120, Math.min(250, Hh / 2 - 118));
+  o = `<div class="wcenter"><b>${cur.title}</b><button class="wx" data-wclose="1" aria-label="Back">← Back</button></div>`;
+  const place = (i, html) => { const a = -Math.PI / 2 + (i / Math.max(n, 1)) * Math.PI * 2; return `<div class="wedge-pos" style="left:calc(50% + ${(Math.cos(a) * Rx).toFixed(1)}px);top:calc(50% + ${(Math.sin(a) * Ry).toFixed(1)}px)">${html}</div>`; };
+  items.forEach((it, i) => { o += place(i, btn(it, cur.page * per + i)); });
+  if (hasMore) o += place(items.length, `<button class="wedge wmore" data-wmore="1"><span class="wi">…</span><span class="wl">More</span></button>`);
   el.innerHTML = `<div class="wring">${o}</div>`; el.classList.remove('hidden');
   if (C.Icons) C.Icons.skin(el);
 }
