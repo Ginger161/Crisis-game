@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}iframe{border:0;width:390px;height:760px;display:block}pre{margin:0;color:#8f8;font:10px monospace;white-space:pre-wrap;width:490px}</style></head><body>
+<iframe id="f" src="index.html"></iframe><pre id="log"></pre>
+<script>
+const out=[];const L=m=>out.push(m);const f=document.getElementById('f');const wait=ms=>new Promise(r=>setTimeout(r,ms));
+f.onload=()=>setTimeout(run,300);
+async function run(){try{
+const w=f.contentWindow,d=f.contentDocument;const q=s=>d.querySelector(s),qa=s=>[...d.querySelectorAll(s)];
+w.addEventListener('error',e=>L('PAGE ERROR: '+e.message+' @'+(e.filename||'').split('/').pop()+':'+e.lineno));
+const modalOpen=()=>!q('#modal').classList.contains('hidden');
+q('[data-a=new]').click();let n=0;while(modalOpen()&&n++<40){const b=qa('#modal .btns button').find(x=>/Continue/.test(x.textContent))||q('#modal .btns button');if(!b)break;b.click();}
+const C=w.__crisis,G=C.G;G.speed=0;const toasts=[];w.Crisis.UI.toast=t=>toasts.push(String(t).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim());
+Object.assign(G.inv,{wood:9,parts:5,cloth:4,food:8});
+const me=G.S.find(s=>s.id===G.sel);
+
+const pickWedge=async(label)=>{const e=qa('#wheel .wedge').find(x=>x.querySelector('.wl').textContent===label);if(!e)return false;e.click();await wait(120);return true;};
+const stock=()=>JSON.stringify({wood:G.inv.wood,parts:G.inv.parts,cloth:G.inv.cloth});
+L('start stock '+stock());
+C.openWheel('craft');await wait(300);await pickWedge('Bandage');L('ordered a bandage -> stock '+stock()+' | order active: '+(me.act?me.act.k:'queued'));
+C.openWheel('craft');await wait(300);L('craft wheel while it is underway: '+qa('#wheel .wedge .wl').map(e=>e.textContent).join(' | ')+' | stop card styled red: '+!!q('#wheel .wedge.danger'));
+await pickWedge('Stop');L('after Stop -> stock '+stock()+' | toast: '+(toasts[toasts.length-1]||'none')+' | person is: '+(me.act?me.act.k:'free'));
+// a build, then cancel from the Items tab
+C.openWheel('build');await wait(300);const bw=qa('#wheel .wedge .wl').map(e=>e.textContent);L('build wheel: '+bw.join(' | '));await pickWedge('Stove');L('ordered the stove -> stock '+stock());
+for(let i=0;i<30;i++)C.Sim?0:0;w.Crisis.Sim.advance(40);
+C.act('tab',{k:'day',t:'work'});await wait(200);const tr=qa('.panel-area .trow');L('Items tab, in progress: '+tr.map(r=>r.textContent.replace(/\s+/g,' ').trim()).join(' || '));
+const cb=q('.panel-area [data-a=cancelbq]');L('cancel button size: '+(cb?Math.round(cb.getBoundingClientRect().width)+'x'+Math.round(cb.getBoundingClientRect().height):'missing'));
+if(cb){cb.click();await wait(200);L('after Cancel -> stock '+stock()+' | toast: '+(toasts[toasts.length-1]||'none')+' | in progress rows: '+qa('.panel-area .trow').length+' | build queue '+G.bq.length);}
+// your own sheet offers Stop while you work
+w.Crisis.Sim.order(me.id,{k:'craft',id:'club'},true);w.Crisis.Sim.advance(6);C.tapPerson(me.id);C.host.flush();await wait(300);L('your sheet while working: '+qa('#modal .btns button').map(b=>b.textContent.trim().slice(0,30)).join(' | '));
+window.__shotReady=1;
+}catch(e){L('TEST ERROR: '+e.message+' @'+(e.stack||'').split('\n')[1])}
+document.getElementById('log').textContent=out.join('\n');}
+</script></body></html>

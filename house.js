@@ -79,6 +79,8 @@ function furniture(id, st, y1, B, G) {
       return t;
     }
     case id === 'garden': return B.garden ? rect(x - 18, y1 - 8, 36, 8, '#5a3d28') + rect(x - 17, y1 - 9, 34, 2, '#3d2a1a') + [-12, -4, 4, 12].map((d, i) => rect(x + d, y1 - 16 - (i % 2) * 3, 1.5, 8 + (i % 2) * 3, '#4a8a3a') + rect(x + d - 2, y1 - 14 - (i % 2) * 3, 5, 2, '#5aa04a')).join('') : ghost(x - 19, y1 - 14, 38, 14);
+    case id === 'patch': return B.weed ? rect(x - 18, y1 - 6, 36, 6, '#4a3020') + rect(x - 17, y1 - 7, 34, 1.5, '#3a2416') + [-14, -9, -4, 1, 6, 11, 15].map((d, i) => rect(x + d, y1 - 14 - (i % 3) * 3, 1.2, 8 + (i % 3) * 3, '#3a7a2a') + rect(x + d - 2.5, y1 - 13 - (i % 3) * 3, 6, 1.4, '#4a9a34') + rect(x + d - 1.5, y1 - 16 - (i % 3) * 3, 4, 1.4, '#5aaa40')).join('') : ghost(x - 19, y1 - 16, 38, 16);
+    case id === 'rack': return B.rack ? rect(x - 12, y1 - 30, 1.5, 30, WOOD) + rect(x + 10, y1 - 30, 1.5, 30, WOOD) + rect(x - 12, y1 - 30, 24, 1.5, WOOD2) + rect(x - 12, y1 - 20, 24, 1, WOOD2) + [-9, -5, -1, 3, 7].map((d, i) => rect(x + d, y1 - 29, 2.5, 7 + (i % 2) * 2, i % 2 ? '#5a7a3a' : '#7a8a3a') + rect(x + d, y1 - 19, 2.5, 6, '#8a7a3a')).join('') : ghost(x - 13, y1 - 30, 26, 30);
     case id === 'roof': return B.bucket ? rect(x - 8, y1 - 16, 16, 16, '#3a5a8a') + rect(x - 8, y1 - 16, 16, 2, '#6a8ab8') + rect(x - 10, y1 - 10, 20, 1.5, '#222') + rect(x - 3, y1 - 40, 6, 24, 'rgba(120,160,200,.2)') : ghost(x - 11, y1 - 18, 22, 18);
   }
   return '';
@@ -98,6 +100,7 @@ function windowArt(x, y1, kind, B) {
   o += rect(x0, y + 9, w, 1, '#23242a') + rect(x0, y + 19, w, 1, '#23242a');
   o += rect(x0 - 3, y + h + 2, w + 6, 2.5, WOOD2) + rect(x0 - 3, y + h + 2, w + 6, 0.8, '#a98a62');
   if ((x * 7 | 0) % 3 === 0) o += rect(x0 + w - 8, y + h - 3, 5, 5, '#8a5a3a') + rect(x0 + w - 7, y + h - 7, 3, 4, '#4a8a3a'); else if ((x * 7 | 0) % 3 === 1) o += rect(x0 + 4, y + h + 0.5, 3, 2, '#c8c0a8');
+  if (/^win\d/.test(kind) && B.junk) { if (!(B.boards || {})[kind]) { o += `<path d="M${x0} ${y} L${x0 + 9} ${y + 6} L${x0 + 5} ${y + 13} L${x0 + 15} ${y + 9} L${x0 + 12} ${y + 20} L${x0 + w} ${y + 14} L${x0 + w} ${y} Z" fill="#0c0a10" opacity=".85"/>` + rect(x0 + 2, y + h + 3.2, 3, 0.8, '#c8d8e0', 'opacity=".7"') + rect(x0 + 9, y + h + 3.4, 2, 0.6, '#c8d8e0', 'opacity=".7"') + rect(x0 + 19, y + h + 3.2, 4, 0.8, '#c8d8e0', 'opacity=".6"'); } else { for (let k = 0; k < 4; k++) o += rect(x0 - 2, y + 2 + k * 7, w + 4, 4.5, k % 2 ? WOOD2 : WOOD) + rect(x0 - 2, y + 2 + k * 7, w + 4, 0.8, '#a98a62') + rect(x0 + 2, y + 3.5 + k * 7, 0.9, 0.9, '#2a2216') + rect(x0 + w - 3, y + 3.5 + k * 7, 0.9, 0.9, '#2a2216'); } }
   if (B.curtains) o += rect(x0 - 1, y - 1, w + 2, h + 2, '#16111e', 'opacity=".93"') + [4, 9, 14, 19, 24].map((d) => rect(x0 + d, y - 1, 0.7, h + 2, '#2a2236', 'opacity=".8"')).join('');
   return o;
 }
@@ -105,12 +108,30 @@ function windowArt(x, y1, kind, B) {
 /* ---------- grime: cracks, peeling paint, bullet holes, blood, litter, bones, webs, critters ---------- */
 const noStairs = (R, lo, hi) => { for (let i = 0; i < 8; i++) { const x = lo + R() * (hi - lo); if (Math.abs(x - STAIRX) > 22) return x; } return lo; };
 const ell = (cx, cy, rx, ry, f, op) => `<ellipse cx="${(+cx).toFixed(1)}" cy="${(+cy).toFixed(1)}" rx="${(+rx).toFixed(1)}" ry="${(+ry).toFixed(1)}" fill="${f}" opacity="${op || 1}"/>`;
-function wallGrime(R, f, y0, y1) {
-  let o = '';
-  for (let i = 0; i < 2; i++) { const x = noStairs(R, 8, W - 8), w = 3 + R() * 5, h = 14 + R() * 22; o += rect(x, y0 + 5, w, h, '#4a3c24', 'opacity=".24"') + rect(x + w * 0.3, y0 + 5 + h, w * 0.4, 2 + R() * 3, '#4a3c24', 'opacity=".22"'); }
+const MOLD = ['#2f3a22', '#3d4a2a', '#222c18', '#566a3a', '#14180f', '#6b7d4a'];
+function mold(R, x, y, w, h, n, o) {
+  let s = ''; for (let i = 0; i < n; i++) { const px = x + R() * w, py = y + R() * h, sz = 0.8 + R() * 1.8; s += rect(px, py, sz, sz * (0.7 + R() * 0.8), MOLD[Math.floor(R() * MOLD.length)], `opacity="${(0.35 + R() * 0.55).toFixed(2)}"`); }
+  return s + ell(x + w / 2, y + h / 2, w * 0.45, h * 0.38, '#1c2414', o || 0.22);
+}
+function wallGrime(R, f, y0, y1, pal) {
+  pal = pal || PALS[0]; let o = ''; const stains = [];
+  for (let i = 0; i < 2; i++) { const x = noStairs(R, 8, W - 8), w = 3 + R() * 5, h = 14 + R() * 22; stains.push([x, w, h]); o += rect(x, y0 + 5, w, h, '#4a3c24', 'opacity=".24"') + rect(x + w * 0.3, y0 + 5 + h, w * 0.4, 2 + R() * 3, '#4a3c24', 'opacity=".22"'); }
   if (R() < 0.65) o += ell(noStairs(R, 12, W - 12), y0 + 8, 10 + R() * 12, 4 + R() * 4, '#14100c', 0.3);
+  /* mold: the ceiling corners, below every water stain, along the skirting, and in a few damp patches */
+  o += mold(R, 0, y0 + 4, 22 + R() * 10, 16 + R() * 8, 26, 0.3) + mold(R, W - 28, y0 + 4, 26 + R() * 6, 14 + R() * 8, 22, 0.28);
+  stains.forEach(([x, w, h]) => { o += mold(R, x - 4, y0 + 5 + h - 4, w + 8, 12, 16, 0.2); });
+  for (let i = 0; i < 2; i++) { const x = noStairs(R, 6, W - 36); o += mold(R, x, y1 - pal.band - 4, 16 + R() * 20, pal.band + 3, 22, 0.24); }
+  if (R() < 0.7) { const x = noStairs(R, 10, W - 40); o += mold(R, x, y0 + 14 + R() * 14, 12 + R() * 14, 10 + R() * 10, 18, 0.2); }
   for (let i = 0; i < 2 + (R() < 0.5 ? 1 : 0); i++) { let x = noStairs(R, 8, W - 8), y = y0 + 5 + R() * 18; let d = `M${x.toFixed(1)} ${y.toFixed(1)}`; const n = 4 + Math.floor(R() * 4); for (let k = 0; k < n; k++) { x += (R() - 0.5) * 7; y += 3 + R() * 5; d += ` L${x.toFixed(1)} ${y.toFixed(1)}`; } o += `<path d="${d}" stroke="#2e281e" stroke-width=".75" fill="none" opacity=".9"/>`; }
-  for (let i = 0; i < 5; i++) { const x = noStairs(R, 6, W - 14), w = 6 + R() * 12, h = 3 + R() * 8, y = y1 - 14 + R() * (14 - h); o += rect(x, y, w, h, '#857f6f') + rect(x, y, w, 1, '#58523f') + rect(x + 1, y + h - 1, w - 2, 1, '#58523f', 'opacity=".6"') + rect(x + w * 0.4, y - 1.5, 3, 1.5, '#b9825a', 'opacity=".9"'); }
+  /* peeling: sheets of paint hanging off the wall, curled at the bottom, over bare plaster and old brick */
+  for (let i = 0; i < 5; i++) {
+    const x = noStairs(R, 6, W - 22), w = 8 + R() * 14, top = i < 3 ? y1 - pal.band : y0 + 8 + R() * 18, h = 5 + R() * 12;
+    if (R() < 0.45) { o += rect(x, top, w, h + 2, '#7a4a3a'); for (let k = 0; k < Math.ceil((h + 2) / 3); k++) { o += rect(x, top + k * 3, w, 0.5, '#a89a88', 'opacity=".55"'); for (let j = (k % 2) * 3; j < w; j += 6) o += rect(x + j, top + k * 3, 0.5, 3, '#a89a88', 'opacity=".45"'); } }
+    else o += rect(x, top, w, h + 2, '#857f6f') + rect(x, top, w, 1, '#58523f');
+    const col = i % 2 ? pal.p : pal.w2;
+    o += `<path d="M${x.toFixed(1)} ${top.toFixed(1)} L${(x + w).toFixed(1)} ${top.toFixed(1)} L${(x + w - 1).toFixed(1)} ${(top + h * 0.6).toFixed(1)} L${(x + w * 0.55).toFixed(1)} ${(top + h * 0.9).toFixed(1)} L${(x + w * 0.45).toFixed(1)} ${(top + h * 0.5).toFixed(1)} L${x.toFixed(1)} ${(top + h * 0.7).toFixed(1)} Z" fill="${col}" opacity=".95"/>`;
+    o += rect(x + w * 0.45, top + h * 0.5, w * 0.12, h * 0.45, '#2a2418', 'opacity=".5"') + rect(x, top + h * 0.7, 1.4, 1.2, '#14100c', 'opacity=".5"');
+  }
   for (let i = 0; i < 3; i++) { const x = noStairs(R, 6, W - 14), w = 8 + R() * 14, h = 4 + R() * 9, y = y0 + 6 + R() * 24; o += rect(x, y, w, h, '#8c8672', 'opacity=".8"') + rect(x, y, w, 1, '#58523f', 'opacity=".7"') + rect(x + w * 0.3, y + h, w * 0.4, 1.5, '#8c8672', 'opacity=".7"'); }
   if (R() < 0.85) { const cx = noStairs(R, 12, W - 12), cy = y0 + 16 + R() * 24, n = 3 + Math.floor(R() * 4); for (let k = 0; k < n; k++) { const bx = cx + (R() - 0.5) * 14, by = cy + (R() - 0.5) * 12; o += rect(bx - 1.5, by - 1.5, 3, 3, '#cfc6a4', 'opacity=".5"') + rect(bx - 0.6, by - 0.6, 1.2, 1.2, '#14100c') + `<path d="M${bx.toFixed(1)} ${by.toFixed(1)} l${((R() - 0.5) * 5).toFixed(1)} ${((R() - 0.5) * 5).toFixed(1)}" stroke="#2e281e" stroke-width=".35"/>`; } }
   if (R() < 0.5) { const x = noStairs(R, 10, W - 10), y = y0 + 20 + R() * 16; o += rect(x, y, 2 + R() * 3, 6 + R() * 12, '#45120e', 'opacity=".8"') + rect(x - 1.5, y, 5, 1.5, '#45120e', 'opacity=".65"') + rect(x + R() * 4, y + 12, 1, 3, '#45120e', 'opacity=".7"'); }
@@ -167,6 +188,14 @@ function critters(R, y1) {
 }
 
 const FSCALE = { cupboard: 0.8, water: 0.85, bench: 0.8, still: 0.85, stove: 0.85, table: 0.78, radio: 0.85, tally: 0.85, garden: 0.85, roof: 0.85, infirm: 0.9, filter: 0.85, mat: 1 };
+/* the last residents' junk heaped on the build sites, and rubble on the roof */
+function junkArt(x, y1, rubble) {
+  let o = rect(x - 16, y1 - 1.2, 32, 1.2, '#2a2018', 'opacity=".6"');
+  if (rubble) { [[-12, 5, 9], [-4, 8, 12], [5, 6, 10], [12, 4, 8], [-8, 12, 7], [1, 14, 9], [8, 11, 6]].forEach(([dx, hh, w], i) => { o += rect(x + dx - w / 2, y1 - hh, w, hh, ['#6a6258', '#7a7064', '#5a5248', '#8a6a52'][i % 4]) + rect(x + dx - w / 2, y1 - hh, w, 0.8, '#9a9080'); }); return o + rect(x - 3, y1 - 20, 1.5, 9, '#5a5f66') + rect(x + 6, y1 - 17, 1.2, 7, '#5a5f66'); }
+  o += rect(x - 15, y1 - 9, 12, 9, '#5a4330') + rect(x - 15, y1 - 9, 12, 1.5, '#7a5a3c') + rect(x - 4, y1 - 14, 10, 14, '#4a3a5a', 'opacity=".9"') + rect(x + 6, y1 - 7, 10, 7, '#8a8270') + rect(x + 7, y1 - 6, 8, 1, '#5a5248') + rect(x - 10, y1 - 13, 6, 4, '#c8c0a8') + rect(x + 1, y1 - 17, 9, 3, '#6a3a2a') + rect(x - 13, y1 - 3, 30, 1, '#d8d0b0', 'opacity=".5"');
+  o += `<path d="M${x - 2} ${y1 - 14} l6 -6 m-3 2 l5 2" stroke="#3a3a3a" stroke-width=".8"/>` + rect(x + 10, y1 - 12, 4, 5, '#a8c0c8', 'opacity=".6"');
+  return o;
+}
 function siteArt(id, x, y1) {
   let o = '';
   switch (id) {
@@ -180,8 +209,7 @@ function siteArt(id, x, y1) {
     case 'infirm': o = rect(x - 15, y1 - 3, 26, 3, '#cfc8b0') + rect(x - 15, y1 - 4, 8, 1, '#e8e2cc') + rect(x + 12, y1 - 14, 7, 11, '#d8d0b0') + rect(x + 14.5, y1 - 12, 2, 7, '#c0302a') + rect(x + 12.5, y1 - 9.5, 6, 2, '#c0302a'); break;
     default: o = rect(x - 8, y1 - 8, 16, 8, '#6a5a44');
   }
-  const IC = C.Icons; const tool = IC ? IC.svg('tools').replace('<svg class="ic"', `<svg x="${x - 4.2}" y="${y1 - 25.2}" width="8.4" height="8.4"`) : '';
-  return `<g class="site">${o}<g class="sitei"><circle cx="${x}" cy="${y1 - 21}" r="5.8" fill="#f6b37f" stroke="#17120e" stroke-width=".7"/>${tool}</g></g>`;
+  return `<g class="site">${o}</g>`;
 }
 function hitBox(s, y1, y0) {
   const x = s.x, id = s.id;
@@ -189,7 +217,7 @@ function hitBox(s, y1, y0) {
   if (s.up) return [x - 15, y1 - s.up - 18, 30, 16];
   if (/^bunk/.test(id)) return [x - 15, y1 - 18, 30, 18];
   if (/^win|^post$/.test(id)) return [x - 15, y1 - 54, 30, 30];
-  const T = { door: [-10, -44, 20, 44], cupboard: [-10, -34, 20, 34], water: [-10, -14, 20, 14], filter: [-8, -18, 16, 18], bench: [-13, -20, 26, 20], still: [-8, -20, 16, 20], stove: [-9, -24, 18, 24], table: [-16, -16, 32, 16], mat: [-14, -8, 28, 8], infirm: [-15, -14, 30, 14], radio: [-12, -22, 24, 22], tally: [-17, -36, 34, 28], garden: [-17, -14, 34, 14], roof: [-10, -18, 20, 18] };
+  const T = { door: [-24, -46, 22, 46], cupboard: [-10, -34, 20, 34], water: [-10, -14, 20, 14], filter: [-8, -18, 16, 18], bench: [-13, -20, 26, 20], still: [-8, -20, 16, 20], stove: [-9, -24, 18, 24], table: [-16, -16, 32, 16], mat: [-14, -8, 28, 8], infirm: [-15, -14, 30, 14], radio: [-12, -22, 24, 22], tally: [-17, -36, 34, 28], garden: [-17, -14, 34, 14], roof: [-10, -18, 20, 18] };
   const t = T[id] || [-10, -24, 20, 24]; return [x + t[0], y1 + t[1], t[2], t[3]];
 }
 /* the lowest strip of every floor always means "walk here"; furniture only answers above it */
@@ -208,14 +236,32 @@ const DECOR = [
   (x, y, R) => rect(x - 8, y - 14, 16, 14, '#3a3a40') + rect(x - 7, y - 13, 14, 11, '#1a1a1e') + rect(x - 5, y - 2, 10, 2, '#555'),                                // dead TV
 ];
 const DYN = new Set(['cupboard', 'water', 'tally']);
-function buildDyn(G) {
-  const B = G.build || {}; const S = SIM().stations(); let d = '';
+/* the dead keep their place: their bunk keeps their things and a candle, their photo goes up by the tally, the ones who died here are buried in the yard */
+function memorial(G, S) {
+  const M = G.mem2 || []; if (!M.length) return ''; let o = ''; const tb = S.tally;
+  M.forEach((m, i) => {
+    const b = m.bunk && S[m.bunk]; if (b) { const y1 = yb(b.f) - (b.up || 0) - 13; o += rect(b.x - 12, y1 - 2.5, 9, 2.5, '#8a8270') + rect(b.x - 11, y1 - 4, 7, 1.5, '#a09888') + rect(b.x - 1, y1 - 6, 4, 5, '#3a2a1c') + rect(b.x - 0.4, y1 - 5.4, 2.8, 3.6, '#b8a888') + rect(b.x + 6, y1 - 3, 1.6, 3, '#e8e0c0') + rect(b.x + 6.3, y1 - 4.6, 1, 1.5, '#ffb040', 'class="flame"'); }
+    if (tb) { const px = tb.x - 18 + (i % 6) * 6.2, py = yb(tb.f) - 11 + Math.floor(i / 6) * 7; o += rect(px, py, 5, 6, '#2a2018') + rect(px + 0.6, py + 0.6, 3.8, 4.8, '#c8b898') + rect(px + 1.6, py + 1.4, 1.8, 1.8, '#6a4a36') + rect(px + 1.2, py + 3.4, 2.6, 1.8, '#5a5a7a'); }
+  });
+  M.filter((m) => m.home).forEach((m, i) => { const gx = -12 - i * 13, gy = yb(0); o += ell(gx, gy - 1, 6, 2.4, '#4a3a28') + rect(gx - 0.7, gy - 13, 1.4, 12, '#5a4330') + rect(gx - 3.5, gy - 10, 7, 1.3, '#5a4330') + (i % 2 ? rect(gx + 3, gy - 3, 1.2, 2, '#c84a3a') + rect(gx + 2.6, gy - 3.6, 2, 1, '#e86a5a') : ''); });
+  return o;
+}
+function buildDyn(G) { return H.toneSvg(buildDyn0(G)); }
+function buildDyn0(G) {
+  const B = G.build || {}; const S = SIM().stations(); let d = memorial(G, S);
   DYN.forEach((id) => { const s = S[id]; if (!s) return; const y1 = yb(s.f); const art = furniture(id, s, y1, B, G); const k = FSCALE[id] || 1; d += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
   return d;
 }
-function dynKey(G) { const n = Object.values(G.inv || {}).reduce((a, b) => a + b, 0); return [G.day, Math.min(3, Math.floor(n / 14)), Math.min(4, Math.ceil(((G.inv && G.inv.water) || 0) / 3)), (G.build || {}).cupboard].join('|'); }
+function dynKey(G) { const mm = (G.mem2 || []).length; const n = Object.values(G.inv || {}).reduce((a, b) => a + b, 0); return [mm, G.day, Math.min(3, Math.floor(n / 14)), Math.min(4, Math.ceil(((G.inv && G.inv.water) || 0) / 3)), (G.build || {}).cupboard].join('|'); }
 function refreshDyn(G) { if (!H.dynG) return; const k = dynKey(G); if (k !== H.dynK) { H.dynK = k; H.dynG.innerHTML = buildDyn(G); } }
 const GRC = { key: '', wall: [], fl: [] };
+
+/* every room has its own mix of the same cream and orange: lighter, greyer, warmer, a taller dado, or the colours swapped */
+const PALS = [
+  { w: '#b9b08c', w2: '#a39a78', p: '#b9825a', band: 14 }, { w: '#c2b894', w2: '#aba17c', p: '#c18e5e', band: 12 }, { w: '#aea680', w2: '#979070', p: '#a96f48', band: 20 },
+  { w: '#b8ad86', w2: '#a0956f', p: '#cc9a68', band: 10 }, { w: '#b9825a', w2: '#a3704a', p: '#bdb28c', band: 16, swap: true }, { w: '#b4ab85', w2: '#9c9370', p: '#b27a50', band: 26 }
+];
+function roomPal(seed, f) { const h0 = Math.abs(Math.imul((seed | 0) ^ 0x9e3779b1, 2246822519) >>> 0) % PALS.length; return PALS[(h0 + f * 2 + (f % 2)) % PALS.length]; }
 let railOut = '';
 function buildStatic(G) {
   let rail = '';
@@ -241,9 +287,10 @@ function buildStatic(G) {
   /* the building */
   for (let f = 0; f < N; f++) {
     const y1 = yb(f), y0 = y1 - FH;
-    o += rect(0, y0, W, FH, WALL) + rect(0, y0, W, 5, WALL2) + rect(0, y1 - 14, W, 14, PAINT, 'opacity=".85"') + rect(0, y1 - 14, W, 1, '#b07a4a');
-    for (let k = 0; k < 8; k++) o += rect(k * 30 + (f % 2) * 8, y0 + 5, 0.6, FH - 19, WALL2, 'opacity=".45"');      // wall panels
-    o += (GRC.wall[f] !== undefined ? GRC.wall[f] : (GRC.wall[f] = wallGrime(Rg, f, y0, y1)));
+    const pl = roomPal(G.seed || 1337, f);
+    o += rect(0, y0, W, FH, pl.w) + rect(0, y0, W, 5, pl.w2) + rect(0, y1 - pl.band, W, pl.band, pl.p, 'opacity=".85"') + rect(0, y1 - pl.band, W, 1, pl.swap ? '#8a8062' : '#b07a4a') + (pl.band > 18 ? rect(0, y1 - pl.band - 2, W, 1, pl.w2, 'opacity=".6"') : '');
+    for (let k = 0; k < 8; k++) o += rect(k * 30 + (f % 2) * 8, y0 + 5, 0.6, FH - pl.band - 5, pl.w2, 'opacity=".45"');      // wall panels
+    o += (GRC.wall[f] !== undefined ? GRC.wall[f] : (GRC.wall[f] = wallGrime(Rg, f, y0, y1, pl)));
     o += rect(-6, y0, 6, FH, '#cf9a6c') + rect(W, y0, 6, FH, '#cf9a6c') + rect(-6, y0, 6, 2, '#d98a52') + rect(W, y0, 6, 2, '#d98a52');
     const gap = f > 0;
     if (gap) o += rect(-6, y1, STAIRX - 17 + 6, 3, TRIM) + rect(STAIRX + 17, y1, W - STAIRX - 17 + 6, 3, TRIM); else o += rect(-6, y1, W + 12, 3, TRIM);
@@ -271,7 +318,7 @@ function buildStatic(G) {
     for (let i = 0; i < n; i++) { const x = 8 + R() * (W - 16); if (used.some((u) => Math.abs(u - x) < 22) || Math.abs(x - STAIRX) < 26) continue; o += DECOR[Math.floor(R() * DECOR.length)](x, y1, R); }
     if (f === 0) o += rect(6, y1 - 3, 8, 3, '#2a2420') + rect(10, y1 - 3, 6, 3, '#4a3a2a');
   }
-  Object.values(S).forEach((s) => { if (DYN.has(s.id)) return; const y1 = yb(s.f); const art = s.built === false ? siteArt(s.id, s.x, y1) : furniture(s.id, s, y1, B, G); const k = s.built === false ? 1 : (FSCALE[s.id] || 1); o += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
+  Object.values(S).forEach((s) => { if (DYN.has(s.id)) return; const y1 = yb(s.f); const J = B.junk && B.junk[s.id]; const art = J ? junkArt(s.x, y1, J === 'rubble') : s.built === false ? siteArt(s.id, s.x, y1) : furniture(s.id, s, y1, B, G); const k = s.built === false ? 1 : (FSCALE[s.id] || 1); o += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
   for (let f = 0; f < N; f++) {
     const y1 = yb(f), y0 = y1 - FH; const used = Object.values(S).filter((s) => s.f === f).map((s) => s.x);
     if (GRC.fl[f] === undefined) { let t = floorGrime(Rg, y1) + cobweb(0, y0 + 5, 1) + cobweb(W, y0 + 5, -1); if (f % 2 === 0 || Rg() < 0.4) { const cands = [60, 90, 150, 190, 40, 205].filter((x) => !used.some((u) => Math.abs(u - x) < 22) && Math.abs(x - STAIRX) > 26); if (cands.length) t += toilet(cands[Math.floor(Rg() * cands.length)], y1); } if (Rg() < 0.45) t += skeleton(Rg() < 0.5 ? 6 : W - 28, y1, 1); t += critters(Rg, y1); GRC.fl[f] = t; }
@@ -283,7 +330,7 @@ function buildStatic(G) {
   const tb = S.tally; if (tb) o += rect(tb.x + 21, yb(tb.f) - 36, 0.1, 0.1, 'none');
   /* floor labels and hot areas */
   for (let f = 0; f < N; f++) o += `<rect data-fl="${f}" x="0" y="${yb(f) - FH}" width="${W}" height="${FH}" fill="transparent"/>`;
-  Object.values(S).forEach((s) => { if (s.id === 'tally' || isDirect(s)) { const y1 = yb(s.f), bx = hitBoxClipped(s, y1, y1 - FH); o += `<rect data-st="${s.id}" x="${bx[0].toFixed(1)}" y="${bx[1].toFixed(1)}" width="${bx[2]}" height="${bx[3]}" fill="transparent"/>`; } });
+  Object.values(S).forEach((s) => { if (s.id === 'tally' || isDirect(s)) { const y1 = yb(s.f), bx = hitBox(s, y1, y1 - FH); o += `<rect data-st="${s.id}" x="${bx[0].toFixed(1)}" y="${bx[1].toFixed(1)}" width="${bx[2]}" height="${bx[3]}" fill="transparent"/>`; } });
   railOut = rail;
   return o;
 }
@@ -309,6 +356,8 @@ function dirFor(p, a, pos, f) {
   if (pos.moving) return pos.dir || 1;
   if (a && (a.k === 'look' || a.k === 'watch')) return (a.to.x < STAIRX) ? -1 : 1;
   if (a && a.k === 'chat' && a.job) { const o = H.hooks.person && H.hooks.person(a.job.with); if (o) return o.x >= pos.x ? 1 : -1; }
+  /* lying on a bunk or the sick bed: head on the pillow, which is at the right-hand end */
+  if (a && (a.k === 'sleep' || a.k === 'rest') && /^bunk|^infirm/.test(a.st || '')) return -1;
   if (a && a.st === 'stove') return 1; if (a && a.st === 'bench') return 1; if (a && a.st === 'table') return -1;
   return p._dir || 1;
 }
@@ -367,7 +416,7 @@ function draw(ts) {
 const ZOOMW = 176;                                   // how many scene units wide the camera shows: smaller = closer
 function updateView(G) {
   const box = H.root.getBoundingClientRect(); if (!box.width || !box.height) return;
-  const vw = Math.min(VW, ZOOMW), vh = vw * box.height / box.width;
+  const vw = Math.min(VW, H.zoomW || ZOOMW), vh = vw * box.height / box.width;
   const selP = G.S.find((q) => q.id === (H.hooks.selected && H.hooks.selected())); const sp = selP ? SIM().posOf(selP, SIM().frac ? SIM().frac() : 0) : { f: 0, x: 120 };
   const selF = Math.round(sp.f); if (H.lastSelF !== selF) { H.lastSelF = selF; H.focus = null; }
   const f = H.focus != null ? H.focus : sp.f;
@@ -429,7 +478,11 @@ function updateChips(G, ts) {
     if (hint !== H.hintSig) { H.hintSig = hint; H.hintG.innerHTML = hint; }
   }
   const m = H.svg.getScreenCTM(); if (!m || !H.chipEls) return; const host = H.root.getBoundingClientRect();
-  H.chipEls.forEach(({ el, s }) => { const y1 = yb(s.f); const hb = hitBox(s, y1, y1 - FH); const pt = H.svg.createSVGPoint(); pt.x = s.x; pt.y = hb[1] - 5; const q = pt.matrixTransform(m); el.style.left = (q.x - host.left) + 'px'; el.style.top = (q.y - host.top) + 'px'; });
+  const pts = H.chipEls.map(({ el, s }) => { const y1 = yb(s.f); const hb = hitBox(s, y1, y1 - FH); const pt = H.svg.createSVGPoint(); pt.x = s.x; pt.y = hb[1] - 5; const q = pt.matrixTransform(m); return { el, x: q.x - host.left, y: q.y - host.top }; });
+  /* bubbles never sit on top of each other: spread neighbours at least 50px apart, and keep the whole row on screen */
+  pts.sort((a, b) => a.x - b.x); for (let i = 1; i < pts.length; i++) { if (Math.abs(pts[i].y - pts[i - 1].y) < 54 && pts[i].x - pts[i - 1].x < 50) pts[i].x = pts[i - 1].x + 50; }
+  if (pts.length) { const over = pts[pts.length - 1].x - (host.width - 28); if (over > 0) pts.forEach((p) => { p.x -= over; }); const under = 28 - pts[0].x; if (under > 0) pts.forEach((p) => { p.x += under; }); }
+  pts.forEach((p) => { p.el.style.left = p.x + 'px'; p.el.style.top = Math.max(26, p.y) + 'px'; });
 }
 
 /* ---------- yard visitors (only drawn when somebody is looking out) ---------- */
@@ -452,7 +505,7 @@ H.attach = function (container, G) {
   const key = JSON.stringify([G.build, N, bunks, G.wx === 'dust', G.seed]);
   if (key !== H.key || !H.svg) {
     H.key = key; const old = H.layer; H.actors = {}; H.bub = {};
-    const staticSvg = buildStatic(G);
+    const staticSvg = H.toneSvg(buildStatic(G));
     H.root.querySelector('.hsvg').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VX} 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges"><g id="hstatic">${staticSvg}</g><g id="hdyn"></g><g id="hhint" pointer-events="none"></g><g id="hactb"></g><g id="hrail">${railOut}</g><g id="hyard"></g><g id="hact"></g><rect id="hhaze" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#5a4c38" opacity=".16" pointer-events="none"/><rect id="hdark" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#060a22" opacity="0" pointer-events="none"/><g id="hstars" opacity="0" pointer-events="none">${Array.from({ length: 14 }, (_, i) => rect(VX + ((i * 37) % VW), 2 + ((i * 11) % 14), 0.8, 0.8, '#f2ebcf')).join('')}</g><g id="hglow" pointer-events="none"></g></svg>`;
     H.svg = H.root.querySelector('svg'); H.layer = H.svg.querySelector('#hact'); H.layerB = H.svg.querySelector('#hactb'); H.dynG = H.svg.querySelector('#hdyn'); H.dynK = null; refreshDyn(G); H.hintG = H.svg.querySelector('#hhint'); H.hintSig = null; H.chipSig = null; H.active = new Set(); H.dark = H.svg.querySelector('#hdark'); H.stars = H.svg.querySelector('#hstars'); H.yard = H.svg.querySelector('#hyard'); H.glow = H.svg.querySelector('#hglow'); H.yardKey = null; H.tone = -1;
   }
@@ -479,6 +532,18 @@ function onTap(e) {
   if (fl2 !== null && p.x >= -2 && p.x <= W + 2) H.hooks.tapFloor && H.hooks.tapFloor(fl2, clamp(p.x, 8, W - 8));
 }
 H.draw = draw;
+/* the world is drained of colour where it is drawn; people are not, so faces and skin tones stay true */
+const TONE = new Map();
+function toneHex(hx, amt, br) {
+  const k = hx + amt + br; if (TONE.has(k)) return TONE.get(k);
+  const n = parseInt(hx.slice(1), 16); let r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; const l = 0.3 * r + 0.59 * g + 0.11 * b;
+  const tr = l * 1.04, tg = l * 1.0, tb = l * 0.92;   /* a faint warm grey, like charcoal on old paper */
+  r = Math.round((r + (tr - r) * amt) * br); g = Math.round((g + (tg - g) * amt) * br); b = Math.round((b + (tb - b) * amt) * br);
+  const c = (v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0'); const out = '#' + c(r) + c(g) + c(b); TONE.set(k, out); if (TONE.size > 4000) TONE.clear(); return out;
+}
+H.toneSvg = (svg, amt, br) => String(svg).replace(/#[0-9a-fA-F]{6}/g, (m) => toneHex(m, amt == null ? 0.62 : amt, br == null ? 0.9 : br));
+H.contentH = () => VH;
+H.art = { rect, mold, wallGrime, floorGrime, skeleton, cobweb, toilet, critters, windowArt, roomPal, PALS, DECOR };
 C.House = H;
 if (typeof module !== 'undefined') module.exports = H;
 })(typeof window !== 'undefined' ? window : globalThis);

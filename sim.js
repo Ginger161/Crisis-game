@@ -28,7 +28,7 @@ const EFFECT = { meal: 50, raw: 20, water: 45 };
 
 /* ---------- the house: stations ---------- */
 const FLOORW = 240, STAIRX = 120, WALK = 22, STAIR_MIN = 5;
-function floors() { return Math.max(3, Math.min(6, G().floors || 3)); }
+function floors() { return Math.max(2, Math.min(4, G().floors || 3)); }
 function bunkCount() { const fa = Math.max(1, floors() - 2); return Math.min(Math.max(4, 4 + (G().build.bed || 0)), 6 * fa); }
 function stations() {
   const B = G().build, N = floors(), top = N - 1, st = {};
@@ -43,12 +43,13 @@ function stations() {
   { const fa = Math.max(1, top - 1); const nb = bunkCount();
     for (let i = 0; i < nb; i++) { const u = Math.floor(i / 2), tp = i % 2 === 1; const f = 1 + Math.min(fa - 1, Math.floor(u / 3)); const x = 20 + (u % 3) * 32; add('bunk' + i, f, x, 'Bunk ' + (i + 1) + (tp ? ' (top)' : ''), { up: tp ? 24 : 0, lx: x + 17 }); } }
   for (let f = 1; f < top; f++) add('win' + f, f, 208, 'Window');
-  add('mat', 1, 150, 'Prayer mat');
+  add('mat', 1, 150, 'Prayer mat'); add('rack', 1, 234, B.rack ? 'Drying rack' : 'Rack site', { built: !!B.rack });
   add('infirm', 1, 178, B.infirm ? 'Sick bed' : 'Sick bed site', { built: !!B.infirm });
-  add('post', top, 28, 'Look-out window'); add('radio', top, 160, B.radio ? 'Radio' : 'Radio site', { built: !!B.radio });
-  add('tally', top, 214, 'Tally wall');
-  add('garden', top, 72, B.garden ? 'Garden' : 'Garden site', { built: !!B.garden });
-  add('roof', top, 190, B.bucket ? 'Rain catcher' : 'Rain catcher site', { built: !!B.bucket });
+  const compact = N <= 2;                                  // a two-storey hostel has no spare room upstairs: the look-out shares the floor with the beds, and there is no roof to use
+  add('post', top, compact ? 214 : 28, 'Look-out window'); add('radio', top, compact ? 230 : 160, B.radio ? 'Radio' : 'Radio site', { built: !!B.radio });
+  add('tally', top, compact ? 180 : 214, 'Tally wall');
+  if (!compact) add('patch', top, 118, B.weed ? 'Weed patch' : 'Patch site', { built: !!B.weed });
+  if (!compact) { add('garden', top, 72, B.garden ? 'Garden' : 'Garden site', { built: !!B.garden }); add('roof', top, 190, B.bucket ? 'Rain catcher' : 'Rain catcher site', { built: !!B.bucket }); }
   return st;
 }
 function walkMin(a, b) {                        // a,b = {f,x}; the stair path is continuous: floor, foot of the stairs, up the stairs, top of the stairs, floor
@@ -65,20 +66,29 @@ const BUILDS = {
   barr2: { name: 'Barricade II', cost: { wood: 6, parts: 2 }, min: 150, at: 'door', set(B) { B.barricade = 2; }, can: (B) => B.barricade === 1 },
   barr3: { name: 'Barricade III', cost: { wood: 8, parts: 3 }, min: 240, at: 'door', set(B) { B.barricade = 3; }, can: (B) => B.barricade === 2 },
   bunk: { name: 'Extra bunk', cost: { wood: 3, cloth: 3 }, min: 120, at: 'stairs', set(B) { B.bed = (B.bed || 0) + 1; }, can: (B) => (B.bed || 0) < 4 && 4 + (B.bed || 0) < 6 * Math.max(1, floors() - 2) },
-  bucket: { name: 'Rain catcher', cost: { parts: 2, cloth: 2 }, min: 90, at: 'roof', set(B) { B.bucket = 1; }, can: (B) => !B.bucket },
+  bucket: { name: 'Rain catcher', cost: { parts: 2, cloth: 2 }, min: 90, at: 'roof', set(B) { B.bucket = 1; }, can: (B) => !B.bucket && floors() >= 3 },
   filter: { name: 'Water filter', cost: { parts: 3, cloth: 2 }, min: 120, at: 'filter', set(B) { B.filter = 1; }, can: (B) => !B.filter },
-  garden: { name: 'Rooftop garden', cost: { wood: 4, cloth: 2, food: 2 }, min: 180, at: 'garden', set(B) { B.garden = 1; G().gardenAt = G().t + 6 * 1440; }, can: (B) => !B.garden },
+  garden: { name: 'Rooftop garden', cost: { wood: 4, cloth: 2, food: 2 }, min: 180, at: 'garden', set(B) { B.garden = 1; G().gardenAt = G().t + 6 * 1440; }, can: (B) => !B.garden && floors() >= 3 },
   radio: { name: 'Radio', cost: { parts: 4 }, min: 180, at: 'radio', set(B) { B.radio = 1; }, can: (B) => !B.radio },
   alarm: { name: 'Alarm line', cost: { parts: 2 }, min: 60, at: 'door', set(B) { B.alarm = 1; }, can: (B) => !B.alarm },
   curtains: { name: 'Blackout curtains', cost: { cloth: 4 }, min: 90, at: 'stairs', set(B) { B.curtains = 1; }, can: (B) => !B.curtains },
   infirm: { name: 'Sick bed', cost: { wood: 3, cloth: 3 }, min: 120, at: 'infirm', set(B) { B.infirm = 1; }, can: (B) => !B.infirm },
   cupboard: { name: 'Bigger cupboard', cost: { wood: 4, parts: 1 }, min: 120, at: 'cupboard', set(B) { B.cupboard = 1; }, can: (B) => !B.cupboard },
-  still: { name: 'Still', cost: { parts: 3, wood: 2 }, min: 150, at: 'still', set(B) { B.still = 1; }, can: (B) => !B.still }
+  still: { name: 'Still', cost: { parts: 3, wood: 2 }, min: 150, at: 'still', set(B) { B.still = 1; }, can: (B) => !B.still },
+  weed: { name: 'Weed patch', cost: { wood: 2, cloth: 1, food: 1 }, min: 120, at: 'patch', set(B) { B.weed = 1; G().weedAt = G().t + 4 * 1440; }, can: (B) => !B.weed && floors() >= 3 },
+  rack: { name: 'Drying rack', cost: { wood: 3, cloth: 2 }, min: 90, at: 'rack', set(B) { B.rack = 1; }, can: (B) => !B.rack }
 };
 const CRAFTS = {
   bandage: { name: 'Bandage', cost: { cloth: 2 }, min: 15, out: { bandage: 1 } },
   club: { name: 'Club', cost: { wood: 2 }, min: 30, out: { club: 1 } },
-  machete: { name: 'Machete', cost: { parts: 2, wood: 1 }, min: 60, out: { machete: 1 } }
+  knife: { name: 'Knife', cost: { parts: 1, cloth: 1 }, min: 20, out: { knife: 1 } },
+  machete: { name: 'Machete', cost: { parts: 2, wood: 1 }, min: 60, out: { machete: 1 } },
+  cigs: { name: 'Roll cigarettes', cost: { tobacco: 1, paper: 1 }, min: 20, out: { cigarettes: 4 } },
+  loud: { name: 'Cure loud', cost: { weed: 3 }, min: 240, out: { loud: 1 }, needs: 'rack' },
+  ogogoro: { name: 'Brew ogogoro', cost: { food: 2, wood: 1 }, min: 120, out: { ogogoro: 2 }, needs: 'still' },
+  crowbar: { name: 'Crowbar', cost: { parts: 3 }, min: 60, out: { crowbar: 1 } },
+  lockpick: { name: 'Lockpicks', cost: { parts: 1 }, min: 25, out: { lockpick: 2 } },
+  shovel: { name: 'Shovel', cost: { wood: 2, parts: 2 }, min: 60, out: { shovel: 1 } }
 };
 const NEEDS_BENCH = (B) => !!B.bench;
 
@@ -130,16 +140,20 @@ function why(job, p) {
   const B = G().build;
   if (job.k === 'build') {
     const d = BUILDS[job.id]; if (!d) return 'Unknown project.'; if (!d.can(B)) return 'Already built, or not yet possible.';
+    if (B.junk && B.junk[d.at]) return B.junk[d.at] === 'rubble' ? 'Rubble covers it. Dig it out first.' : 'Junk is piled there. Clear it first.';
     const q = G().bq && G().bq.find((x) => x.id === job.id); if (q) { if (q.who && q.who !== (p && p.id)) return 'Someone is already on it.'; return null; }
     for (const [k, v] of Object.entries(d.cost)) if (have(k) < v) return `Not enough ${k === 'parts' ? 'scrap' : k} (need ${v}, have ${have(k)}).`;
     return null;
   }
   if (job.k === 'craft') {
-    if (!NEEDS_BENCH(B)) return 'Build the workbench first.'; const d = CRAFTS[job.id];
+    if (!NEEDS_BENCH(B)) return 'Build the workbench first.'; const d = CRAFTS[job.id]; if (d.needs && !B[d.needs]) return d.needs === 'rack' ? 'Needs a drying rack.' : 'Needs the still.';
     for (const [k, v] of Object.entries(d.cost)) if (have(k) < v) return `Not enough ${k === 'parts' ? 'scrap' : k} (need ${v}, have ${have(k)}).`;
     return null;
   }
   if (job.k === 'cook') { if (!B.stove) return 'Build a stove first.'; if (have('wood') < 1) return 'No wood for the fire.'; if (have('food') < 1) return 'No food to cook.'; return null; }
+  if (job.k === 'sort') return B.junk && B.junk[job.st] ? null : 'Nothing to clear.';
+  if (job.k === 'dig') return !(B.junk && B.junk[job.st]) ? 'Nothing to clear.' : have('shovel') < 1 ? 'You need a shovel.' : null;
+  if (job.k === 'board') return (B.boards || {})[job.st] ? 'Already boarded.' : have('wood') < 2 || have('parts') < 1 ? 'Needs 2 wood and 1 scrap.' : null;
   if (job.k === 'watch') return null;
   if (job.k === 'rest') return null;
   if (job.k === 'walk') return null;
@@ -149,7 +163,8 @@ function why(job, p) {
 function order(pid, job, front) {
   const p = byId(pid); if (!p || !p.alive || p.out) return { ok: false, why: 'Not available.' };
   ensure(p); const w = why(job, p); if (w) return { ok: false, why: w };
-  if (p.mood < 20 && chance(0.3)) { say(p, pick(['Not now.', 'I cannot. Ask someone else.', 'Leave me.']), 40); mood(p, -1); return { ok: false, why: `${p.name} is too low to take orders right now.` }; }
+  const easy = ['eat', 'drink', 'rest', 'walk', 'pray', 'comfort'].includes(job.k);
+  if (!easy && (p.mood < 15 ? chance(0.8) : p.mood < 30 && chance(0.3))) { say(p, pick(['Not now.', 'I cannot. Ask someone else.', 'Leave me.']), 40); mood(p, -1); if (H.refused) H.refused(p, job); return { ok: false, why: `${p.name} will not.` }; }
   if (front) { p.q.unshift(job); if (p.act && p.act.interrupt) abort(p); } else p.q.push(job);
   if (!p.act) pickNext(p);
   return { ok: true };
@@ -162,12 +177,41 @@ function abort(p) {
   if (a.ph < 3) { const pos = posOf(p, acc); p.f = Math.abs(pos.f - Math.round(pos.f)) < 0.03 ? Math.round(pos.f) : pos.f; p.x = pos.x; p.up = pos.up || 0; if (G().t + acc >= a.tW && a.to.up > 0) p.lx = a.to.lx; p.at = null; }
   p.act = null;
 }
+/* changing your mind: whatever part of the materials has not been used up comes back, rounded in your favour */
+function refundOf(cost, left, total) { const r = total > 0 ? Math.max(0, Math.min(1, left / total)) : 0; const out = {}; Object.entries(cost).forEach(([k, v]) => { const n = Math.ceil(v * r - 1e-9); if (n > 0) out[k] = n; }); return out; }
+function giveBack(out) { Object.entries(out).forEach(([k, n]) => H.add(k, n)); return out; }
+function cancelTask(pid) {
+  const p = byId(pid); if (!p) return null; const a = p.act; let back = null;
+  if (a && a.job) {
+    if (a.k === 'build') { const q = (G().bq || []).find((x) => x.id === a.job.id); const d = BUILDS[a.job.id]; if (q && d) { back = giveBack(refundOf(d.cost, q.need - q.prog, q.need)); G().bq = G().bq.filter((x) => x !== q); } }
+    else if (a.k === 'craft') { const d = CRAFTS[a.job.id]; if (d) back = giveBack(refundOf(d.cost, a.left, a.total)); }
+    else if (a.k === 'cook') back = giveBack(refundOf({ food: a.job.n || 0, wood: 1 }, a.left, a.total));
+  }
+  if (a && /^(build|craft|cook)$/.test(a.k)) { abort(p); p.act = null; }
+  p.q = []; return back || {};
+}
+function cancelBuild(id) {
+  const q = (G().bq || []).find((x) => x.id === id); if (!q) return null; const d = BUILDS[id]; const who = q.who && byId(q.who);
+  if (who && who.act && who.act.k === 'build' && who.act.job && who.act.job.id === id) return cancelTask(who.id);
+  G().bq = G().bq.filter((x) => x !== q); return giveBack(refundOf(d.cost, q.need - q.prog, q.need));
+}
+/* what is being made right now, for the screens that let you stop it */
+function activeTasks() {
+  const g = G(); const out = [];
+  (g.bq || []).forEach((q) => { const d = BUILDS[q.id]; const w = q.who && byId(q.who); out.push({ kind: 'build', id: q.id, name: d.name, pct: Math.round(100 * q.prog / Math.max(1, q.need)), pid: w ? w.id : 0, who: w ? w.name : '' }); });
+  home().forEach((p) => { const a = p.act; if (!a || !a.job) return; if (a.k === 'craft') out.push({ kind: 'craft', id: a.job.id, name: CRAFTS[a.job.id].name, pct: Math.round(100 * (1 - a.left / Math.max(1, a.total))), pid: p.id, who: p.name }); else if (a.k === 'cook') out.push({ kind: 'cook', id: 'cook', name: 'Cooking', pct: Math.round(100 * (1 - a.left / Math.max(1, a.total))), pid: p.id, who: p.name }); });
+  return out;
+}
 function startJob(p, job) {
   const B = G().build, S = stations();
   if (job.k === 'walk') { beginAct(p, 'walk', job.pt ? { id: 'floor', f: job.pt.f, x: job.pt.x } : (job.st || 'table'), 1, 'Walking', job); return true; }
   if (job.k === 'rest') { beginAct(p, 'rest', job.st || 'table', job.min || 30, 'Resting', job); return true; }
   if (job.k === 'use') { beginAct(p, 'use', job.st || 'table', job.min || 3, job.label || 'Using', job, { interrupt: true }); return true; }
   if (job.k === 'pray') { beginAct(p, 'pray', 'mat', 15, 'Praying', job, { interrupt: true }); return true; }
+  if (job.k === 'comfort') { const o = byId(job.with); if (!o || !o.alive || o.out) return false; abort(o); beginAct(o, 'chat', { id: 'meetp', f: o.f, x: o.x }, 26, 'Being comforted', { k: 'chat', with: p.id }, { interrupt: false }); beginAct(p, 'chat', { id: 'meet', f: o.f, x: clamp(o.x + (o.x < STAIRX ? 11 : -11), 8, FLOORW - 8) }, 25, 'Sitting with ' + o.name, job, { interrupt: true }); return true; }
+  if (job.k === 'sort') { beginAct(p, 'build', job.st, job.min || 40, 'Clearing junk', job, { interrupt: true }); return true; }
+  if (job.k === 'dig') { beginAct(p, 'build', job.st, job.min || 90, 'Digging out rubble', job, { interrupt: true }); return true; }
+  if (job.k === 'board') { H.add('wood', -2); H.add('parts', -1); beginAct(p, 'build', job.st, job.min || 40, 'Boarding up the window', job, { interrupt: false }); return true; }
   if (job.k === 'look') { beginAct(p, 'look', job.st || 'win0', 6, 'Looking out of the window', job, { interrupt: true }); return true; }
   if (why(job, p)) return false;
   if (job.k === 'build') {
@@ -185,7 +229,7 @@ function startJob(p, job) {
 }
 
 /* ---------- decision rule ---------- */
-const wantsWatch = (p, t) => { const h = hourOf(t) + minOf(t) / 60; if (p.shift === 'early') return h >= 20 || h < 1; if (p.shift === 'late') return h >= 1 && h < 5.5; return false; };
+const wantsWatch = (p, t) => { const h = hourOf(t) + minOf(t) / 60; if (p.shift === 'early') return h >= 20 || h < 1; if (p.shift === 'late') return h >= 1 && h < 5.5; if (p.shift === 'all') return h >= 20 || h < 5.5; return false; };
 function mealsLow() { const n = home().length; return have('meal') < Math.max(2, n * 0.8); }
 function someoneCooking() { return G().S.some((s) => s.act && s.act.k === 'cook'); }
 function pickNext(p) {
@@ -198,7 +242,8 @@ function pickNext(p) {
   if (p.sick && p.hp < 70 && has(p, 'meds')) { take(p, 'meds'); self('take medicine'); beginAct(p, 'meds', 'table', 5, 'Taking medicine', { k: 'meds' }, { interrupt: false }); return; }
   if (p.hp < 20) { self('lie down'); beginAct(p, 'sleep', B.infirm ? 'infirm' : bunkFor(p), 90, 'Lying down, weak', { k: 'rest' }); p.sleeping = true; return; }
   /* 2. eat */
-  if (p.hunger >= (me ? 75 : 55)) {
+  const fastNow = p.fasting && hourOf(t) >= 5 && hourOf(t) < 19 && p.hunger < 92;
+  if (!fastNow && p.hunger >= (me ? 75 : 55)) {
     if (has(p, 'meal')) { take(p, 'meal'); self('eat'); beginAct(p, 'eat', 'table', 10, 'Eating', { k: 'eat', raw: false }, { interrupt: false }); return; }
     if (p.hunger >= 78 && has(p, 'food')) { take(p, 'food'); self('eat raw food'); beginAct(p, 'eat', 'table', 6, 'Eating raw food', { k: 'eat', raw: true }, { interrupt: false }); return; }
   }
@@ -206,7 +251,7 @@ function pickNext(p) {
   if (p.thirst >= (me ? 70 : 50) && has(p, 'water')) { take(p, 'water'); self('drink'); beginAct(p, 'drink', 'water', 3, 'Drinking', { k: 'drink' }, { interrupt: false }); return; }
   /* 4. sleep */
   const night = isNight(t);
-  if (p.fatigue >= (me ? 92 : 85) || (!me && night && p.fatigue >= 35 && !wantsWatch(p, t))) { self('sleep'); beginAct(p, 'sleep', bunkFor(p), 600, 'Sleeping', { k: 'sleep' }); p.sleeping = true; return; }
+  if (p.fatigue >= (me ? 92 : 85) || (!me && night && p.fatigue >= 35 && !wantsWatch(p, t))) { self('sleep'); beginAct(p, 'sleep', bedFor(p), 600, p.bed === 'floor' ? 'Sleeping on the floor' : 'Sleeping', { k: 'sleep' }); p.sleeping = true; return; }
   /* 5. watch */
   if (wantsWatch(p, t) && p.fatigue < 96) { const end = shiftEnd(p, t); startJob(p, { k: 'watch', min: Math.max(10, end - t) }); return; }
   /* 6. orders */
@@ -217,12 +262,15 @@ function pickNext(p) {
   /* 8. life */
   lifeAct(p);
 }
-function shiftEnd(p, t) { const day0 = Math.floor(t / 1440) * 1440; const h = hourOf(t); if (p.shift === 'early') return h >= 20 ? day0 + 1440 + 60 : day0 + 60; return day0 + 330; }
+function shiftEnd(p, t) { const day0 = Math.floor(t / 1440) * 1440; const h = hourOf(t); if (p.shift === 'all') return h >= 20 ? day0 + 1440 + 330 : day0 + 330; if (p.shift === 'early') return h >= 20 ? day0 + 1440 + 60 : day0 + 60; return day0 + 330; }
+/* the night roles decide where a person sleeps: a bunk (good rest) or the floor (poor rest, a stiff back) */
+function bedFor(p) { if (p.bed === 'floor') { const i = home().indexOf(p); return { id: 'sleepfloor', f: Math.min(1, floors() - 1), x: 112 + (i % 5) * 16 }; } return bunkFor(p); }
 function bunkFor(p) { const S = stations(); const ids = Object.keys(S).filter((k) => k.indexOf('bunk') === 0); const taken = new Set(G().S.filter((s) => s !== p && s.act && s.act.k === 'sleep').map((s) => s.act.st)); const mine = p.bunk && S[p.bunk] ? p.bunk : null; if (mine && !taken.has(mine)) return mine; const free = ids.filter((i) => !S[i].up).find((i) => !taken.has(i)) || ids.find((i) => !taken.has(i)) || ids[0]; p.bunk = free; return free; }
 function autoWork(p) {
   const B = G().build;
   if (B.stove && have('food') >= 2 && have('wood') >= 1 && mealsLow() && !someoneCooking() && why({ k: 'cook' }, p) === null) return { k: 'cook' };
   const q = (G().bq || []).find((x) => !x.who); if (q) return { k: 'build', id: q.id };
+  if (G().day >= 3 && have('wood') >= 3 && have('parts') >= 1) { const w = ['win0', 'win1', 'win2'].find((id) => stations()[id] && !(B.boards || {})[id] && !G().S.some((o) => o.act && o.job && o.act.job && o.act.job.k === 'board' && o.act.job.st === id)); if (w && why({ k: 'board', st: w }, p) === null) return { k: 'board', st: w }; }
   if (B.bench && p.trait === 'medic' && have('bandage') < 2 && have('cloth') >= 2 && why({ k: 'craft', id: 'bandage' }, p) === null) return { k: 'craft', id: 'bandage' };
   /* garden / stills tend themselves; nothing else is urgent */
   return null;
@@ -234,6 +282,10 @@ const LIFE = [
   { k: 'tinker', label: 'Fixing things', st: 'bench', min: 30, w: (p) => (p.trait === 'strong' || p.trait === 'hustler' ? 2.5 : 0.6), fx(p) { mood(p, 1); }, lines: ['', 'This will hold.'] },
   { k: 'exercise', label: 'Pushing through press-ups', st: 'spot', min: 15, w: (p) => (p.trait === 'strong' ? 3 : 0.4), fx(p) { mood(p, 2); p.fatigue += 3; }, lines: ['If I stop moving I stop.'] },
   { k: 'cry', label: 'Crying alone in a corner', st: 'corner', min: 22, w: (p) => (p.mood < 28 ? 6 : p.mood < 45 ? 1.4 : 0.15), fx(p) { mood(p, 5); G().att = clamp((G().att || 0) + 1, 0, 100); }, lines: ['…', 'Nobody can hear me.', ''] },
+  { k: 'smoke', label: 'Smoking by the window', st: 'win0', min: 12, w: (p) => (p.trait === 'devout' ? 0 : (have('loud') + have('weed') + have('cigarettes') > 0 ? (p.mood < 45 ? 2.2 : 0.5) : 0)), fx(p) { const k = have('loud') > 0 && p.mood < 30 ? 'loud' : have('cigarettes') > 0 ? 'cigarettes' : have('weed') > 0 ? 'weed' : 'loud'; if (have(k) > 0) { H.add(k, -1); mood(p, k === 'loud' ? 10 : k === 'weed' ? 6 : 4); p.fatigue = clamp(p.fatigue + (k === 'cigarettes' ? 0 : 4), 0, 100); } }, lines: ['', 'Just one.', 'Don\'t tell Mummy.', ''] },
+  { k: 'drink', label: 'Drinking ogogoro', st: 'table', min: 15, w: (p) => (p.trait === 'devout' ? 0 : have('ogogoro') > 0 ? (p.mood < 35 ? 2 : 0.3) : 0), fx(p) { if (have('ogogoro') > 0) { H.add('ogogoro', -1); mood(p, 7); p.hp = Math.max(1, p.hp - 1); } }, lines: ['', 'To the ones who are not here.', ''] },
+  { k: 'mourn', label: 'At the graves', st: 'door', min: 20, w: (p) => ((G().mem2 || []).some((m) => m.home && G().day - m.day < 12) ? 2.2 : 0), fx(p) { mood(p, 2); }, lines: ['', 'I keep talking to him.', 'You should be here.', ''] },
+  { k: 'photos', label: 'Looking at the photos', st: 'tally', min: 15, w: (p) => ((G().mem2 || []).length ? 1.2 : 0), fx(p) { mood(p, 1); }, lines: ['', "I can't remember her voice already."] },
   { k: 'stare', label: 'Staring out into the dark', st: 'spot', min: 20, w: (p) => (p.mood < 45 ? 2 : 0.3), fx(p) {}, lines: ['', 'Did you hear that?'] }
 ];
 const B0 = () => G().build;
@@ -256,7 +308,7 @@ function lifeAct(p) {
 /* ---------- per-tick effects ---------- */
 function finish(p) {
   const a = p.act; if (!a) return; const job = a.job || {}; const B = G().build;
-  switch (a.k) {
+  switch (job && ['comfort', 'sort', 'dig', 'board'].includes(job.k) ? job.k : a.k) {
     case 'eat': {
       if (job.raw) { p.hunger = Math.max(0, p.hunger - EFFECT.raw); if (chance(G().build.filter ? 0.15 : 0.22)) { p.sick = true; logT(`${p.name} ate raw food and will regret it.`, 'bad'); } else mood(p, -1); }
       else { p.hunger = Math.max(0, p.hunger - EFFECT.meal); mood(p, 4); const tbl = home().filter((o) => o !== p && o.act && o.act.k === 'eat' && o.act.st === 'table'); if (tbl[0] && H.bond) H.bond(p, tbl[0], 1, 0); }
@@ -279,6 +331,9 @@ function finish(p) {
     case 'life': if (a.fx) a.fx(p); break;
     case 'chat': { const o = byId(job.with); if (o && o.alive && H.bond) { H.bond(p, o, job.comfort ? 3 : 1, 0); } mood(p, job.comfort ? 3 : 2); if (job.comfort && o) { mood(o, 5); logT(`${p.name} sat with ${o.name} until the crying stopped.`, 'good'); } if (H.chatLine) say(p, H.chatLine(p, o), 40); break; }
     case 'watch': logT(`${p.name} comes off watch.`, ''); break;
+    case 'sort': case 'dig': { if (B.junk && B.junk[job.st]) { delete B.junk[job.st]; const got = H.junkFound ? H.junkFound(p, job.st, job.k === 'dig') : {}; mood(p, 2); logT(`${p.name} cleared the ${job.k === 'dig' ? 'rubble' : 'junk'}${Object.keys(got).length ? ': ' + Object.entries(got).map(([k, v]) => v + ' ' + k).join(', ') : ''}.`, 'good'); } break; }
+    case 'board': { B.boards = B.boards || {}; B.boards[job.st] = 1; logT(`${p.name} boarded up the window.`, 'good'); if (H.onBuilt) H.onBuilt('board', p); break; }
+    case 'comfort': { const o = byId(job.with); if (o && o.alive) { const r = H.relOf ? H.relOf(p, o) : { fond: 0, tension: 0 }; const g = Math.max(2, 9 + r.fond / 12 - r.tension / 7); mood(o, g); mood(p, 1); if (H.bond) H.bond(p, o, 4, -2, 'sat with them when it was bad'); if (H.comforted) H.comforted(p, o, g); } break; }
     case 'use': if (H.onUse) H.onUse(p, job.what); break;
     case 'pray': mood(p, p.trait === 'devout' ? 8 : 3); break;
     case 'look': if (H.onLook) H.onLook(p, S0floor(a.st)); break;
@@ -309,7 +364,7 @@ function tickPerson(p) {
   /* needs */
   p.hunger = clamp(p.hunger + RATE.hunger * (sleeping ? 0.6 : 1), 0, 100);
   p.thirst = clamp(p.thirst + RATE.thirst * (sleeping ? 0.6 : 1), 0, 100);
-  p.fatigue = clamp(p.fatigue + (sleeping ? -RATE.sleep * (G().build.curtains || p.bunk ? 1 : 0.9) : RATE.fatigue * (p.sick ? 1.4 : 1)), 0, 100);
+  p.fatigue = clamp(p.fatigue + (sleeping ? -RATE.sleep * (p.act && p.act.st === 'sleepfloor' ? 0.6 : (G().build.curtains || p.bunk ? 1 : 0.9)) : RATE.fatigue * (p.sick ? 1.4 : 1)), 0, 100);
   /* mood drift */
   if (p.hunger > 60) mood(p, p.trait === 'fragile' ? -0.02 : -0.012); if (p.thirst > 60) mood(p, -0.015); if (p.fatigue > 80) mood(p, -0.01);
   if (p.sick) mood(p, -0.006); if (sleeping) mood(p, 0.004);
@@ -362,11 +417,13 @@ function dawn() {
   const B = g.build;
   if (B.bucket) { const w = g.season === 'rains' ? (g.wx === 'storm' ? rnd(3, 5) : g.wx === 'drizzle' ? 2 : 0) : (chance(0.4) ? 1 : 0); if (w) { H.add('water', w); logT(`The rain catcher gathered ${w} water.`, 'good'); } }
   if (B.still && have('wood') >= 1) { H.add('wood', -1); H.add('water', 2); }
+  if (B.weed && g.weedAt && g.t >= g.weedAt) { const n = g.season === 'rains' ? rnd(4, 6) : rnd(2, 4); H.add('weed', n); g.weedAt = g.t + 4 * 1440; logT(`The patch on the roof is ready: ${n} weed.`, 'good'); }
+  if (B.garden && g.gardenAt && g.t >= g.gardenAt) { H.add('tobacco', rnd(1, 2)); }
   if (B.garden && g.gardenAt && g.t >= g.gardenAt) { const f = g.season === 'rains' ? rnd(3, 5) : rnd(1, 3); H.add('food', f); g.gardenAt = g.t + 6 * 1440; logT(`The rooftop garden gave ${f} food.`, 'good'); }
   /* illness */
   home().forEach((p) => {
     if (p.sick) { const c = B.infirm ? 0.4 : 0.26; if (chance(c)) { p.sick = false; logT(`${p.name} is over the sickness.`, 'good'); } }
-    else { const base = g.season === 'rains' ? 0.05 : 0.04; const sheltered = (B.curtains ? 0.01 : 0) + (B.bed ? 0.01 : 0); if (chance(Math.max(0.01, base - sheltered + (g.wx === 'cold' ? 0.03 : 0) + (B.filter ? -0.01 : 0)))) { p.sick = true; logT(`${p.name} woke up shivering and hot.`, 'bad'); } }
+    else { const base = (g.season === 'rains' ? 0.05 : 0.04) * (H.sickMul ? H.sickMul() : 1); const sheltered = (B.curtains ? 0.01 : 0) + (B.bed ? 0.01 : 0); if (chance(Math.max(0.01, base - sheltered + (g.wx === 'cold' ? 0.03 : 0) + (B.filter ? -0.01 : 0)))) { p.sick = true; logT(`${p.name} woke up shivering and hot.`, 'bad'); } }
   });
   /* the sick infect neighbours */
   const sick = home().filter((p) => p.sick); if (sick.length && !B.infirm) home().forEach((p) => { if (!p.sick && chance(0.06 * sick.length)) { p.sick = true; logT(`${p.name} has caught it too.`, 'bad'); } });
@@ -387,11 +444,14 @@ function raidTick() {
   const g = G(); const t = g.t; const night = isNight(t);
   if (g.pend) { if (t >= g.pend.at) resolveRaid(g.pend.choice || 'hold'); return; }
   if (minOf(t) !== 0) return;                                  // roll once an hour
+  /* the collector was refused: tonight they come */
+  if (night && hourOf(t) === 1 && H.forceRaid && H.forceRaid()) { const warn = lookout() ? 30 : 0; g.pend = { at: t + warn, size: clamp(3 + Math.floor(dayOf(t) / 6), 3, 8), warned: warn > 0, choice: null, night, born: t, mk: true }; if (H.onRaidWarn) H.onRaidWarn(g.pend); return; }
   const day = dayOf(t); if (day < 3) return;
   const att = g.att || 0; let p = night ? 0.004 + att * 0.0008 : 0.0004 + att * 0.0001;
   p *= 1 + Math.min(day, 30) / 15;
+  if (H.raidCalm) p *= H.raidCalm(); if (H.raidMul) p *= H.raidMul();
   if (!chance(p)) return;
-  const size = clamp(1 + Math.floor(day / 8) + rnd(0, 2), 1, 7);
+  const size = clamp(1 + Math.floor(day / 8) + rnd(0, 2) + (H.raidSize ? H.raidSize() : 0), 1, 8);
   const warn = lookout() ? 30 : 0;
   g.pend = { at: t + warn, size, warned: warn > 0, choice: null, night, born: t };
   if (H.onRaidWarn) H.onRaidWarn(g.pend); else if (warn) logT('The lookout whispers: people at the gate.', 'bad');
@@ -401,15 +461,17 @@ function resolveRaid(choice) {
   const g = G(); const r = g.pend; if (!r) return null; g.pend = null; const B = g.build;
   const awake = home().filter((p) => !p.sleeping && p.hp > 25);
   const weapon = H.bestWeapon ? H.bestWeapon() : 0;
-  const def = (B.barricade || 0) * 2 + (B.alarm ? 1 : 0) + awake.length * 0.7 + weapon + (r.warned ? 1.5 : 0) + (choice === 'fight' ? 2 : 0) - (awake.length === 0 ? 2 : 0);
+  const open = ['win0', 'win1', 'win2'].filter((w) => stations()[w] && !(B.boards || {})[w]).length;
+  const def = -open * 0.8 + (B.barricade || 0) * 2 + (B.alarm ? 1 : 0) + awake.length * 0.7 + weapon + (r.warned ? 1.5 : 0) + (choice === 'fight' ? 2 + (r.fw || 0) * 1.5 : 0) - (awake.length === 0 ? 2 : 0);
   const atk = r.size * 1.2 + R() * 2;
-  const out = { choice, size: r.size, def, atk, result: '', hurt: [], lost: {} };
+  const out = { choice, size: r.size, def, atk, result: '', hurt: [], lost: {}, via: open ? ['win0', 'win1', 'win2'].filter((w) => stations()[w] && !(B.boards || {})[w])[0] : 'door' };
   if (choice === 'dark' && r.night && chance(0.35 + (B.curtains ? 0.2 : 0) + (r.warned ? 0.15 : 0))) { out.result = 'passed'; g.att = (g.att || 0) * 0.5; if (H.onRaidDone) H.onRaidDone(out); else logT('You sat in the dark and held your breath. They went past.', 'good'); return out; }
+  if (choice === 'pay' && r.lux) { out.result = 'paid'; g.att = (g.att || 0) * 0.3; if (H.onRaidDone) H.onRaidDone(out); return out; }
   if (choice === 'pay') {
     ['food', 'meal', 'water'].forEach((k) => { const n = Math.min(have(k), Math.ceil(have(k) * 0.2)); if (n) { H.add(k, -n); out.lost[k] = n; } });
     out.result = 'paid'; g.att = (g.att || 0) * 0.4; if (H.onRaidDone) H.onRaidDone(out); else logT('You paid them to leave. It will not hold for long.', ''); return out;
   }
-  if (def >= atk) { out.result = 'repelled'; if (B.barricade && chance(0.3)) { B.barricade -= 1; out.result = 'repelled-damaged'; } g.att = (g.att || 0) + 6; if (choice === 'fight') awake.forEach((p) => { if (chance(0.3)) hurt(p, rnd(5, 15), 'fighting', out); }); }
+  if (def >= atk) { out.result = 'repelled'; if (B.barricade && chance(0.3)) { B.barricade -= 1; out.result = 'repelled-damaged'; } g.att = (g.att || 0) + 6 + (r.loud || 0); if (choice === 'fight') awake.forEach((p) => { if (chance(0.3)) hurt(p, rnd(5, 15), 'fighting', out); }); }
   else {
     out.result = 'breached';
     Object.keys(LOSS).forEach((k) => { const n = Math.floor(have(k) * LOSS[k] * (0.5 + R())); if (n > 0) { H.add(k, -n); out.lost[k] = n; } });
@@ -419,6 +481,7 @@ function resolveRaid(choice) {
   if (H.onRaidDone) H.onRaidDone(out); return out;
 }
 function hurt(p, n, cause, out) {
+  if (p.hp > 35 && p.hp - n <= 0) n = p.hp - (4 + Math.floor(R() * 6));          /* a healthy person is left barely alive, not killed outright */
   p.hp -= n; if (n >= 15 || chance(0.4)) p.wound = true; if (out) out.hurt.push(p.name);
   if (p.hp <= 0) { p.hp = 0; if (H.kill) H.kill(p, cause); else p.alive = false; }
 }
@@ -426,7 +489,7 @@ function attentionTick() {
   const g = G(); const t = g.t; const B = g.build; const night = isNight(t);
   const lit = night && (g.light === true || someoneCooking());
   let a = g.att || 0;
-  if (night) { a -= 0.03 + (B.curtains ? 0.03 : 0); if (lit) a += 0.06; } else a -= 0.015;
+  if (night) { a -= 0.03 + (B.curtains ? 0.03 : 0); if (lit) a += 0.06 + ['win0', 'win1'].filter((w) => !(B.boards || {})[w]).length * 0.01; } else a -= 0.015;
   g.att = clamp(a, 0, 100);
 }
 
@@ -436,8 +499,8 @@ function tick() {
   g.night = isNight(t);
   const h = hourOf(t), m = minOf(t);
   if (h === 6 && m === 0) dawn();
-  if (h === 19 && m === 30 && !g.watchSet) autoWatch();
-  if (h === 5 && m === 30) { home().forEach((p) => { p.shift = null; }); g.watchSet = false; }
+  if (h === 19 && m === 30 && !g.watchSet) { if (H.onNight) { autoWatch(); g.watchSet = true; H.onNight(); } else autoWatch(); }
+  if (h === 5 && m === 30) { home().forEach((p) => { p.shift = null; p.bed = null; }); g.watchSet = false; }
   home().forEach(tickPerson);
   if (m % 2 === 0) yieldTick();
   attentionTick(); raidTick();
@@ -446,8 +509,8 @@ function tick() {
 }
 let acc = 0;
 /* real-time driver: call every animation frame with the seconds elapsed. Speed 0 = paused. */
-function drive(dt) {
-  const g = G(); const sp = SPEEDS[g.speed === undefined ? 1 : g.speed] || 0; if (!sp) return;
+function drive(dt, over) {
+  const g = G(); const sp = over !== undefined ? over : (SPEEDS[g.speed === undefined ? 1 : g.speed] || 0); if (!sp) return;
   acc += Math.min(0.25, dt) * sp; let n = 0;
   while (acc >= 1 && n < 60) { if (H.halt && H.halt()) { acc = 0; return; } tick(); acc -= 1; n++; }
   if (acc > 4) acc = 0;
@@ -486,12 +549,14 @@ function jobsAt(stId, p) {
   if (stId === 'post') mk('Stand watch for 3 hours', { k: 'watch', min: 180 });
   if (stId === 'radio' && B.radio) mk('Listen to the radio', { k: 'use', st: 'radio', what: 'radio', min: 4, label: 'Listening to the radio' });
   if (stId === 'mat') mk('Pray', { k: 'pray' });
+  if (B.junk && B.junk[stId]) mk(B.junk[stId] === 'rubble' ? 'Dig out the rubble' : 'Clear the junk', { k: B.junk[stId] === 'rubble' ? 'dig' : 'sort', st: stId });
+  if (/^win\d/.test(stId) && !(B.boards || {})[stId]) mk('Board up the window (2 wood, 1 scrap)', { k: 'board', st: stId });
   if (/^win\d/.test(stId) || stId === 'post') mk('Look out', { k: 'look', st: stId });
   if (stId.indexOf('bunk') === 0 || stId === 'infirm') mk((G().build && stations()[stId] && stations()[stId].up) ? 'Climb up and rest' : 'Rest here', { k: 'rest', st: stId, min: 90 });
   mk('Go here', { k: 'walk', st: stId });
   return out;
 }
 function init(host) { H = host; }
-C.Sim = { init, start, tick, advance, drive, frac, order, abort, why, jobsAt, stations, posOf, lookout, resolveRaid, autoWatch, dawn, floors, clock, dayOf, hourOf, minOf, phaseOf, isNight, ensure, pickNext, hurt, SPEEDS, BUILDS, CRAFTS, RATE, EFFECT, walkMin, say, get host() { return H; } };
+C.Sim = { bunkCount, bedFor, init, start, tick, advance, drive, frac, cancelTask, cancelBuild, activeTasks, order, abort, why, jobsAt, stations, posOf, lookout, resolveRaid, autoWatch, dawn, floors, clock, dayOf, hourOf, minOf, phaseOf, isNight, ensure, pickNext, hurt, SPEEDS, BUILDS, CRAFTS, RATE, EFFECT, walkMin, say, get host() { return H; } };
 if (typeof module !== 'undefined') module.exports = C.Sim;
 })(typeof window !== 'undefined' ? window : globalThis);

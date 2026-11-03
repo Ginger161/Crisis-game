@@ -312,6 +312,10 @@ function draw(sp, kind, i, opts) {
     LR(-3, -3, 6, 1, '#efe9d8'); L(0, -3, blood);
   }
   if (has(sp, 'sick') && i % 2) L(-2, -1, '#9bd0e0');
+  /* wear: the siege on the body. Dirt that builds up, bandages that stay on, tear tracks */
+  if (!dead && (has(sp, 'dirty') || has(sp, 'filthy'))) { const n = has(sp, 'filthy') ? 7 : 3; const dc = has(sp, 'filthy') ? '#2a2018' : '#4a3a2a'; for (let k = 0; k < n; k++) { const q = onTorso(0.15 + ((sp.seed || 1) * (k + 3) % 70) / 100, ((k * 37 + (sp.seed || 0)) % 5) - 2.5); px(q[0], q[1], dc); } L(((sp.seed || 0) % 3) - 1, 1, dc); if (has(sp, 'filthy')) { L(1, -2, dc); px(Pp[0] - 1, G - 2, dc); px(Pp[0] + 2, G - 3, dc); } }
+  if (!dead && has(sp, 'bandaged')) { LR(-3, -4, 6, 1, '#efe9d8'); const b = [(S[0] + A1.j[0]) / 2, (S[1] + A1.j[1]) / 2]; rect(rr(b[0]) - 1, rr(b[1]), 2, 2, '#efe9d8'); px(b[0], b[1] + 1, '#c8b8a0'); }
+  if (!dead && has(sp, 'tears')) { L(-1, 0, '#a8c8e0'); L(-1, 1, '#a8c8e0'); L(2, 0, '#a8c8e0'); }
   if (dead) {
     const g = (sp.seed || 0) % 3;
     const pool = [[Pp[0] - 4, G - 1.2], [Pp[0] + 1, G - 1.2], [Pp[0] + 6, G - 1.2]];

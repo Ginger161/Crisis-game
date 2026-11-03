@@ -75,6 +75,33 @@ add({ id: 'football', name: 'Football Field', zone: 'sports', kind: 'field', gro
 /* Gate */
 add({ id: 'gate', name: 'School Gate', zone: 'gate', kind: 'gate', rich: [4, 8], risk: 5, loot: { food: 2, pistol: 1.2, machete: 1, meds: 1, parts: 1.2, bandage: 0.6 }, flavor: 'Where it started. Tyre marks. A burnt vehicle. The air is wrong here.' });
 
+/* floors and layout: four storeys only for the very largest buildings; halls are single rooms; cafeterias are small, except the New Cafeteria */
+LOCS.forEach((l) => {
+  let f = 2, plan = 'corridor';
+  if (/^bh[A-Q]$/.test(l.id)) { f = 2; }
+  else if (/^bh[RS]$/.test(l.id)) { f = 3; }
+  else if (l.id === 'bhT') { f = 4; }
+  else if (l.kind === 'hostel' && /New Pa-Etos/.test(l.name)) { f = 4; }
+  else if (l.kind === 'hostel' && /Pa-Etos|CICL|Kelson/.test(l.name)) { f = 3; }
+  else if (l.kind === 'hostel') { f = 2; }
+  else if (/^bc\d$/.test(l.id) || l.id === 'ase') { f = 1; plan = 'cafsmall'; }
+  else if (l.id === 'newcaf') { f = 1; plan = 'bigcaf'; }
+  else if (l.id === 'chapel') { f = 1; plan = 'chapel'; }
+  else if (l.id === 'theatre' || l.id === 'aud') { f = 1; plan = 'hall'; }
+  else if (l.id === 'mph') { f = 2; plan = 'hall'; }
+  else if (/^cb[A-D]$/.test(l.id)) { f = 3; plan = 'lecture'; }
+  else if (l.id === 'senate') { f = 3; plan = 'office'; }
+  else if (l.kind === 'admin' || l.kind === 'misc') { f = 2; plan = 'office'; }
+  else if (l.kind === 'field') { f = 0; plan = l.id === 'basket' ? 'courtB' : l.id === 'volley' ? 'courtV' : 'courtF'; }
+  else if (l.id === 'gate') { f = 1; plan = 'gate'; }
+  else if (l.id === 'clinic') { f = 1; plan = 'clinic'; }
+  else if (l.kind === 'clinic') { f = 2; plan = 'clinic'; }
+  else if (l.kind === 'library') { f = 2; plan = 'library'; }
+  else if (l.kind === 'class') { f = 2; plan = 'lecture'; }
+  l.floors = f; l.plan = plan;
+  if (l.kind === 'cafe') l.loot.knife = (l.loot.knife || 0) + 0.7;
+  if (l.id === 'gate') l.loot.bullets = 2.4; else if (['senate', 'aud', 'bhR', 'bhS', 'bhT'].includes(l.id)) l.loot.bullets = 0.7; else if (l.kind === 'hostel') l.loot.knife = (l.loot.knife || 0) + 0.25;
+});
 const BY = Object.fromEntries(LOCS.map((l) => [l.id, l]));
 const hostels = () => LOCS.filter((l) => l.kind === 'hostel');
 const travel = (fromId, toId) => DIST[BY[fromId].zone][BY[toId].zone];

@@ -17,7 +17,7 @@ const SCREENS = {
   pause() {
     const i = (M.hooks.info && M.hooks.info()) || null;
     return page('Paused', `${i ? `<div class="dim" style="text-align:center;margin:-4px 0 14px">Day ${i.day} · ${i.place}<br>${i.alive} alive · saved automatically</div>` : ''}
-      <div class="mbtns"><button class="primary" data-mn="close">Resume</button><button data-mn="howto">How to play</button><button data-mn="replay">Replay tutorial</button><button data-mn="settings">Settings</button><button data-mn="saveNow">Save now</button><button data-mn="confirmRestart">Restart this run</button><button class="danger" data-mn="confirmQuit">Quit to title</button></div>`);
+      <div class="mbtns"><button class="primary" data-mn="close">Resume</button><button data-mn="howto">How to play</button><button data-mn="settings">Settings</button><button data-mn="saveNow">Save now</button><button data-mn="confirmRestart">Restart this run</button><button class="danger" data-mn="confirmQuit">Quit to title</button></div>`);
   },
   settings() {
     return page('Settings', `
