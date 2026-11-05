@@ -18,6 +18,7 @@ const ITEMS = {
   parts: ['⚙️', 'Scrap'], cloth: ['🧵', 'Cloth'], meds: ['💊', 'Medicine'], bandage: ['🩹', 'Bandage'],
   ogogoro: ['🍶', 'Ogogoro'], club: ['🏏', 'Club'], machete: ['🔪', 'Machete'], knife: ['🔪', 'Knife'], pistol: ['🔫', 'Pistol'], bullets: ['🔫', 'Bullets'], crowbar: ['🔧', 'Crowbar'], lockpick: ['🔑', 'Lockpicks'], shovel: ['⛏', 'Shovel'], weed: ['🌿', 'Weed'], loud: ['🍁', 'Loud'], cigarettes: ['🚬', 'Cigarettes'], tobacco: ['🍂', 'Tobacco'], paper: ['📄', 'Paper']
 };
+ITEMS.blanket = ['', 'Blanket']; ITEMS.elec = ['', 'Electronics']; ITEMS.toolkit = ['', 'Tool kit']; ITEMS.herbs = ['', 'Herbs'];
 const WEAPON = { pistol: 3, machete: 2, crowbar: 2, knife: 1, club: 1 };
 const NAMES = ['Chidera', 'Tunde', 'Amina', 'Emeka', 'Ngozi', 'Bashir', 'Ifeoma', 'Segun', 'Hauwa', 'Obinna', 'Zainab', 'Kelechi', 'Femi', 'Blessing', 'Musa', 'Adaeze', 'Ibrahim', 'Chiamaka', 'Yemi', 'Danjuma', 'Uche', 'Halima', 'Seyi', 'Nnamdi', 'Aisha', 'Tobi', 'Ekene', 'Rahila', 'Dami', 'Ada'];
 const DEPTS = ['Law, 300L', 'Nursing, 200L', 'Computer Science, 400L', 'Accounting, 100L', 'Mass Comm, 300L', 'Microbiology, 400L', 'Economics, 200L', 'Political Science, 300L', 'Architecture, 500L', 'Business Admin, 100L', 'Hostel porter', 'Lab technician', 'Lecturer, Chemistry'];
@@ -230,16 +231,24 @@ function newGame() {
 
 /* ---------- save ---------- */
 const SAVE_V = 12;
-function save() { try { localStorage.setItem('crisis_save', JSON.stringify(G)); } catch (e) {} }
+/* a save that cannot be written is said out loud, once, so nobody finds out the hard way */
+function save() {
+  try { localStorage.setItem('crisis_save', JSON.stringify(G)); save.failed = false; }
+  catch (e) { if (!save.failed) { save.failed = true; try { toastWhy('This phone is not letting the game save. Progress will be lost if you close it. (Private browsing, or storage full.)'); } catch (e2) {} } }
+}
+/* a save that cannot be read is kept aside, never thrown away, and the title screen says so */
+function setAside(raw, why) { try { localStorage.setItem('crisis_save_bad', raw); localStorage.setItem('crisis_save_bad_why', why); localStorage.removeItem('crisis_save'); } catch (e) {} G_LOST = why; }
+let G_LOST = null;
 function load() {
   try {
     const s = localStorage.getItem('crisis_save'); if (!s) return false;
     const g = JSON.parse(s);
     /* saves from older versions have no shelter, sprites or campus ids: discard them rather than crash */
-    const ok = g && g.v === SAVE_V && g.shelter && LOCBY[g.shelter] && Array.isArray(g.S) && g.S.every((x) => x.sp && x.sp.arch && x.cid) && g.tonight && g.build && g.fac && g.fac.length && g.rel && g.dir && typeof g.t === 'number';
-    if (!ok) { localStorage.removeItem('crisis_save'); return false; }
+    const ok = g && g.v === SAVE_V && g.shelter && LOCBY[g.shelter] && Array.isArray(g.S) && g.S.every((x) => x.sp && x.sp.arch && (x.cid || x.name)) && g.tonight && g.build && g.fac && g.fac.length && g.rel && g.dir && typeof g.t === 'number';
+    if (!ok) { const why = !g ? 'empty' : g.v !== SAVE_V ? 'old' : [['shelter', g.shelter && LOCBY[g.shelter]], ['people', Array.isArray(g.S)], ['sprites', Array.isArray(g.S) && g.S.every((x) => x.sp && x.sp.arch && (x.cid || x.name))], ['tonight', g.tonight], ['build', g.build], ['groups', g.fac && g.fac.length], ['rel', g.rel], ['dir', g.dir], ['time', typeof g.t === 'number']].filter(([, v]) => !v).map(([k]) => k).join(',');
+      try { localStorage.setItem('crisis_save_bad_detail', why); } catch (e) {} setAside(s, why === 'old' ? 'old' : 'broken'); return false; }
     G = g; if (CR.House) CR.House.reset(); G.pend = null; G.away = false; if (CR.Sim) CR.Sim.start(G); if (PO && PO.setHost) PO.setHost(host); return true;
-  } catch (e) { try { localStorage.removeItem('crisis_save'); } catch (e2) {} return false; }
+  } catch (e) { try { const raw = localStorage.getItem('crisis_save'); if (raw) setAside(raw, 'broken'); } catch (e2) {} reportError(e); return false; }
 }
 
 /* ---------- modal queue ---------- */
@@ -282,7 +291,7 @@ function knockRun(d, cs, runFn) {
   knockModal(d, got, null); return true;
 }
 function knockModal(d, got, peek) {
-  const al = alive(); const brave = (s) => (ST.cd(s) ? ST.cd(s).axes.brave : 0.3);
+  const al = alive().filter((s) => !s.out && s.id !== G.sel); const brave = (s) => (ST.cd(s) ? ST.cd(s).axes.brave : 0.3);   /* only someone who is home can answer; you can always open it yourself */
   const cands = al.slice().sort((a, b) => brave(b) - brave(a)).slice(0, 2);
   sfx('hit'); setTimeout(() => sfx('hit'), 330); setTimeout(() => sfx('hit'), 660); buzz([40, 70, 40, 70, 40]);
   const a0 = Array.isArray(got[0].art) ? got[0].art[0] : got[0].art;
@@ -456,7 +465,7 @@ function hurt(s, amt, why, o) {
   /* a healthy person is hurt by a blow, not killed by it: they are left barely alive, bleeding, and everything depends on what happens next */
   const spared = !(o && o.lethal) && before > 35 && before - dmg <= 0;
   if (spared) dmg = before - rnd(4, 9);
-  s.hp = Math.max(0, before - dmg); if (dmg >= 18 || s.hp < 35) s.wound = true;
+  s.hp = Math.max(0, before - dmg); if (dmg >= 18 || s.hp < 35) SIM.injure(s, dmg >= 30 ? 3 : dmg >= 18 ? 2 : 1);
   if (s.hp <= 0) { kill(s, why); return true; }
   if (spared) { log(`${s.name} was left for dead.`, 'bad'); try { notice(`${s.name} is barely alive.`); } catch (e) {} }
   else if (before >= 35 && s.hp < 35) log(`${s.name} is seriously wounded.`, 'bad');
@@ -551,6 +560,48 @@ function evGroup() {
     ]);
   }
 }
+
+/* ---------- the radio: news that changes things ----------
+   G.wev = [{ k, loc, from, to, done }]: a world event with a place and a window of days.
+   drop     an aid drop at a named open place: crates on the ground, and the patrols that go with them
+   overrun  bandits have taken a building: two more patrols there
+   sweep    soldiers along the road: raids far less likely for two nights
+   cholera  sickness in the camps: more illness unless you boil or filter
+   markets  the Bwari market is shut: food and water dearer
+   convoy   a convoy got through: food cheaper, and a trader comes to the door tomorrow
+   collector Mai Kudi is coming early
+   Without a radio, some of this still reaches you as rumour, later and vaguer. */
+const wevAt = (loc, k) => (G.wev || []).find((w) => (!loc || w.loc === loc) && (!k || w.k === k) && G.day >= w.from && G.day <= w.to);
+const wevOn = (k) => (G.wev || []).some((w) => w.k === k && G.day >= w.from && G.day <= w.to);
+function radioNews(listener) {
+  G.wev = (G.wev || []).filter((w) => w.to >= G.day); G.radioLast = G.radioLast || {};
+  const open = LOCS.filter((l) => l.id !== G.shelter && (l.kind === 'field' || l.id === 'gate' || l.id === 'mph'));
+  const bldg = LOCS.filter((l) => l.id !== G.shelter && l.kind !== 'field');
+  const fresh = (k) => !(G.radioLast[k] && G.day - G.radioLast[k] < 5) && !wevOn(k);
+  const kinds = [['drop', 2.2], ['overrun', 1.6], ['sweep', 1.2], ['cholera', arcPhase() >= 2 ? 1.4 : 0.6], ['markets', 1], ['convoy', 0.9], ['collector', G.mk && G.mk.alive !== false && G.mk.next > G.day + 1 ? 0.7 : 0], ['static', 1.4]].filter(([k]) => k === 'static' || fresh(k));
+  let r = R() * kinds.reduce((a, b) => a + b[1], 0); let k = 'static'; for (const [kk, w] of kinds) { r -= w; if (r <= 0) { k = kk; break; } }
+  G.radioLast[k] = G.day; let t = '', ev = null;
+  if (k === 'drop') { const L = pick(open); ev = { k, loc: L.id, from: G.day + 1, to: G.day + 2 }; t = `A relief helicopter will drop supplies at ${L.name} at first light tomorrow. Civilians are told to collect in daylight and in small numbers. The voice does not say who else will be listening.`; }
+  else if (k === 'overrun') { const L = pick(bldg); ev = { k, loc: L.id, from: G.day, to: G.day + 4 }; t = `Reports of armed men moving into ${L.name}. Anyone sheltering there is advised to leave. Nobody says how.`; }
+  else if (k === 'sweep') { ev = { k, from: G.day, to: G.day + 1 }; t = 'The army says a patrol will sweep the Bwari road tonight and tomorrow. Bandit groups are expected to keep their heads down.'; }
+  else if (k === 'cholera') { ev = { k, from: G.day, to: G.day + 5 }; t = 'Cholera in the camps along the expressway. Boil all water. Do not share cups. Report cases to the nearest… the signal goes.'; }
+  else if (k === 'markets') { ev = { k, from: G.day, to: G.day + 4 }; t = 'Bwari market is closed until further notice after an attack on the traders. Prices in Dutse have doubled.'; }
+  else if (k === 'convoy') { ev = { k, from: G.day, to: G.day + 3 }; G.forceTrader = G.day + 1; t = 'A food convoy reached Dutse under escort this afternoon. Traders are already moving goods towards the university road.'; }
+  else if (k === 'collector') { G.mk.next = G.day + 1; t = 'A man calling in to a phone-in show, laughing: "Tell the students at Veritas the bookkeeper is doing his rounds early this week." The host cuts him off.'; }
+  else t = pick(['Music. Then a long silence. Then music again.', 'A preacher, mid-sermon. He has been preaching for a long time.', 'A list of names. Missing persons. None of yours.', 'Football results from somewhere that still has football.', 'Static that almost sounds like voices.']);
+  if (ev) { G.wev.push(ev); }
+  if (ev && ev.k === 'drop') G.dropDue = ev;
+  G.newsLog = G.newsLog || []; G.newsLog.unshift({ d: G.day, t }); G.newsLog.length = Math.min(G.newsLog.length, 8);
+  if (listener && ev) remember(listener, k === 'drop' ? 'The radio said there would be a drop. Food, falling out of the sky.' : k === 'overrun' ? 'Heard on the radio that they took another building. I knew people there.' : 'I listened to the radio for an hour. It helped and it did not.', { w: 2 });
+  return { k, t, ev };
+}
+/* a drop lands at dawn: crates in the grass, until someone takes them */
+function dropDawn() {
+  const ev = G.dropDue; if (!ev || G.day < ev.from) return; G.dropDue = null; const L = LOCBY[ev.loc]; if (!L) return;
+  const ps = sitePiles(L, 0); const xs = [150, 300, 420].map((x) => x + rnd(-20, 20));
+  xs.forEach((x, i) => ps.push({ k: 'crate', x, items: i === 0 ? { food: rnd(3, 5), water: rnd(2, 3) } : i === 1 ? { meds: rnd(1, 2), bandage: rnd(1, 3), food: rnd(1, 3) } : { water: rnd(2, 4), cloth: rnd(1, 2) }, searched: false, locked: false, broken: false, dyn: true, born: G.day }));
+}
+
 function evNews() {
   const t = pick(CAMPUS.NEWS); G.newsLog = G.newsLog || []; G.newsLog.unshift({ d: G.day, t }); G.newsLog.length = Math.min(G.newsLog.length, 6);
   say(G.build.radio ? 'On the radio' : 'A news sheet', `${G.build.radio ? 'Between the static, a flat voice:' : 'A hand-copied sheet passes from block to block:'}\n\n"${t}"\n\nThe outside world is still there. It just is not coming.`);
@@ -588,10 +639,84 @@ function rollDayEvents() {
     const id = wpick(pool); G.lastEv = id; EV.find((e) => e.id === id).f(); curArt = null;
   }
 }
+
+/* ---------- visitors at the door ----------
+   Strangers knock (the house decides who answers). Each one is remembered in G.vis: helped, sheltered, refused.
+   Days later some come back: the helped with a gift or a warning, the refused with a story told to the wrong people, or not at all.
+   Children are never shown; a mother asks for medicine for a son who is not at the door. */
+const visHome = () => alive().filter((s) => !s.out);
+function visMark(p, how, extra) { G.vis = G.vis || []; G.vis.push(Object.assign({ name: p.name, arch: p.arch, seed: p.sp && p.sp.seed, day: G.day, how, back: false }, extra || {})); if (G.vis.length > 30) G.vis.shift(); }
+function visArt(p, st) { return { sp: p.sp, state: st || 'hungry' }; }
+function visWho() { const h = visHome(); return person(G.sel) && !person(G.sel).out ? person(G.sel) : h[0]; }
+function visitorsInit() {
+  if (!ST || !ST.add || visitorsInit.done) return; visitorsInit.done = true;
+  /* someone in need */
+  ST.add({ id: 'v_need', kind: 'favor', door: true, w: 3, cd: 1, when: () => G.day >= 2,
+    run() {
+      const p = mkPerson(null, 'visitor'); const need = pick(['food', 'water', 'meds', 'bandage']); const who = visWho();
+      const look = need === 'meds' ? 'grey and sweating' : need === 'bandage' ? 'holding a shirt against their side, the cloth soaked through' : 'thin in the face, lips cracked';
+      ask(`${p.name} at the door`, `${p.name}, ${p.dept.replace(/^./, (ch) => ch.toLowerCase())}, ${look}. ${pick(PLEAD)}\n\nThey need ${ITEMS[need][1].toLowerCase()}.`, [
+        { label: `Give 1 ${ITEMS[need][1].toLowerCase()}`, off: inv(need) < 1, why: `You have no ${ITEMS[need][1].toLowerCase()}.`, fn() { add(need, -1); G.stats.helped++; visMark(p, 'helped', { need }); alive().forEach((s) => hasTrait(s, 'devout') && mood(s, 4)); if (who) remember(who, `I gave a stranger ${ITEMS[need][1].toLowerCase()} at the door. ${p.name}. I hope they made it.`, { w: 3 }); return pick(['They hold it with both hands. They do not say anything for a moment. Then: "God will remember you."', 'They put it inside their shirt, against the skin, and look up and down the path before they go.']); } },
+        { label: 'Let them sleep inside tonight', show: G.t % 1440 >= 15 * 60, fn() { visMark(p, 'sheltered'); G.guest = { name: p.name, day: G.day, thief: chance(0.22) }; if (who) remember(who, `We let ${p.name} sleep on our floor. A stranger. I lay awake listening.`, { w: 3 }); return 'They sleep by the stairs with their shoes on. Nobody else sleeps much.'; } },
+        { label: 'Send them away', fn() { G.stats.refused++; visMark(p, 'refused', { need }); moodAll(-1); if (who) remember(who, `I sent ${p.name} away from the door. They needed ${ITEMS[need][1].toLowerCase()}.`, { w: 4 }); return pick(['They stand there a long time before leaving.', 'They curse you, quietly, and walk off.', 'They do not argue. That is the worst part.']); } }
+      ], visArt(p, need === 'meds' ? 'sick' : need === 'bandage' ? 'hurt' : 'starving'));
+      return true;
+    } });
+  /* a trader on the path */
+  ST.add({ id: 'v_trade', kind: 'visitor', door: true, w: 1.4, cd: 2, when: () => G.day >= 2, run() { evTrade(); return true; } });
+  /* hunted: let them in, and whoever is chasing them knows where they went */
+  ST.add({ id: 'v_hunted', kind: 'crisis', door: true, w: 1.1, cd: 5, when: () => G.day >= 3,
+    run() {
+      const p = mkPerson(null, 'joiner'); const who = visWho();
+      ask('Hammering on the door', `${p.name}, ${p.dept.replace(/^./, (ch) => ch.toLowerCase())}, out of breath, blood on one arm. "Please. They are behind me. Two of them. Please, please—"\n\nYou can hear running, not far off.`, [
+        { label: 'Pull them inside', fn() { visMark(p, 'sheltered'); SIM.injure ? SIM.injure(p, 1) : 0; const room = alive().length < 6; const g = SIM.state ? SIM.state() : G; G.att = (G.att || 0) + 14; if (who) remember(who, `I pulled ${p.name} through the door with men chasing them. My heart has not slowed down.`, { w: 4 });
+          if (room && chance(0.45)) { addPerson(p); log(`${p.name} stayed with you after that night.`, 'good'); return 'You hold the door shut with your whole body. The running goes past. Then comes back. Then goes. In the morning, they ask if they can stay. You do not know how to say no.'; }
+          return 'You hold the door shut with your whole body. The running goes past. Then comes back. Then goes. They leave before dawn. They squeeze your hand.'; } },
+        { label: 'Keep the door shut', fn() { visMark(p, 'refused'); moodAll(-3); if (who) remember(who, `Someone begged at the door with men chasing them. We did not open it. I heard what happened after.`, { w: 5 }); return 'The begging stops. The running stops. Then there are voices, close, and a sound you will try for a long time to forget.'; } }
+      ], visArt(p, 'hurt'));
+      return true;
+    } });
+  /* a mother asking for her son; the boy is not here */
+  ST.add({ id: 'v_mother', kind: 'favor', door: true, w: 0.9, cd: 7, when: () => G.day >= 4,
+    run() {
+      const p = mkPerson(null, 'visitor'); p.sp = CR.Sprites.gen('mother', rnd(1, 1e6)); p.name = pick(['Mama Chioma', 'Mama Tobi', 'Hajiya Hauwa', 'Mama Blessing']); const who = visWho();
+      ask(`${p.name} at the door`, `A woman from the staff quarters, wrapper tied twice. "My son has fever three days now. He is ten. Anything. Paracetamol. Anything you have. I will pay you back. I swear on my life."`, [
+        { label: 'Give her medicine', off: inv('meds') < 1, why: 'You have no medicine.', fn() { add('meds', -1); visMark(p, 'helped', { need: 'meds', mother: true }); moodAll(2); alive().forEach((s) => hasTrait(s, 'devout') && mood(s, 5)); if (who) remember(who, `I gave our medicine to a mother for her son. We may need it. I do not care.`, { w: 5 }); return 'She kneels on the step before you can stop her. Then she is gone, running, the packet in her fist.'; } },
+        { label: 'Give her food for him instead', off: inv('food') < 1, why: 'You have no food.', fn() { add('food', -1); visMark(p, 'helped', { need: 'food', mother: true }); if (who) remember(who, `A mother asked for medicine. I gave her food. It was not what she asked for.`, { w: 4 }); return 'She takes it. She looks at it. "Thank you," she says, and it sounds like something else.'; } },
+        { label: 'Tell her you have nothing', fn() { visMark(p, 'refused', { mother: true }); moodAll(-2); if (who) remember(who, inv('meds') > 0 ? 'A mother asked for medicine for her son. We had some. I said we had none.' : 'A mother asked for medicine for her son. We really had none. It does not help.', { w: 5 }); return 'She nods as if she expected it. She goes to the next door. You hear her knock, and knock again.'; } }
+      ], visArt(p, 'ok'));
+      return true;
+    } });
+  /* the helped come back */
+  ST.add({ id: 'v_back', kind: 'favor', door: true, w: 4, cd: 2, when: () => (G.vis || []).some((v) => !v.back && G.day - v.day >= 3 && (v.how === 'helped' || v.how === 'sheltered')),
+    run() {
+      const v = G.vis.find((q) => !q.back && G.day - q.day >= 3 && (q.how === 'helped' || q.how === 'sheltered')); v.back = true; if (chance(0.25)) return false;   /* some never come back */
+      const sp = CR.Sprites.gen(v.mother ? 'mother' : (v.arch || 'refugee'), v.seed || rnd(1, 1e6)); const r = R();
+      if (r < 0.55) { const k = pick(['food', 'water', 'cloth', 'meds', 'cigarettes']); const n = k === 'meds' ? 1 : rnd(2, 3); add(k, n); moodAll(2);
+        ask(`${v.name} came back`, v.mother ? `${v.name}, at the door again. "He is walking. He is eating." She pushes a bundle into your hands and will not take it back: ${n} ${ITEMS[k][1].toLowerCase()}.` : `${v.name}, thinner but standing. "You did not have to," they say. They leave ${n} ${ITEMS[k][1].toLowerCase()} on the step.`, [{ label: 'Close' }], { sp, state: 'ok' }); }
+      else { G.mkSafe = Math.max(G.mkSafe || 0, G.day); ask(`${v.name} came back`, `${v.name}, quick and low at the door: "The boys from the gate were asking about your building. Who is inside. What you have. Keep the door shut tonight. Lights off." Then they are gone.`, [{ label: 'Close' }], { sp, state: 'ok' }); }
+      return true;
+    } });
+  /* the refused: word gets round */
+  ST.add({ id: 'v_told', kind: 'crisis', door: false, w: 2.2, cd: 4, when: () => (G.vis || []).some((v) => !v.back && v.how === 'refused' && G.day - v.day >= 2),
+    run() {
+      const v = G.vis.find((q) => !q.back && q.how === 'refused' && G.day - q.day >= 2); v.back = true;
+      if (chance(0.5)) { G.att = (G.att || 0) + 12; say('Word gets round', `<i>Someone saw ${v.name} talking to the boys at the gate, pointing at your building. Telling them, maybe, that there is food behind your door and nobody kind enough to share it.</i>`); }
+      else { moodAll(-3); say('By the path', `<i>On the way past the gate in the morning, someone recognises the shoes. ${v.name}. They did not get far.</i>`); }
+      return true;
+    } });
+}
+/* a guest on the floor: gone at dawn, sometimes with something */
+function guestDawn() {
+  const g = G.guest; if (!g || g.day >= G.day) return; G.guest = null;
+  if (g.thief) { const k = pick(['food', 'water', 'meds', 'cigarettes'].filter((x) => inv(x) > 0)); if (k) { const n = Math.min(inv(k), rnd(1, 3)); add(k, -n); toReport(`${g.name} was gone before dawn. So were ${n} ${ITEMS[k][1].toLowerCase()}.`); moodAll(-2); return; } }
+  toReport(chance(0.5) ? `${g.name} left before dawn. The blanket was folded.` : `${g.name} left before dawn and wrote "thank you" in pencil on the wall by the stairs.`);
+}
+
 function evBeg() {
   const p = mkPerson(null, 'visitor'); const need = pick(['food', 'water', 'meds', 'bandage']); curArt = { sp: p.sp, state: (need === 'food' || need === 'water') ? 'starving' : 'sick+hurt' };
   if (chance(0.1)) { p.kid = true; p.sp = CR.Sprites.gen(pick(['kid_boy', 'kid_girl']), rnd(1, 1e6)); p.name = p.sp.name; p.dept = 'a child, alone'; curArt = { sp: p.sp, state: 'starving' }; }
-  ask(`${p.name} at the barricade`, `${p.name}, ${p.dept.toLowerCase()}, is hunched outside. ${pick(PLEAD)}\n\nThey need ${ITEMS[need][1].toLowerCase()}.`, [
+  ask(`${p.name} at the barricade`, `${p.name}, ${p.dept.replace(/^./, (ch) => ch.toLowerCase())}, is hunched outside. ${pick(PLEAD)}\n\nThey need ${ITEMS[need][1].toLowerCase()}.`, [
     { label: `Give 1 ${ITEMS[need][1].toLowerCase()}`, off: inv(need) < 1, fn() { add(need, -1); G.stats.helped++; alive().forEach((s) => hasTrait(s, 'devout') && mood(s, 5)); if (chance(0.5)) G.grateful.push(p.name); log(`You helped ${p.name}.`, 'good'); return chance(0.6) ? 'They cry. They go. You do not know if it mattered.' : '"God will bless you," they whisper.'; } },
     { label: 'Send them away', fn() { G.stats.refused++; moodAll(-1); if (chance(0.3)) G.flags.informant = 2; log(`You turned ${p.name} away.`, 'warn'); return pick(['They stand there a long time before leaving.', 'They curse you quietly and walk off.', 'They do not argue. That is worse.']); } }
   ]);
@@ -651,7 +776,7 @@ function evTrade() {
 
 function evJoin() {
   const p = mkPerson(null, 'joiner'); const thief = chance(0.25); curArt = { sp: p.sp, state: 'hungry' };
-  ask(`${p.name} asks to join`, `${p.name}, ${p.dept.toLowerCase()}, stands with hands open. "I can work. I will not eat much."\n\n${TRAITS[p.trait][0]}: ${TRAITS[p.trait][1]}`, [
+  ask(`${p.name} asks to join`, `${p.name}, ${p.dept.replace(/^./, (ch) => ch.toLowerCase())}, stands with hands open. "I can work. I will not eat much."\n\n${TRAITS[p.trait][0]}: ${TRAITS[p.trait][1]}`, [
     { label: 'Let them in', fn() {
       if (thief) { const q = addPerson(p); G.thiefId = q.id; log(`${p.name} joined the shelter.`); return 'They eat first. They look at the supplies a little too long.'; }
       addPerson(p); log(`${p.name} joined the shelter.`, 'good'); return 'They are quiet. They are grateful.';
@@ -704,7 +829,9 @@ function collectorVisit() {
   m.next = G.day + rnd(3, 4); m.visits++; const levy = mkLevy(m); m.levy = levy; m.want = pick(['loud', 'cigarettes', 'ogogoro', 'bullets', 'meds']);
   const sp = mkSprite(m.gen); const boys = [CR.Sprites.gen('bandit_soldier', 4401 + m.visits), CR.Sprites.gen('bandit_scout', 5501 + m.visits)];
   const me0 = person(G.sel) || alive()[0]; const art = { html: sceneHtml(me0, 'idle', [{ sp, kind: 'idle', state: 'ok' }].concat(boys.map((b) => ({ sp: Object.assign({}, b, { item: 'ak' }), kind: 'aim', state: 'ok' })))) };
-  const said = m.visits === 1 ? MK_SAYS.first : m.refusedAt && G.day - m.refusedAt < 8 ? MK_SAYS.refused : m.owed > 0 ? MK_SAYS.owed : (G.day > 18 && chance(0.4) ? MK_SAYS.thin : MK_SAYS.paid);
+  const missing = (G.mem2 || []).filter((d) => G.day - d.day <= 6 && d.day >= (m.lastVisit || 0)); m.lastVisit = G.day;
+  const beaten = arcPhase() >= 2 && !m.gen && chance(0.3) && !m.beaten; if (beaten) m.beaten = G.day;
+  const said = beaten ? ['His face is swollen on one side and he is holding the ledger against his ribs. "The Kachalla says I keep too much for myself," he says. "So this week, you pay me, and I will owe you." He almost smiles.'] : missing.length ? [`He runs a finger down the page. "${missing[0].name}," he says. "I do not see ${missing[0].name}." He makes a small mark, and does not ask.`] : m.visits === 1 ? MK_SAYS.first : m.refusedAt && G.day - m.refusedAt < 8 ? MK_SAYS.refused : m.owed > 0 ? MK_SAYS.owed : (G.day > 18 && chance(0.4) ? MK_SAYS.thin : MK_SAYS.paid);
   const name = m.gen ? 'Garba' : 'Mai Kudi';
   const lk = SIM.lookout(); if (lk) remember(lk, `I saw ${name} coming up the path before he knocked. White kaftan, red cap. Two boys behind.`, { w: 2 });
   const hustle = alive().some((s) => hasTrait(s, 'hustler'));
@@ -714,6 +841,8 @@ function collectorVisit() {
     { label: 'Haggle', show: !m.haggled, fn() { m.haggled = true; if (chance((hustle ? 0.55 : 0.3) + m.likes / 100)) { m.likes += 1; setTimeout(() => mkPay(Math.round(levy * 0.7)), 0); return '"You are a businessman. Fine. Less."'; } m.likes -= 4; setTimeout(() => mkPay(Math.round(levy * 1.2)), 0); return '"Now it is more." He writes something in the ledger.'; } },
     { label: 'See what he is selling', fn() { setTimeout(() => mkSell(name), 0); return ''; } },
     { label: 'Ask what he knows (a few cigarettes)', off: inv('cigarettes') < 3 && inv('ogogoro') < 1, why: 'He does not talk for free.', fn() { if (inv('cigarettes') >= 3) add('cigarettes', -3); else add('ogogoro', -1); const d = LOCBY[(G.tonight || {}).danger]; const r = mkRumour(null); return `He lights one and does not offer you any. "Tonight the boys are at ${d ? d.name : 'the gate'}. Stay away from it." He smiles. "And about me? People talk. ${r ? (/^He /.test(r) ? 'They say h' + r.slice(1) : r) : 'People always talk.'}" He does not say whether it is true.`; } },
+    { label: 'Give him food for himself', show: beaten, fn() { if (inv('meal') > 0) add('meal', -1); else add('food', -1); m.likes += 10; G.mkSafe = G.day + 5; return 'He eats it standing up, on your step, with the boys watching. When he is finished he tears your page out of the ledger and puts it in his pocket. "I forgot to write you down this week," he says.'; } },
+    { label: 'Carry something for him (no levy this week)', show: !beaten && m.visits >= 2 && arcPhase() >= 1, fn() { const who = alive().filter((x) => !x.out && x.hp >= 40 && x.mood >= 20 && x.id !== G.sel)[0] || alive().filter((x) => !x.out && x.hp >= 40)[0]; if (!who) return '"Nobody fit to walk? Next time."'; who.out = { mode: 'errand', loc: 'gate', back: G.t + 7 * 60, what: `a package for Mai Kudi`, mk: true }; SIM.abort(who); who.q = []; m.owed = 0; m.likes += 4; remember(who, 'I carried a package for Mai Kudi to the gate. I did not look inside. I could feel what it was through the cloth.', { w: 7 }); return `He hands ${who.name} a parcel wrapped in a rice sack, heavy for its size. "The boys at the gate. Do not open it. Do not be seen." ${who.name} goes with it.`; } },
     { label: 'Refuse', fn() { m.refusedAt = G.day; m.likes -= 15; m.owed += Math.round(levy * 0.5); G.mkRaid = G.day; G.stats.refused++; others0({ id: -1 }).forEach((o) => remember(o, `We refused ${name}. He just smiled and wrote in his book. I cannot sleep.`, { w: 6, bark: 'Did you see how he smiled?' })); return '"Okay." He writes something, closes the ledger, and goes back down the path without looking round. The boys walk backwards for the first few steps.'; } },
     { label: 'Kill him', show: weaponsOwned().length > 0, fn() { setTimeout(() => mkKill(name), 0); return ''; } }
   ], art);
@@ -780,6 +909,7 @@ const ARC_NAME = ['', 'Shortages', 'The gangs move in', 'Sickness'];
 /* what things cost now */
 function priceMul(k) {
   const p = arcPhase(); let m = 1;
+  if (['food', 'meal', 'water'].includes(k)) { if (wevOn('markets')) m *= 1.4; if (wevOn('convoy')) m *= 0.7; }
   if (p >= 1 && ['food', 'meal', 'water'].includes(k)) m *= 1.6; if (p >= 1 && k === 'meds') m *= 1.4;
   if (p >= 2 && ['bullets', 'pistol', 'machete', 'knife', 'crowbar'].includes(k)) m *= 1.5; if (p >= 2 && ['loud', 'cigarettes', 'ogogoro', 'weed'].includes(k)) m *= 1.2;
   if (p >= 3 && ['meds', 'bandage'].includes(k)) m *= 2; if (p >= 3 && k === 'water') m *= 1.5;
@@ -869,12 +999,12 @@ function spend(s) { s.fatigue += 8; }
 function useItem(s, k) {
   const own = ((s.pack || {})[k] || 0) > 0;
   if (!own && inv(k) < 1) return;
-  if (k === 'food') { s.hunger = Math.max(0, s.hunger - 22); mood(s, -1); s.thirst = Math.min(100, s.thirst + 6); if (!s.sick && chance(0.22)) { s.sick = true; log(`${s.name} has a stomach upset from eating raw food.`, 'warn'); } }
+  if (k === 'food') { s.hunger = Math.max(0, s.hunger - 22); mood(s, -1); s.thirst = Math.min(100, s.thirst + 6); if (!s.sick && chance(0.22)) { SIM.sicken(s, 'stomach', 1); log(`${s.name} has a stomach upset from eating raw food.`, 'warn'); } }
   else if (k === 'meal') { s.hunger = Math.max(0, s.hunger - 60); mood(s, 2); }
   else if (k === 'water') { s.thirst = Math.max(0, s.thirst - 45); }
-  else if (k === 'ogogoro') { mood(s, 12); s.fatigue += 10; }
-  else if (k === 'meds') { if (!s.sick) return; s.sick = false; }
-  else if (k === 'bandage') { if (!s.wound) return; s.wound = false; s.hp = Math.min(100, s.hp + 8); }
+  else if (k === 'ogogoro' || k === 'cigarettes' || k === 'loud' || k === 'weed') { SIM.useHabit(s, k); }
+  else if (k === 'meds') { if (!s.sick && !(s.wnd && s.wnd.inf)) return; const r = SIM.medicate(s); notice(r === 'cured' ? `${s.name} is over it.` : r === 'wound' ? `The swelling round ${s.name}'s wound starts to go down.` : `${s.name} keeps the medicine down. It helps a little.`); }
+  else if (k === 'bandage') { if (!s.wnd || SIM.dressed(s)) return; SIM.dress(s); s.hp = Math.min(100, s.hp + 4); }
   if (own) s.pack[k]--; else add(k, -1);
 }
 function act(a, d) {
@@ -935,7 +1065,7 @@ function forceEnc(k) { const e = G.exp; if (!e || modalOpen || Q.length) return;
 function mountExp() {
   const el = $('#xstage'); const e = G.exp; if (!el || typeof el.appendChild !== 'function' || !e || !CR.Expedition) return;
   const L = LOCBY[e.loc], s = person(e.sid), gp = groupAt(L.id);
-  fateOnVisit(L); CR.Expedition.attach(el, e, { extraPat: arcPhase() >= 2 ? 1 : 0, rain: /storm|rain/.test(G.wx || ''), seed: siteSeed(L), notes: traceStates(L, e.floor || 0), stripped: G.locs[L.id] && G.locs[L.id].stripDay && G.day - G.locs[L.id].stripDay < 6, piles: pileStates(L, e.floor || 0), blocks: blockStates(L, e.floor || 0), story: storyNpc(L), floors: e.floors || 1, plan: e.plan || 'corridor', groupFloor: hashS(L.id) % Math.max(1, e.floors || 1), kind: L.kind === 'misc' ? 'hostel' : L.kind, risk: L.risk, danger: G.tonight.danger === L.id, day: !!e.day, hasGroup: !!(gp && gp.alive), camp: gp ? { att: gp.att, size: gp.size, stock: gp.stock, name: gp.name } : null, faces: gp ? gp.faces : null, sp: s.sp, state: stateOf(s) });
+  fateOnVisit(L); CR.Expedition.attach(el, e, { extraPat: (arcPhase() >= 2 ? 1 : 0) + (wevAt(L.id, 'overrun') ? 2 : 0) + (wevAt(L.id, 'drop') && (e.floor || 0) === 0 ? 2 : 0), rain: /storm|rain/.test(G.wx || ''), seed: siteSeed(L), notes: traceStates(L, e.floor || 0), stripped: G.locs[L.id] && G.locs[L.id].stripDay && G.day - G.locs[L.id].stripDay < 6, piles: pileStates(L, e.floor || 0), blocks: blockStates(L, e.floor || 0), story: storyNpc(L), floors: e.floors || 1, plan: e.plan || 'corridor', groupFloor: hashS(L.id) % Math.max(1, e.floors || 1), kind: L.kind === 'misc' ? 'hostel' : L.kind, risk: L.risk, danger: G.tonight.danger === L.id, day: !!e.day, hasGroup: !!(gp && gp.alive), camp: gp ? { att: gp.att, size: gp.size, stock: gp.stock, name: gp.name } : null, faces: gp ? gp.faces : null, sp: s.sp, state: stateOf(s) });
   if (!e.toldFlavor) { e.toldFlavor = true; const st0 = G.locs[L.id]; const fresh = st0 && st0.stripDay && G.day - st0.stripDay < 4; setTimeout(() => CR.Expedition.hint(fresh ? pick(['Someone has been here. Recently.', 'Drawers hanging open. Fresh mud on the floor.', 'Somebody got here first.']) : L.flavor), 400); }
   if (gp && gp.alive && (e.floors || 1) > 1 && !e.campHint) { const gf = hashS(L.id) % e.floors, fl0 = e.floor || 0; if (gf !== fl0) { e.campHint = 1; setTimeout(() => CR.Expedition.hint(gf > fl0 ? 'Smoke, and voices above.' : 'Voices below.'), 700); } }
 }
@@ -964,6 +1094,8 @@ function sitePiles(L, fl) {
     while (m-- > 0) { const bias = PILE_BIAS[k] || []; let it = wpick(L.loot); if (bias.length && chance(0.45)) { const b = pick(bias); if (L.loot[b] !== undefined || ['food', 'water', 'cloth', 'parts', 'wood'].includes(b)) it = b; } if (!ITEMS[it]) continue; const q = WEAPON[it] || it === 'pistol' ? 1 : it === 'bullets' ? rnd(1, 3) : (it === 'food' || it === 'water') ? rnd(1, 3) : rnd(1, 2); items[it] = (items[it] || 0) + q; }
     const lock = !!(lay && lay.piles[i].lock); if (lock) { const it = wpick(L.loot); if (ITEMS[it]) items[it] = (items[it] || 0) + rnd(1, 2); }
     if (['desk', 'cabinet', 'shelf'].includes(k) && chance(0.35)) items.paper = (items.paper || 0) + rnd(1, 3); if (['locker', 'bag', 'body', 'counter'].includes(k) && chance(0.15)) items.cigarettes = (items.cigarettes || 0) + rnd(2, 6); if (['locker', 'bag'].includes(k) && chance(0.06)) items.weed = (items.weed || 0) + rnd(1, 2);
+    if (['desk', 'cabinet', 'shelf', 'trolley'].includes(k) && ['office', 'library', 'lecture', 'clinic'].includes(L.plan) && chance(0.22)) items.elec = (items.elec || 0) + 1;
+    if (['crate', 'locker', 'cabinet'].includes(k) && ['gate', 'hall', 'bigcaf', 'cafsmall', 'courtB', 'courtV', 'courtF', 'chapel'].includes(L.plan) && chance(0.07)) items.toolkit = 1;
     if (k === 'crate' && chance(0.06)) items.crowbar = 1; if ((k === 'desk' || k === 'cabinet' || k === 'body') && chance(0.08)) items.lockpick = rnd(1, 2); if (k === 'crate' && chance(0.04)) items.shovel = 1;
     out.push({ k, items, searched: false, locked: lock, broken: false });
   }
@@ -974,6 +1106,15 @@ function pileStates(L, fl) { return sitePiles(L, fl).map((p) => ({ age: p.born !
 function blockStates(L, fl) { const st = G.locs[L.id]; return ((st && st.blk && st.blk[fl]) || []).slice(); }
 function setBlockOpen(L, fl, i) { const st = G.locs[L.id]; st.blk = st.blk || {}; (st.blk[fl] = st.blk[fl] || [])[i] = true; }
 const hasTool = (k) => inv(k) > 0;
+/* tools wear out. One number per kind of tool: when it reaches 100, one of them breaks and the next one starts fresh.
+   The better workbench can mend the most worn one. */
+const WEARHIT = { club: 25, knife: 18, machete: 12, crowbar: 15 };
+const BROKE = { crowbar: 'The crowbar bends at the neck. It is no good now.', shovel: 'The shovel blade splits off the handle.', club: 'The club cracks down the middle.', knife: 'The knife snaps at the hilt.', machete: 'The machete chips, then cracks. Useless.' };
+function wearTool(k, amt) {
+  if (!inv(k)) return; G.wear = G.wear || {}; G.wear[k] = (G.wear[k] || 0) + amt * (0.8 + R() * 0.4);
+  if (G.wear[k] >= 100) { G.wear[k] = 0; add(k, -1); const t = BROKE[k] || `The ${ITEMS[k][1].toLowerCase()} breaks.`; if (G.exp && CR.Expedition) CR.Expedition.hint(t); else notice(t); log(t); }
+}
+const wearWord = (k) => { const w = (G.wear || {})[k] || 0; return !inv(k) || w < 30 ? '' : w < 65 ? 'worn' : 'nearly broken'; };
 /* a locked door, a padlocked cupboard, a doorway full of rubble: what you have decides how, and it costs time and noise */
 const TNAME = () => pick(NAMES);
 const TRACE_TEXT = {
@@ -1001,8 +1142,8 @@ function toolWheel(kind, onOpen) {
     : [{ id: 'crowbar', label: 'Force it', icon: 'crowbar', time: '10 min', off: !hasTool('crowbar'), lock: !hasTool('crowbar'), why: 'You need a crowbar.', sub: hasTool('crowbar') ? 'quick, loud' : 'locked' },
        { id: 'lockpick', label: 'Pick it', icon: 'lockpick', time: '25 min', off: !hasTool('lockpick'), lock: !hasTool('lockpick'), why: 'You need lockpicks.', sub: hasTool('lockpick') ? `quiet · ${inv('lockpick')} left` : 'locked' }];
   WHEEL.open({ title: kind === 'rubble' ? 'Rubble' : 'Locked', hub: kind === 'rubble' ? 'shovel' : 'lockpick', items, onPick: (it) => {
-    if (it.id === 'shovel') { runClock(40); e.noise += 2; s.fatigue = clamp(s.fatigue + 6, 0, 100); onOpen(); }
-    else if (it.id === 'crowbar') { runClock(10); e.noise += 5; onOpen(); if (CR.Expedition) CR.Expedition.hint('Wood splits. The sound goes everywhere.'); }
+    if (it.id === 'shovel') { runClock(40); e.noise += 2; wearTool('shovel', 20); s.fatigue = clamp(s.fatigue + 6, 0, 100); onOpen(); }
+    else if (it.id === 'crowbar') { runClock(10); e.noise += 5; wearTool('crowbar', 22); onOpen(); if (CR.Expedition) CR.Expedition.hint('Wood splits. The sound goes everywhere.'); }
     else { runClock(25); if (chance(0.3)) { add('lockpick', -1); if (CR.Expedition) CR.Expedition.hint('The pick snaps in the lock.'); if (chance(0.5)) return; } onOpen(); }
     save(); } });
 }
@@ -1011,7 +1152,7 @@ function pickLockAt(i) { const e = G.exp; if (!e) return; const L = LOCBY[e.loc]
 /* with a crowbar, an emptied crate, desk or shelf is still worth something: firewood */
 function breakUpAt(i) {
   const e = G.exp; if (!e || !hasTool('crowbar')) return; const L = LOCBY[e.loc], fl = e.floor || 0; const p = sitePiles(L, fl)[i]; if (!p || p.broken) return;
-  runClock(20); e.noise += 4; p.broken = true; p.items.wood = (p.items.wood || 0) + rnd(2, 3); if (['shelf', 'counter', 'wardrobe'].includes(p.k) && chance(0.4)) p.items.parts = (p.items.parts || 0) + 1;
+  runClock(20); e.noise += 4; wearTool('crowbar', 14); p.broken = true; p.items.wood = (p.items.wood || 0) + rnd(2, 3); if (['shelf', 'counter', 'wardrobe'].includes(p.k) && chance(0.4)) p.items.parts = (p.items.parts || 0) + 1;
   if (CR.Expedition) CR.Expedition.setPile(i, { broken: true, empty: false, searched: true }); openPile(i);
 }
 /* ---------- a fight in the room ----------
@@ -1026,7 +1167,7 @@ function attackAt(pi, info) {
   const items = ['knife', 'machete', 'crowbar', 'club', 'pistol', 'hands'].map((k) => { const have = haveW(k); const p = pOf(k); const n = p >= 0.75 ? 4 : p >= 0.5 ? 3 : p >= 0.3 ? 2 : 1;
     return { id: k, label: k === 'hands' ? (info.unseen ? 'Choke' : 'Fists') : FWV[k][0], icon: k === 'hands' ? 'skull' : FWV[k][1], off: !have, lock: !have, why: whyNoW(k), sub: have ? `<span class="pips p${n}">${'●'.repeat(n)}${'○'.repeat(4 - n)}</span>${k === 'pistol' ? ' loud' : ''}` : 'locked' }; });
   WHEEL.open({ title: info.unseen ? 'They have not seen you' : 'Fight', hub: 'warn', items, onPick: (it) => {
-    const k = it.id; const win = chance(pOf(k)); if (k === 'pistol') add('bullets', -1); runClock(2);
+    const k = it.id; const win = chance(pOf(k)); if (k === 'pistol') add('bullets', -1); else if (k !== 'hands') wearTool(k, WEARHIT[k] || 15); runClock(2);
     if (win) {
       G.stats.kills++; moral(s, AWEIGHT[k] + (info.unseen ? 1 : 0), info.unseen ? 'killed a man who never saw it coming' : 'killed a man', { victim: 'bandit' }); log(`${s.name} killed a man at ${LOCBY[e.loc].name}.`);
       const L = LOCBY[e.loc], fl = e.floor || 0; const items2 = {}; if (chance(0.6)) items2.bullets = rnd(1, 3); if (chance(0.25)) items2.knife = 1; if (chance(0.35)) items2.food = 1; if (chance(0.12)) items2.pistol = 1;
@@ -1148,10 +1289,23 @@ function strangersReturn() {
       choir: ['A child\'s voice outside the door, singing very softly, and then footsteps going away. On the step: a bag of garri and a hymn book.', () => add('food', 2)],
       hostage: [`The girl from the bursary, at the door with a sack over her shoulder. "I owe you," she says. "I don't like owing."`, () => add('water', 3)],
       soldier: ['A soldier you do not know, at the door at dawn. "Corporal Ade says thank you for the water. He died anyway. He wanted you to have this." A box of rounds.', () => add('bullets', 4)],
-      digger: [`The old man from the court, with a sack of yams he says came from his son's farm. "He would want someone to eat them."`, () => add('food', 4)] },
+      digger: [`The old man from the court, with a sack of yams he says came from his son's farm. "He would want someone to eat them."`, () => add('food', 4)],
+      couple: ['The boy from Room 214 at the door, grinning like a madman. "It is a girl." He has brought their last tin of sardines, and he will not take it back.', () => add('food', 2)],
+      watcher: ['A note under the door: "I buried him behind Block C. Thank you for sitting." Folded inside it, a stethoscope.', () => add('meds', 1)],
+      student: ['A girl you met by candlelight, at the door with her notes in a bag. "They cancelled it," she says, and laughs, and cannot stop.', null],
+      reader: ['A parcel on the step wrapped in a page of newspaper: two candles and a paperback with a bookmark in it.', () => add('cloth', 1)],
+      nurse: ['Nurse Bisi, at the door at dusk, with a strip of tablets. "You paid fair. Fair people should live."', () => add('meds', 2)],
+      woundedbandit: ['Nothing comes to the door. But the next night the raiders walk straight past your hostel, and one of them is limping.', null],
+      bursar: ['The old bursar does not come. Somebody says he walked into the bush with his files under his arm.', null],
+      family: ['A boy you do not know at the door with a message: "The family from the fence made it to Dutse. They said to say thank you to the one who watched."', null] },
     robbed: { freshers: [`The smallest of the first-years from ${L.name} at the door, alone. The other two did not make it. He does not ask for anything. He just looks at ${who ? who.name : 'all of you'} until someone closes the door.`, null],
       choir: ['The choir leader at the door. She does not shout. "We counted the bags," she says, and walks away.', null],
-      mama: [`Mama Titi's sons came in the night. They did not knock. They took what was by the door.`, () => stealSome(0.25)] },
+      mama: [`Mama Titi's sons came in the night. They did not knock. They took what was by the door.`, () => stealSome(0.25)],
+      couple: ['The boy from Room 214, at the door, alone. He does not say anything about the baby. He does not need to.', null],
+      watcher: ['The boy whose roommate died stands across the courtyard every evening now, watching your door.', null],
+      nurse: ['Nurse Bisi sends no message. The clinic is locked from the inside when anyone tries it.', null],
+      pastor: ['Friday comes. No army comes. The man with the list is gone, and so is his table.', () => moodAll(-5)],
+      family: ['Two days later somebody finds a bag of clothes by the fence. Nobody finds the family.', null] },
     taken: { hostage: [`You see her once more, from the window: the girl from the bursary, walking behind the same two men, carrying their bags.`, null] }
   };
   const t = T[r.how] && T[r.how][r.id]; if (!t) return;
@@ -1185,32 +1339,50 @@ const RESIDENT = {
   courtB: { arch: 'grandpa', kind: 'idle', state: 'tired', id: 'digger' }, courtV: { arch: 'grandpa', kind: 'idle', state: 'tired', id: 'digger' }, courtF: { arch: 'grandpa', kind: 'idle', state: 'tired', id: 'digger' },
   chapel: { arch: 'girl_church', kind: 'idle', state: 'hungry', id: 'choir' }, library: { arch: 'prof_m', kind: 'sit', state: 'tired', id: 'lecturer' }
 };
+const POOL = {
+  corridor: [{ arch: 'girl_braids', kind: 'sitfloor', state: 'hungry', id: 'couple' }, { arch: 'boy_hoodie', kind: 'sitfloor', state: 'tired', id: 'watcher' }],
+  lecture: [{ arch: 'girl_hijab', kind: 'sit', state: 'tired', id: 'student' }],
+  library: [{ arch: 'grandma', kind: 'sit', state: 'tired', id: 'reader' }],
+  clinic: [{ arch: 'nurse', kind: 'idle', state: 'tired', id: 'nurse' }, { arch: 'bandit_scout', kind: 'sitfloor', state: 'hurt', id: 'woundedbandit' }],
+  hall: [{ arch: 'priest', kind: 'idle', state: 'ok', id: 'pastor' }], chapel: [{ arch: 'priest', kind: 'idle', state: 'ok', id: 'pastor' }],
+  cafsmall: [{ arch: 'trader', kind: 'sitfloor', state: 'ok', id: 'hoarder' }], bigcaf: [{ arch: 'trader', kind: 'sitfloor', state: 'ok', id: 'hoarder' }],
+  office: [{ arch: 'lect_m', kind: 'sitfloor', state: 'tired', id: 'bursar' }],
+  gate: [{ arch: 'father', kind: 'idle', state: 'hungry', id: 'family' }],
+  courtB: [{ arch: 'soldier', kind: 'sleep', state: 'ok', id: 'drunk' }], courtV: [{ arch: 'soldier', kind: 'sleep', state: 'ok', id: 'drunk' }], courtF: [{ arch: 'soldier', kind: 'sleep', state: 'ok', id: 'drunk' }]
+};
+function resOf(L) {
+  const base = RESIDENT[L.plan]; const pool = [base].concat(POOL[L.plan] || []).filter(Boolean); if (!pool.length) return null;
+  const st = G.locs[L.id] || (G.locs[L.id] = { rich: 4 }); if (st.res === undefined || !pool[st.res]) st.res = siteSeed(L) % pool.length;
+  return pool[st.res];
+}
 function storyNpc(L) {
-  const st = G.locs[L.id] || (G.locs[L.id] = { rich: 4 }); const r = RESIDENT[L.plan]; if (!r) return null;
+  const st = G.locs[L.id] || (G.locs[L.id] = { rich: 4 }); const r = resOf(L); if (!r) return null;
   if (st.story === undefined) st.story = chance(0.65) ? 'here' : 'gone';
   const gp = groupAt(L.id); if (st.story !== 'here' || (gp && gp.alive)) return null;
   return { sp: CR.Sprites.gen(r.arch, siteSeed(L) % 1e6), kind: r.kind, state: r.state, floor: Math.min(Math.max(1, floorsOf(L)) - 1, 1) };
 }
 /* a resident's fate: the place shows it next time, and some of them come to your door */
 function fate(L, how) {
-  const st = G.locs[L.id]; const r = RESIDENT[L.plan]; if (!st || !r) return; st.fate = how; st.fateDay = G.day;
+  const st = G.locs[L.id]; const r = resOf(L); if (!st || !r) return; st.fate = how; st.fateDay = G.day;
   const s = G.exp ? person(G.exp.sid) : null;
   if (['helped', 'robbed', 'taken'].includes(how)) { G.returns = G.returns || []; G.returns.push({ due: G.day + rnd(2, 5), id: r.id, how, loc: L.id, sid: s ? s.id : 0, arch: r.arch, seed: siteSeed(L) % 1e6 }); }
 }
 function fateOnVisit(L) {
   const st = G.locs[L.id]; if (!st || st.fate !== 'dead' || st.fateShown) return; st.fateShown = true;
-  const r = RESIDENT[L.plan]; const fl = Math.min(Math.max(1, floorsOf(L)) - 1, 1);
+  const r = resOf(L); const fl = Math.min(Math.max(1, floorsOf(L)) - 1, 1);
   sitePiles(L, fl).push({ born: st.fateDay || G.day, k: 'body', x: SEG_X + 150, items: chance(0.5) ? { cloth: 1 } : {}, searched: false, locked: false, broken: false, dyn: true });
   st.notes = st.notes || {}; (st.notes[fl] = st.notes[fl] || []).push({ x: SEG_X + 170, text: FATE_NOTE[r.id] || 'Nobody came back for them.' });
 }
 const SEG_X = 240;
 const FATE_NOTE = {
+  student: 'Her notes are still on the desk, highlighted in four colours. The last page says, in her neat hand, "Revise ch. 9 again." The chair is on its side.',
+  woundedbandit: 'Somebody has covered his face with his own shirt. The bandolier is gone.',
   lecturer: 'A page from an exam booklet, pinned under his hand: "Ifeoma, my love. I have kept the kettle warm for nobody. Tell the children their father finished his book." The rest is not legible.',
   patient: 'Written on the bed frame in biro, small: "Blessing Okon. 22. Bed 3. I waited." The drip line has been cut for its tubing.',
   soldier: 'His tags are gone. Somebody has written on the car door in soot: "HE ASKED FOR WATER." Flies.'
 };
 function storyScene(L, s, e) {
-  const r = RESIDENT[L.plan]; const st = G.locs[L.id]; if (!r || !st) return;
+  const r = resOf(L); const st = G.locs[L.id]; if (!r || !st) return;
   const npc = storyNpc(L); if (!npc) return; const them = [{ sp: npc.sp, kind: npc.kind, state: npc.state }];
   const art = { html: sceneHtml(s, 'idle', them) }; const done = () => { st.story = 'gone'; };
   const room = () => Math.max(0, bagCap() - bagUsed());
@@ -1246,6 +1418,52 @@ function storyScene(L, s, e) {
       { label: 'Give him water', off: !(e.bag.water > 0), why: 'You have no water in your bag.', fn() { e.bag.water--; const q = put('bullets', 3); done(); mood(s, 6); fate(L, 'helped'); G.grateful.push('A soldier at the gate'); return `He drinks it all. Then he thumbs ${q || 'the'} rounds out of his magazine and holds them out. "I won't need them. You will."`; } },
       { label: 'Take his pistol', fn() { put('pistol', 1); put('bullets', 2); done(); G.stats.thefts++; moral(s, 15, 'took a dying soldier\'s pistol', { wit: 'soldier', victim: 'helpless' }); fate(L, 'dead'); return 'He lets you. He watches your face the whole time, as if he is the one who should be ashamed.'; } },
       { label: 'Leave him' }], art),
+    couple: () => ask('Room 214', 'A girl near the end of a pregnancy, and the boy who will not leave her. The door was wedged shut with a mattress. She has not had clean water in two days. He holds up a hand, not to stop you, to ask.', [
+      { label: 'Give her water', off: !(e.bag.water > 0), why: 'You have no water in your bag.', fn() { e.bag.water--; done(); mood(s, 7); G.stats.helped++; fate(L, 'helped'); return 'She drinks slowly, the way someone does who has learned not to waste it. The boy says "God will pay you" and then, quieter, "I will."'; } },
+      { label: 'Take their garri', fn() { const q = put('food', 2); done(); G.stats.thefts++; moral(s, 12, 'took food from a pregnant girl', { wit: 'couple', victim: 'helpless' }); fate(L, 'robbed'); return `${q} cups of garri in a nylon bag. He does not get up. He just watches you, and keeps his hand on her stomach.`; } },
+      { label: 'Leave them' }], art),
+    watcher: () => ask('The roommate', 'A boy sits on the floor beside a bunk. On the bunk is his roommate, four days dead, covered with a wrapper. He has not let anyone into the room. "He was going to be a doctor," he says, to nobody.', [
+      { label: 'Sit with him', fn() { runClock(30); done(); mood(s, 5); remember(s, 'I sat with a boy and his dead roommate. Neither of us said anything for half an hour.', { w: 5 }); fate(L, 'helped'); const q = put('food', 1) + put('cloth', 1); return `After a while he gets up and puts a few of his friend's things in your hands. "Take them. He would." (${q} things)`; } },
+      { label: 'Search the room anyway', fn() { const a = put('meds', 1), b = put('food', 2); done(); moral(s, 6, 'went through a dead boy\'s locker while his friend watched', { wit: 'watcher', victim: 'helpless' }); fate(L, 'robbed'); return `${a + b} things. He does not stop you. He turns his face to the wall.`; } },
+      { label: 'Leave' }], art),
+    student: () => ask('The exam', 'A 400-level girl at a desk by candlelight, highlighting photocopied notes. A tin of powdered milk beside her. "Constitutional Law, paper two," she says without looking up. "Monday. They have not cancelled it."', [
+      { label: 'Tell her the truth', fn() { done(); mood(s, -2); remember(s, 'I told a girl her exam was not happening. She thanked me. Then she kept reading.', { w: 4 }); return 'She listens. She nods. She says "thank you" very politely and goes back to the page she was on.'; } },
+      { label: 'Ask for some of the milk', fn() { done(); const q = put('food', 1); mood(s, 1); fate(L, 'helped'); return `She pushes the tin across without looking up. "Take. I am not hungry before exams." (${q})`; } },
+      { label: 'Take the milk', fn() { const q = put('food', 2); done(); G.stats.thefts++; moral(s, 7, 'took the milk from a girl studying for an exam that is never coming', { wit: 'student', victim: 'helpless' }); fate(L, 'dead'); return `${q} scoops' worth. She does not stop reading. Her hand shakes on the highlighter.`; } },
+      { label: 'Leave her be' }], art),
+    reader: () => ask('The librarian', 'An old librarian sits in the reading room with a torch in her teeth, reading aloud from Things Fall Apart to rows of empty chairs. She takes the torch out of her mouth to say "Sit, if you are staying."', [
+      { label: 'Sit and listen', fn() { runClock(40); s.fatigue = clamp(s.fatigue - 6, 0, 100); mood(s, 9); done(); fate(L, 'helped'); return 'Okonkwo, the yams, the locusts. For forty minutes it is 1958 and the worst thing in the world is a story.'; } },
+      { label: 'Ask what she has to eat', fn() { done(); const q = put('food', 1); return `"Books," she says. Then she relents, and gives you ${q ? 'a packet of biscuits from her drawer' : 'nothing, because there is nothing'}.`; } },
+      { label: 'Leave her to it' }], art),
+    nurse: () => ask('Nurse Bisi', 'A nurse in a stained uniform guards the last drug cabinet with a scalpel in her fist. "Fair trade," she says. "Food for medicine. Or you walk."', [
+      { label: 'Trade food for medicine', off: !((e.bag.food || 0) + (e.bag.meal || 0) >= 2), why: 'She wants two food. You do not have it in your bag.', fn() { let n = 2; ['meal', 'food'].forEach((k) => { while (n > 0 && e.bag[k] > 0) { e.bag[k]--; n--; } }); const q = put('meds', 2); done(); mood(s, 2); fate(L, 'helped'); return `She counts the tablets twice and puts ${q} strips in your hand. "Take them with food. Not on an empty stomach." Old habits.`; } },
+      { label: 'Take the cabinet from her', fn() { done(); G.stats.thefts++; moral(s, 7, 'pulled a scalpel off a nurse to rob her cabinet', { wit: 'nurse', victim: 'armed' }); if (chance(0.45)) hurt(s, rnd(8, 18), 'Cut by a nurse.'); const q = put('meds', 3) + put('bandage', 2); fate(L, 'robbed'); return `It is quick and ugly. She cuts you before you get her wrist. You leave with ${q} things and she sits down on the floor and does not get up.`; } },
+      { label: 'Walk' }], art),
+    woundedbandit: () => ask('One of theirs', 'One of the boys from the gate, twenty at most, shot through the thigh and crying for his mother in Hausa. His rifle is gone. There is a bandolier still on his chest.', [
+      { label: 'Bandage his leg', off: !(e.bag.bandage > 0 || inv('bandage') > 0), why: 'You have no bandage.', fn() { if (e.bag.bandage > 0) e.bag.bandage--; else add('bandage', -1); done(); mood(s, 4); remember(s, 'I bandaged one of the bandits. He was crying for his mother. So would I.', { w: 6 }); fate(L, 'helped'); G.mkSafe = Math.max(G.mkSafe || 0, G.day + 5); return 'He stops crying when the bandage goes tight. He says something you do not understand, and then, in English, "I will tell them your house."'; } },
+      { label: 'Take his bullets', fn() { const q = put('bullets', 4); done(); moral(s, 4, 'robbed a wounded bandit boy', { victim: 'bandit' }); return `${q} rounds. He does not fight. He keeps calling for his mother.`; } },
+      { label: 'End it', show: weaponsOwned().length > 0, fn() { done(); G.stats.kills++; moral(s, 9, 'killed a wounded boy who was crying for his mother', { victim: 'helpless' }); put('bullets', 3); fate(L, 'dead'); return 'It is quiet afterwards. Very quiet.'; } },
+      { label: 'Leave him' }], art),
+    pastor: () => ask('The list', 'A man in a clerical collar sits at a table with a ledger. "The evacuation list," he says. "The army is taking two hundred people from this hall on Friday. Places are limited. A contribution secures your name."', [
+      { label: 'Pay for a place', off: !bagN, why: 'You have nothing to give him.', fn() { give1(); give1(); done(); moodAll(4); remember(s, 'I paid for our names on the evacuation list. I want to believe it.', { w: 4 }); fate(L, 'robbed'); G.flags.scamDay = G.day + 5; return 'He writes your hostel\'s name in a beautiful hand and underlines it twice. "Friday," he says. "God bless you."'; } },
+      { label: 'Call him a liar', fn() { done(); e.noise += 4; mood(s, 2); return 'He does not even look offended. "Then do not be on the list," he says, and writes the next name.'; } },
+      { label: 'Leave' }], art),
+    hoarder: () => ask('The cold room', 'A big man sits on twenty bags of rice in the caf cold room, a pump-action across his knees. "Selling," he says. "Not giving. Selling."', [
+      { label: 'Trade with him', fn() { setTimeout(() => barter({ name: 'The man on the rice', theirs: { food: rnd(6, 10), water: rnd(1, 3) }, rate: 1.6, want: pick(['meds', 'bullets', 'loud']), src: 'bag' }), 0); return ''; } },
+      { label: 'Wait for him to sleep, then take a bag', fn() { runClock(60); done(); if (chance(0.55)) { const q = put('food', 4); G.stats.thefts++; moral(s, 5, 'stole rice from a man who was selling it', { victim: 'armed' }); return `He sleeps sitting up. You take ${q} cups' worth from a split bag and back out on your toes.`; } hurt(s, rnd(12, 26), 'Shot by the man on the rice.'); return 'He was not asleep. The pump-action is very loud in a cold room.'; } },
+      { label: 'Leave' }], art),
+    bursar: () => ask('The Bursary', 'An old man in a cardigan is feeding student files into a fire in a dustbin, one at a time. "School fees records," he says. "Nobody needs them now. They keep me warm."', [
+      { label: 'Sit by his fire', fn() { runClock(30); mood(s, 4); done(); const m = mkState(); if (!m.heard.includes(0)) m.heard.push(0); remember(s, 'The old bursar says Mai Kudi used to work for him. He says he signed his appointment letter himself.', { w: 5, bark: 'The bursar knew Mai Kudi. Before.' }); return '"You know the one they call Mai Kudi?" he says. "He was my clerk. Seven years. He sold the fees list with every home address on it. I signed his appointment letter myself." He feeds another file to the fire.'; } },
+      { label: 'Ask for his keys', fn() { done(); const q = put('lockpick', 2); fate(L, 'helped'); return `He hands over a ring of keys without looking. "Take. Every door here is open anyway." Filed down, they will do as picks. ${q ? q + " lockpicks." : "No room to carry them."}`; } },
+      { label: 'Leave' }], art),
+    family: () => ask('The fence', 'A man, his wife and their son, maybe seventeen, crouched by the fence at the back of the gate. They have cut half the wire. "Watch the road for us," the man whispers. "Ten minutes. Please. We have a car waiting at Dutse."', [
+      { label: 'Keep watch for them', fn() { runClock(30); done(); if (chance(0.2)) { hurt(s, rnd(8, 18), 'Shot at the fence.'); remember(s, 'A family went through the fence while I kept watch. Someone shot at us. I do not know if they made it.', { w: 6 }); return 'A torch, a shout, a burst over your head. When you look again the hole in the fence is empty. You do not know which way they ran.'; } mood(s, 8); fate(L, 'helped'); remember(s, 'I kept watch while a family went through the fence. The boy waved from the other side.', { w: 6 }); return 'They go through one by one. The boy waves from the other side, and then they are gone into the dark.'; } },
+      { label: 'Tell them it is hopeless', fn() { done(); mood(s, -2); return 'The man looks at you for a long time. Then he goes back to cutting the wire.'; } },
+      { label: 'Take their bag', fn() { const q = put('food', 2) + put('water', 2); done(); G.stats.thefts++; moral(s, 11, 'robbed a family at the fence as they tried to escape', { wit: 'family', victim: 'helpless' }); return `${q} things. The woman says one word in Igbo that you will remember for the rest of your life.`; } }], art),
+    drunk: () => ask('In the stands', 'A soldier asleep across three seats in the stands, an empty bottle of ogogoro by his boot, a rifle across his chest. He smells like he has been here since noon.', [
+      { label: 'Ease the magazine out of his rifle', fn() { done(); if (chance(0.7)) { const q = put('bullets', 5); return `He snores through it. ${q} rounds.`; } hurt(s, rnd(6, 14), 'Beaten by a drunk soldier.'); return 'His eyes open halfway through. He is very drunk and very strong.'; } },
+      { label: 'Take his boots and his food', fn() { const q = put('food', 2); done(); moral(s, 3, 'robbed a sleeping soldier', { victim: 'armed' }); return `${q} tins from his pack. The boots are too big anyway.`; } },
+      { label: 'Let him sleep' }], art),
     digger: () => ask('The grave', 'An old man is digging behind the court with a broken shovel. His son lies wrapped in a bedsheet beside the hole.', [
       { label: 'Help him dig', fn() { runClock(60); s.fatigue = clamp(s.fatigue + 10, 0, 100); const q = put('food', 2); done(); mood(s, 7); fate(L, 'helped'); return `It takes an hour. He says the boy's name over the grave, then gives you ${q ? q + ' tins' : 'his thanks'} from his pocket. "He would have wanted someone to eat them."`; } },
       { label: 'Ask him what he has seen', fn() { const d = LOCBY[(G.tonight || {}).danger]; done(); mood(s, 1); return `He does not stop digging. "Soldiers. Not soldiers. Men in boots by ${d ? d.name : 'the hostels'}. They do not let anyone pass."`; } },
@@ -1301,7 +1519,7 @@ const mini = (label, v, bad = true) => { const cls = bad ? (v > 75 ? 'm-bad' : v
 function chipsHtml() {
   const food = inv('food') + inv('meal');
   const c = (icon, n, low) => `<span class="chip${low ? ' low' : ''}${n ? '' : ' zero'}">${icon}${n}</span>`;
-  return `<div class="chips one" data-a="tab" data-k="day" data-t="work">${c(ITEMS.food[0], food, food <= 2)}${c(ITEMS.water[0], inv('water'), inv('water') <= 2)}${c(ITEMS.meds[0], inv('meds'), false)}${innerWidth >= 420 ? `<span class="chip box">${stashCount()}/${stashCap()}</span>` : ''}</div>`;
+  return `<div class="chips one" data-a="tab" data-k="day" data-t="work">${c(ITEMS.food[0], food, food <= 2)}${c(ITEMS.water[0], inv('water'), inv('water') <= 2)}${c(ITEMS.meds[0], inv('meds'), false)}${G && G.night && (G.cold || 0) >= 2 && !G.fire ? `<span class="chip cold" title="A ${['', '', 'cold', 'bitter'][G.cold]} night and no fire.">COLD</span>` : ''}${CR.Sim && CR.Sim.homeNoise && CR.Sim.homeNoise() >= 0.3 ? '<span class="chip loud" title="Work at night carries. Raids are likelier.">LOUD</span>' : ''}${innerWidth >= 420 ? `<span class="chip box">${stashCount()}/${stashCap()}</span>` : ''}</div>`;
 }
 const hud = (title, phase) => `<header class="hud"><button class="menubtn" data-a="menu" aria-label="Menu">☰</button><div class="hudt"><b>${title}</b><span class="phase">${phase}</span></div>${chipsHtml()}</header>`;
 const navBtn = (cls, icon, label, attrs, dot) => `<button class="navb ${cls || ''}" ${attrs}><i>${icon}</i><span>${label}</span>${dot ? '<em class="dot"></em>' : ''}</button>`;
@@ -1445,7 +1663,7 @@ function renderOver() {
   <div class="btns" style="display:flex;gap:8px;margin-top:16px"><button class="primary" style="flex:1" data-a="new">Try again</button></div><div style="height:20px"></div></div></div>`;
 }
 function renderTitle() {
-  const has = (() => { try { const r = localStorage.getItem('crisis_save'); if (!r) return false; const g = JSON.parse(r); if (!g || g.v !== SAVE_V) { localStorage.removeItem('crisis_save'); return false; } return true; } catch (e) { return false; } })();
+  const has = (() => { try { const r = localStorage.getItem('crisis_save'); if (!r) return false; let g = null; try { g = JSON.parse(r); } catch (e) { setAside(r, 'broken'); return false; } if (!g || g.v !== SAVE_V) { setAside(r, 'old'); return false; } return true; } catch (e) { return false; } })();
   /* a hostel block at night, drawn in charcoal: one window still lit behind its bars, smoke over the roofs, wire in front */
   let win = ''; for (let f = 0; f < 4; f++) for (let k = 0; k < 7; k++) { const x = 46 + k * 30, y = 92 + f * 34; const lit = f === 2 && k === 4; win += `<rect x="${x}" y="${y}" width="16" height="20" fill="${lit ? '#c98a3a' : '#0d0c0a'}"${lit ? ' class="tlit"' : ''}/>` + (lit ? [2, 6, 10, 14].map((d) => `<rect x="${x + d}" y="${y}" width="1.2" height="20" fill="#0d0c0a"/>`).join('') : ''); }
   let wire = ''; for (let x = 0; x < 320; x += 18) wire += `<path d="M${x} 236 l9 -6 l9 6" stroke="#2c2924" stroke-width="1.2" fill="none"/>`;
@@ -1456,7 +1674,7 @@ function renderTitle() {
     <circle cx="174" cy="170" r="40" fill="url(#tglow)" class="tlit"/><rect x="0" y="236" width="320" height="24" fill="#100f0d"/>${wire}<rect x="0" y="236" width="320" height="1.2" fill="#2c2924"/>
     <path d="M60 40 l4 -3 l4 3 M80 52 l3 -2 l3 2" stroke="#3a362f" stroke-width="1.2" fill="none" class="tcrow"/></svg>`;
   return `<div class="fullpage titlepage">${art}<div class="title"><h1>CRISIS</h1><div class="tline">They closed the roads. Then they stopped answering.</div>
-  <div class="btns"><button class="primary" data-a="new">New game</button>${has ? '<button data-a="resume">Continue</button>' : ''}<button data-a="howto">How to play</button><button data-a="settings">Settings</button><button data-a="about">About</button></div>
+  <div class="btns"><button class="primary" data-a="new">New game</button>${has ? '<button data-a="resume">Continue</button>' : ''}<button data-a="howto">How to play</button><button data-a="settings">Settings</button><button data-a="about">About</button></div>${G_LOST ? `<div class="savewarn">${G_LOST === 'old' ? 'Your saved game is from an older version of Crisis and cannot be continued. It has been kept aside, not deleted.' : 'Your saved game could not be read. It has been kept aside, not deleted.'}</div>` : ''}
   <div class="note">A work of fiction. Characters, events and the siege are imagined and are not based on real events at any real institution.</div></div></div>`;
 }
 /* the sheet opens exactly over the panel area, so the scene stays in view */
@@ -1577,6 +1795,7 @@ if (CR.Menu) CR.Menu.hooks = {
   restart: () => { newGame(); },
   quit: () => { if (G) save(); G = null; Q.length = 0; modalOpen = false; const m = $('#modal'); if (m) m.classList.add('hidden'); if (CR.Cutaway) CR.Cutaway.reset(); render(); },
   hasSave: () => { try { return !!localStorage.getItem('crisis_save'); } catch (e) { return false; } },
+  report: () => { try { copyReport(); } catch (e) { reportError(e); } },
   deleteSave: () => { try { localStorage.removeItem('crisis_save'); } catch (e) {} },
   onPause: (p) => { try { if (CR.Audio && CR.Audio.ctx) { if (p) CR.Audio.ctx.suspend(); else CR.Audio.ctx.resume(); } } catch (e) {} }
 };
@@ -1589,6 +1808,7 @@ const host = {
   get G() { return G; }, alive, person, log, add, inv, mood, moodAll, hurt, kill, say, ask, flush, stateOf, stealSome, joinNamed
 };
 host.knock = knockRun;
+try { visitorsInit(); } catch (e) { /* the story engine may not be ready in the headless bot */ }
 CR.Story.host = host;
 if (CR.Expedition) CR.Expedition.hooks = { slow: () => { const s = G.exp && person(G.exp.sid); return s && s.hp < 35 ? 0.6 : 1; }, stairs: (dir) => { const e = G.exp; if (!e) return; const nf = (e.floor || 0) + dir; if (nf < 0 || nf >= (e.floors || 1)) return; e.floor = nf; e.arrive = dir > 0 ? 'left' : 'right'; runClock(8); e.noise += 1; render(); }, modalOpen: () => modalOpen || !!(CR.Wheel && CR.Wheel.isOpen()), read: (i) => readTrace(i), search: (i) => openPile(i), barrier: (i, k) => barrierAt(i, k), pickLock: (i) => pickLockAt(i), breakUp: (i) => breakUpAt(i), canBreak: () => hasTool('crowbar'), attack: (i, info) => attackAt(i, info), spotted: () => forceEnc('patrol'), meet: (k) => forceEnc(k), stateNow: () => (G.exp ? stateOf(person(G.exp.sid)) : 'ok'),
   exit: (auto) => { if (auto) { Q.length = 0; setTimeout(() => goHome(), 0); return; } const s = person(G.exp.sid); ask('Head home?', '<i>Whatever you are carrying goes back to the shelter with you.</i>', [{ label: 'Head home', fn() { Q.length = 0; setTimeout(() => goHome(), 0); return ''; } }, { label: 'Stay a little longer' }], { sp: s.sp, state: stateOf(s) }); flush(); } };
@@ -1719,7 +1939,8 @@ function rolesHtml() {
   const roles = G.roles; const home = alive().filter((p) => !p.out); const goer = home.find((p) => roles[p.id] === 'go'), sender = home.find((p) => roles[p.id] === 'send');
   const dests = (who, key) => { if (!who) return ''; const all = LOCS.filter((l) => l.id !== G.shelter).map((l) => ({ l, d: CAMPUS.travel(G.shelter, l.id) })).sort((a, b) => a.d - b.d).slice(0, 8); const cur = G.rolesDest && G.rolesDest[key];
     return `<div class="rldest"><div class="lth">${key === 'go' ? 'Where ' + who.name + ' goes' : 'Where ' + who.name + ' is sent'}</div><div class="rldlist">${all.map(({ l, d }) => { const i = intelOf(l); return `<button class="rld${cur === l.id ? ' on' : ''}" data-nd="${key}:${l.id}"><b>${l.name}</b><small>${d ? d + ' hr' : 'close'} · ${i.loot} · ${i.risk}${i.hot ? ' · patrols' : ''}</small></button>`; }).join('')}</div></div>`; };
-  return `<div class="rlroles">${home.map((p) => `<div class="rlrow"><span class="rlwho">${portrait(p, stateOf(p), 2)}<b>${p.name}</b><small>${needWords(p)}</small></span><span class="rlopts">${Object.keys(ROLE_N).map((r) => { const why = roleWhy(p, r, roles); return `<button class="rlopt${roles[p.id] === r ? ' on' : ''}" data-nr="${p.id}:${r}" ${why ? dis(why) : ''}>${ROLE_N[r]}</button>`; }).join('')}</span></div>`).join('')}${dests(goer, 'go')}${dests(sender, 'send')}</div>`;
+  const cold = G.cold || 0; const fc = cold ? `<div class="rlcold c${cold}">${['', 'A cool night.', 'A cold night.', 'A bitter night. The harmattan is in the walls.'][cold]} ${G.build.brazier ? (inv('wood') >= (cold >= 3 ? 2 : 1) ? 'The brazier has wood for it.' : 'Not enough wood for the brazier.') : 'No fire.'} ${inv('blanket') ? inv('blanket') + ' blanket' + (inv('blanket') > 1 ? 's.' : '.') : 'No blankets.'}${cold >= 2 ? ' Whoever sleeps on the floor or keeps watch will feel it.' : ''}</div>` : '';
+  return fc + `<div class="rlroles">${home.map((p) => `<div class="rlrow"><span class="rlwho">${portrait(p, stateOf(p), 2)}<b>${p.name}</b><small>${needWords(p)}</small></span><span class="rlopts">${Object.keys(ROLE_N).map((r) => { const why = roleWhy(p, r, roles); return `<button class="rlopt${roles[p.id] === r ? ' on' : ''}" data-nr="${p.id}:${r}" ${why ? dis(why) : ''}>${ROLE_N[r]}</button>`; }).join('')}</span></div>`).join('')}${dests(goer, 'go')}${dests(sender, 'send')}</div>`;
 }
 function nightRoles() {
   if (!G || G.screen !== 'day') return;
@@ -1763,7 +1984,11 @@ const simHost = {
   onLook: (p, f) => lookSheet(p, f),
   onUse: (p, what) => useStation(p, what),
   relOf: (a, b) => relS(a, b),
-  raidMul: () => (arcPhase() >= 2 ? 1.6 : 1), raidSize: () => (arcPhase() >= 2 ? 1 : 0), sickMul: () => (arcPhase() >= 3 ? 2.2 : 1),
+  habitLine: (p, k) => { toReport(k === 'alc' ? `${p.name}'s hands would not stop shaking this morning.` : k === 'tob' ? `${p.name} was up before dawn, going through pockets for a cigarette.` : `${p.name} paced half the night.`); },
+  onHabit: (p, it, stole) => { if (stole) others0(p).forEach((o) => { if (chance(0.5)) mood(o, -1); }); },
+  coldBase: () => { const d = dateOf(G.day + 1); const doy = Math.floor((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000); /* the harmattan is fiercest in January and gone by April */ return clamp(1.9 - Math.max(0, doy - 20) * 0.026, 0, 1.9) - (G.season === 'rains' ? 0.4 : 0); },
+  coldNight: (p, e) => { if (e >= 1.5) remember(p, pick(['The cold got into my bones last night. I could not stop shaking.', 'I lay awake listening to my own teeth. The wind came through the window all night.', 'So cold last night I thought about burning the bunk.']), { w: 3 }); if (G.nrep && !G.nrep.coldSaid) { G.nrep.coldSaid = 1; toReport(e >= 2 ? 'Nobody really slept. The cold came up through the floor.' : 'A cold night. Some of them shivered until dawn.'); } },
+  raidMul: () => (arcPhase() >= 2 ? 1.6 : 1) * (wevOn('sweep') ? 0.35 : 1), raidSize: () => (arcPhase() >= 2 ? 1 : 0), sickMul: () => (arcPhase() >= 3 ? 2.2 : 1) * (wevOn('cholera') && !G.build.filter ? 1.6 : 1),
   forceRaid: () => { const d = G.day - 1; if (!((G.mkRaid === d || G.mkRaid2 === d) && G.mkRaidDone !== G.day)) return false; G.mkRaidDone = G.day; return chance(0.85); },
   raidCalm: () => (G.mkSafe && G.day <= G.mkSafe ? 0.35 : 1),
   junkFound: (p, st, rubble) => junkFound(p, st, rubble),
@@ -1814,6 +2039,10 @@ function hourV2(h, day) {
   if (G.away) return;                                         /* while you are out, the house's small stories and the returns wait for you */                       /* while you are out, the house's small stories wait for you instead of piling up */
   if (h === 11 || h === 16) { try { strangersReturn(); flush(); } catch (e) { reportError(e); } }
   if (h === 12) { try { collectorVisit(); } catch (e) { reportError(e); } }
+  if (h === 18 && G.mk && G.mk.likes >= 8 && !G.mk.warned && G.day >= 6 && chance(0.25)) { G.mk.warned = G.day; G.mkSafe = G.day + 1; say('A note under the door', '<i>Green ink, small, careful handwriting: "Tonight, lights off. Do not answer the door. — K."</i>'); flush(); }
+  if (h === 20 && G.build.radio && G.radioDay !== G.day && chance(0.55)) { G.radioDay = G.day; const b = radioNews(null); if (b.ev || chance(0.3)) notice(`On the radio: ${b.t.split('. ')[0]}.`); }
+  if (h === 6) { try { dropDawn(); guestDawn(); } catch (e) { reportError(e); } }
+  if (h === 11 && G.forceTrader === G.day) { G.forceTrader = 0; try { evTrade(); flush(); } catch (e) { reportError(e); } }
   if (h === 19 && G.day >= 2 && chance(0.25)) { try { const p = pick(alive().filter((x) => !x.out)); if (p) mkRumour(p); } catch (e) {} }
   if (G.sched && G.sched.length && h >= G.sched[0]) { G.sched.shift(); try { ST.morning({ n: 1, mixed: true }); } catch (e) { reportError(e); } flush(); }
   returnParties();
@@ -1847,7 +2076,7 @@ function raidDone(o) {
   const asked = G.raidAsked; G.raidAsked = false;
   if (G.away || (!asked && G.nrep)) {
     const RL = { passed: 'Raiders came up the path in the dark, and went past.', paid: `Raiders came. They were paid off${lostW ? ` with ${lostW}` : ''}.`, repelled: 'Raiders tried the door. The barricade held.', 'repelled-damaged': 'Raiders tried the door and broke part of the barricade before they gave up.', breached: `Raiders broke in${o.via && o.via !== 'door' ? ' through a broken window' : ''}${lostW ? ` and took ${lostW}` : ''}.${o.hurt && o.hurt.length ? ` ${o.hurt.join(' and ')} ${o.hurt.length > 1 ? 'were' : 'was'} hurt.` : ''}` };
-    G.nrep = G.nrep || { lines: [] }; toReport(RL[o.result] || 'Something happened at the door in the night.'); return;
+    G.nrep = G.nrep || { lines: [] }; toReport((RL[o.result] || 'Something happened at the door in the night.') + ((o.broke || []).length && o.result === 'breached' ? ` They smashed ${o.broke.join(', ')}.` : '')); return;
   }
   const lost = Object.entries(o.lost || {}).map(([k, v]) => `${v} ${ITEMS[k][1].toLowerCase()}`).join(', ');
   const T = {
@@ -1857,8 +2086,8 @@ function raidDone(o) {
     'repelled-damaged': 'They broke some of the barricade before they gave up. It will need fixing.',
     breached: `They got in${o.via && o.via !== 'door' ? ' through the broken window' + (o.via === 'win0' ? ' downstairs' : ' upstairs') : ''}. By the time they left the room was torn apart.${lost ? ` They took ${lost}.` : ''}${o.hurt && o.hurt.length ? ` ${o.hurt.join(' and ')} ${o.hurt.length > 1 ? 'were' : 'was'} hurt.` : ''}`
   };
-  const bad = o.result === 'breached';
-  say(bad ? 'They broke in' : 'The raid', T[o.result] || 'It is over.', { side: true, sp: banditSp((G.pend && G.pend.born) || G.t, 1), kind: bad ? 'aim' : 'walk', state: 'ok' });
+  const bad = o.result === 'breached'; const brk = o.result === 'breached' && (o.broke || []).length ? ` They smashed ${o.broke.join(', ').replace(/, ([^,]*)$/, ' and $1')} on the way out.` : '';
+  say(bad ? 'They broke in' : 'The raid', (T[o.result] || 'It is over.') + brk, { side: true, sp: banditSp((G.pend && G.pend.born) || G.t, 1), kind: bad ? 'aim' : 'walk', state: 'ok' });
   log(bad ? 'Raiders broke in.' : 'A raid was turned away.', bad ? 'bad' : 'good'); sfx(bad ? 'alarm' : 'tap'); if (bad) buzz([80, 40, 80]);
 }
 
@@ -1876,8 +2105,8 @@ function lookSheet(p, f) {
 function useStation(p, what) {
   if (what === 'door') { doorSheet(p); return; }
   if (what === 'radio') {
-    sfx('radio'); const b = CR.World.bulletin('radio'); G.newsLog = G.newsLog || []; G.newsLog.unshift({ d: G.day, t: b.text }); G.newsLog.length = Math.min(G.newsLog.length, 6);
-    say('On the radio', `<i>${ST.first(p)} turns the dial through the static.</i>\n\n“${b.text}”`, { sp: p.sp, state: stateOf(p) });
+    sfx('radio'); if (G.radioDay === G.day) { say('On the radio', `<i>${ST.first(p)} turns the dial. The same voices as before, saying the same things.</i>`, { sp: p.sp, state: stateOf(p) }); return; } G.radioDay = G.day; const b = radioNews(p);
+    say('On the radio', `<i>${ST.first(p)} turns the dial through the static.</i>\n\n“${b.t}”`, { sp: p.sp, state: stateOf(p) });
   }
 }
 function worldSheet() {
@@ -1905,8 +2134,9 @@ function stateWords(p) {
   if (p.out) return 'Away.';
   if (p.hunger >= 80) w.push('Starving'); else if (p.hunger >= 55) w.push('Very hungry'); else if (p.hunger >= 30) w.push('Hungry');
   if (p.thirst >= 80) w.push('Desperately thirsty'); else if (p.thirst >= 50) w.push('Thirsty');
-  if (p.wound) w.push('Bleeding'); else if (p.hp < 45) w.push('Badly hurt'); else if (p.hp < 75) w.push('Hurt, healing');
-  if (p.sick) w.push('Sick with fever');
+  if (p.wnd) w.push(p.wnd.inf >= 3 ? 'The wound is poisoning the blood' : p.wnd.inf ? 'The wound is infected' : SIM.dressed(p) ? (p.wnd.lvl >= 3 ? 'Badly wounded, dressed' : 'Wound dressed') : 'Bleeding'); else if (p.hp < 45) w.push('Badly hurt'); else if (p.hp < 75) w.push('Hurt, healing');
+  { const cv = SIM.craving && SIM.craving(p); if (cv && cv.v >= 0.35) w.push(cv.k === 'alc' ? (cv.v > 0.7 && (p.hab.alc || 0) >= 55 ? 'Shaking. Needs a drink' : 'Wants a drink') : cv.k === 'tob' ? (cv.v > 0.7 ? 'Desperate for a cigarette' : 'Craving a cigarette') : (cv.v > 0.7 ? 'Restless, cannot settle without a smoke' : 'Wants a smoke')); }
+  if (p.ill) w.push(p.ill.lvl >= 3 ? ({ stomach: 'Wasting. Nothing stays down', chest: 'Every breath rattles', malaria: 'Burning with fever' })[p.ill.k] : p.ill.lvl === 2 ? ({ stomach: 'Sick to the stomach', chest: 'Coughing, feverish', malaria: 'Fever and chills' })[p.ill.k] : ({ stomach: 'Queasy', chest: 'A cough', malaria: 'Achy, a little hot' })[p.ill.k]);
   if (p.fatigue >= 85) w.push('Exhausted'); else if (p.fatigue >= 60) w.push('Tired');
   const m = ['', 'Uneasy', 'Sad', 'Depressed', 'Broken'][tier(p.mood)]; if (m) w.push(m);
   if (p.fasting) w.push('Fasting');
@@ -1930,6 +2160,7 @@ function personPage(t) {
     { label: `Send ${ST.first(t)} out`, off: t.out || t.hp < 25 || t.mood < 15, why: t.out ? `${t.name} is already away.` : `${t.name} is in no state to go.`, fn() { pickDest(t, 'auto'); return ''; } },
     { label: 'Notebook', fn() { showNotebook(t.id); return ''; } },
     { label: t.auto === false ? 'Let them find their own work' : 'Have them wait for orders', fn() { t.auto = t.auto === false; return ''; } },
+    ...(SIM.hooked && SIM.hooked(t).length ? [{ label: t.cutoff ? `Let ${ST.first(t)} have the ${SIM.HAB_NAME[SIM.hooked(t)[0]]} again` : `Keep the ${SIM.HAB_NAME[SIM.hooked(t)[0]]} from ${ST.first(t)}`, sub: t.cutoff ? '' : 'harder now, easier later', fn() { t.cutoff = !t.cutoff; remember(t, t.cutoff ? 'They are hiding it from me now. Like I am a child.' : 'They gave it back. I hate how grateful I was.', { w: 3 }); notice(t.cutoff ? `${t.name} will not get any. They will not thank you this week.` : `${t.name} can have it again.`); return ''; } }] : []),
     { label: 'Close' }
   ];
   const big = CR.Side ? CR.Side.render(t.sp, t.out ? 'idle' : (t.act && t.act.k === 'sleep' ? 'sleep' : 'idle'), { scale: 5, state: stateOf(t) }) : '';
@@ -1972,7 +2203,8 @@ function intelOf(l) {
   const risk = l.risk >= 5 ? 'deadly' : l.risk >= 4 ? 'very dangerous' : l.risk >= 3 ? 'dangerous' : l.risk >= 2 ? 'some risk' : 'quiet';
   const f = (G.fac || []).find((x) => x.loc === l.id && x.status === 'active'); const g = groupAt(l.id);
   const people = f ? (f.met ? `${f.name} (about ${PO.size(f)})` : 'a group holds it') : (g && g.alive ? 'survivors inside' : 'nobody known');
-  return { fl, loot, risk, people, hot: G.tonight && G.tonight.danger === l.id };
+  const ov = wevAt(l.id, 'overrun'), dr = wevAt(l.id, 'drop');
+  return { fl, loot: dr && G.day >= dr.from ? 'a supply drop' : loot, risk: ov ? 'overrun' : dr ? risk + ', guarded' : risk, people: ov ? 'armed men moved in' : people, hot: (G.tonight && G.tonight.danger === l.id) || !!ov || !!dr };
 }
 function destLabel(l, d) {
   const i = intelOf(l);
@@ -2016,6 +2248,7 @@ function sendOut(s, locId) {
 function returnParties() {
   G.S.filter((s) => s.alive && s.out && s.out.mode !== 'ctrl' && s.out.back <= G.t).forEach((s) => {
     const o = s.out; s.out = null; s.f = 0; s.x = 14; s.up = 0; s.at = null; s.act = null;
+    if (o.mk) { if (chance(0.08)) { kill(s, 'Shot carrying a package for Mai Kudi.'); toReport(`${s.name} never came back from the gate.`); return; } add('bullets', 3); add('food', 2); remember(s, 'They paid me in bullets and rice. Nobody asked my name.', { w: 4 }); toReport ? (G.nrep ? toReport(`${s.name} came back from the gate with bullets and rice.`) : say(`${s.name} is back`, `<i>${s.name} comes back from the gate with bullets and a bag of rice, and does not want to talk about it.</i>`, { sp: s.sp, state: stateOf(s) })) : 0; return; }
     if (o.mode === 'auto') resolveScav(s, o); else { log(`${s.name} is back from ${o.what || 'their errand'}.`, 'good'); notice(`${s.name} is back.`); }
   });
 }
@@ -2279,13 +2512,13 @@ function encHostile(g, L, s, e) {
 /* ---------- wheels ---------- */
 const WHEEL = CR.Wheel;
 const plainCost = (c) => Object.entries(c).map(([k, v]) => v + ' ' + (k === 'parts' ? 'scrap' : k)).join(', ');
-const BICON = { weed: 'weed', rack: 'loud', stove: 'wood', bench: 'tools', barr1: 'wood', barr2: 'wood', barr3: 'wood', bunk: 'bed', bucket: 'water', filter: 'water', garden: 'bread', radio: 'radio', alarm: 'bolt', curtains: 'cloth', infirm: 'meds', cupboard: 'bag', still: 'ogogoro' };
+const BICON = { doorfix: 'house', brazier: 'fire', weed: 'weed', rack: 'loud', stove: 'wood', bench: 'tools', barr1: 'wood', barr2: 'wood', barr3: 'wood', bunk: 'bed', bucket: 'water', filter: 'water', garden: 'bread', radio: 'radio', alarm: 'bolt', curtains: 'cloth', infirm: 'meds', cupboard: 'bag', still: 'ogogoro' };
 function wheelOrder(s, job) { const r = SIM.order(s.id, job, true); if (!r.ok) toastWhy(r.why); }
 const lackOf = (cost) => { const o = {}; Object.entries(cost).forEach(([k, v]) => { if (inv(k) < v) o[k] = true; }); return o; };
 function stopItems(kind) { return SIM.activeTasks().filter((t) => t.kind === kind).map((t) => ({ id: 'stop', stop: t, label: 'Stop', sub: `${t.name} ${t.pct}%`, icon: 'warn', danger: true })); }
 function onStop(it) { const t = it.stop; const back = t.kind === 'build' ? SIM.cancelBuild(t.id) : SIM.cancelTask(t.pid); noticeBack(back); render(); }
 function craftWheel(s) {
-  const items = Object.entries(SIM.CRAFTS).map(([id, c]) => { const w = SIM.why({ k: 'craft', id }, s); return { id, label: c.name, icon: Object.keys(c.out)[0], cost: c.cost, lack: lackOf(c.cost), time: `${c.min} min`, off: !!w, why: w }; });
+  const items = Object.entries(SIM.CRAFTS).map(([id, c]) => { const w = SIM.why({ k: 'craft', id }, s); const wk = id === 'mend' && SIM.worstTool ? SIM.worstTool() : null; const lockd = c.tier === 2 && !G.build.bench2; return { id, label: c.name, icon: id === 'mend' ? (wk || 'tools') : id === 'herbal' ? 'herbs' : Object.keys(c.out)[0], cost: c.cost, lack: lackOf(c.cost), time: `${c.min} min`, off: !!w, lock: lockd, why: w, sub: lockd ? 'better bench' : wk ? `${ITEMS[wk][1].toLowerCase()}, ${wearWord(wk) || 'worn'}` : undefined }; });
   WHEEL.open({ title: 'Workbench', hub: 'tools', items: stopItems('craft').concat(items), onPick: (it) => (it.stop ? onStop(it) : wheelOrder(s, { k: 'craft', id: it.id })) });
 }
 function cookWheel(s) {
@@ -2294,7 +2527,7 @@ function cookWheel(s) {
   WHEEL.open({ title: 'Stove', hub: 'meal', items: stopItems('cook').concat(items), onPick: (it) => (it.stop ? onStop(it) : wheelOrder(s, { k: 'cook', n: it.id })) });
 }
 function buildWheel(s, only) {
-  const items = Object.entries(SIM.BUILDS).filter(([, d]) => d.can(G.build) && (!only || d.at === only) && !(G.bq || []).some((q) => q.id === Object.keys(SIM.BUILDS).find((k) => SIM.BUILDS[k] === d))).map(([id, d]) => { const w = SIM.why({ k: 'build', id }, s); return { id, label: d.name, icon: BICON[id] || 'tools', cost: d.cost, lack: lackOf(d.cost), time: `${Math.round(d.min / 6) / 10} h`, off: !!w, why: w }; });
+  const items = Object.entries(SIM.BUILDS).filter(([, d]) => d.can(G.build) && (!only || d.at === only) && !(G.bq || []).some((q) => q.id === Object.keys(SIM.BUILDS).find((k) => SIM.BUILDS[k] === d))).map(([id, d]) => { const w = SIM.why({ k: 'build', id }, s); const cc = SIM.costOf ? SIM.costOf(id) : d.cost; const br = !!(G.build.broken && G.build.broken[id]); return { id, label: br ? 'Repair: ' + d.name.replace(/ I+$/, '') : d.name, icon: BICON[id] || 'tools', cost: cc, lack: lackOf(cc), sub: br ? 'half the cost' : undefined, time: `${Math.round(d.min / 6) / 10} h`, off: !!w, why: w }; });
   const stops = stopItems('build').filter((it) => !only || (SIM.BUILDS[it.stop.id] && SIM.BUILDS[it.stop.id].at === only));
   if (!items.length && !stops.length) { toastWhy('Nothing more to build here.'); return; }
   WHEEL.open({ title: 'Build', hub: 'house', items: stops.concat(items), onPick: (it) => (it.stop ? onStop(it) : wheelOrder(s, { k: 'build', id: it.id })) });
@@ -2305,10 +2538,10 @@ function resourceWheel(s) {
   WHEEL.open({ title: 'Cupboard', hub: 'bag', items, onPick: (it) => itemWheel(s, it.id) });
 }
 function itemWheel(s, k) {
-  const usable = ['food', 'meal', 'water', 'meds', 'bandage', 'ogogoro'].includes(k); const room = packCount(s) < packCap(s);
+  const usable = ['food', 'meal', 'water', 'meds', 'bandage', 'ogogoro', 'cigarettes', 'loud', 'weed'].includes(k); const room = packCount(s) < packCap(s);
   const others = alive().filter((o) => o.id !== s.id && !o.out);
   WHEEL.open({ title: ITEMS[k][1], hub: k, items: [
-    { id: 'use', label: k === 'meds' || k === 'bandage' ? 'Treat' : k === 'food' ? 'Eat raw' : k === 'water' ? 'Drink' : 'Use', icon: k, off: !usable || (k === 'meds' && !s.sick) || (k === 'bandage' && !s.wound), why: !usable ? 'It is not something you use directly.' : k === 'meds' ? `${s.name} is not sick.` : `${s.name} has no wound.` },
+    { id: 'use', label: k === 'meds' || k === 'bandage' ? 'Treat' : k === 'food' ? 'Eat raw' : k === 'water' || k === 'ogogoro' ? 'Drink' : ['cigarettes', 'loud', 'weed'].includes(k) ? 'Smoke' : 'Use', icon: k, off: !usable || (k === 'meds' && !s.sick && !(s.wnd && s.wnd.inf)) || (k === 'bandage' && (!s.wnd || SIM.dressed(s))), why: !usable ? 'It is not something you use directly.' : k === 'meds' ? `${s.name} is not sick and no wound is infected.` : s.wnd ? `${s.name}'s wound is already dressed.` : `${s.name} has no wound.` },
     { id: 'take', label: 'Carry', icon: 'bag', sub: 'to pack', off: !room || inv(k) < 1, why: !room ? `${s.name}'s pack is full.` : 'None left.' },
     { id: 'give', label: 'Give', icon: 'people', sub: 'to someone', off: !others.length || inv(k) < 1, why: 'Nobody else is here.' },
     { id: 'back', label: 'Put back', icon: 'house', sub: 'from pack', off: !(s.pack && s.pack[k] > 0) || stashRoom() < 1, why: !(s.pack && s.pack[k] > 0) ? `${s.name} is not carrying any.` : 'The cupboard is full.' }
@@ -2331,7 +2564,11 @@ function openWheel(kind) {
 function reportText() {
   try { return JSON.stringify({ v: 'crisis-v2', day: G.day, clock: SIM.clock(G.t), screen: G.screen, speed: G.speed, floors: G.floors, build: G.build, inv: G.inv, people: G.S.map((s) => ({ n: s.name, a: s.alive, o: !!s.out, hp: Math.round(s.hp), h: Math.round(s.hunger), t: Math.round(s.thirst), f: Math.round(s.fatigue), m: Math.round(s.mood), act: s.act ? s.act.k : null })), log: G.log.slice(0, 20).map((l) => l.t), errors: (window.__errors || []).slice(-5) }); } catch (e) { return 'report failed: ' + e.message; }
 }
-function copyReport() { const t = reportText(); try { navigator.clipboard.writeText(t).then(() => notice('Report copied. Paste it to the developer.'), () => notice('Could not copy. Long-press the text instead.')); } catch (e) { notice('Could not copy the report.'); } }
+/* copy the report; if the phone will not allow it, show it so it can be selected and copied by hand */
+function copyReport() {
+  const t = reportText(); const show = () => { ask('Problem report', `<div class="dim">Your phone would not copy it automatically. Press and hold the text, Select all, Copy, then paste it in your message.</div><textarea class="rep" readonly>${String(t).replace(/</g, '&lt;')}</textarea>`, [{ label: 'Close' }]); flush(); };
+  try { if (!navigator.clipboard || !window.isSecureContext) { show(); return; } navigator.clipboard.writeText(t).then(() => notice('Report copied. Paste it to the developer.'), show); } catch (e) { show(); }
+}
 
 function badgeNames(s) {
   const b = [];
@@ -2344,6 +2581,6 @@ function badgeNames(s) {
 if (HOUSE) HOUSE.hooks = { knock: () => tallyKnock(), badges: badgeNames, G: () => G, person, selected: () => G.sel, stateOf, modalOpen: () => modalOpen, step: stepV2, tapPerson, tapStation, tapFloor, yard: yardList };
 
 /* test hook (used by the smoke test; harmless in the browser) */
-if (typeof window !== 'undefined') window.__crisis = { personPage, cupboardSheet, rescueRumour, calendarDawn, arcDawn, arcPhase, dateStr, priceMul, epilogue, renderEnd, collectorVisit, mkState, evTrade, barter, tapStation, strangersReturn, exposeDeeds, othersScavenge, readTrace, tellSheet, kill, raidWarn, forceEnc, nightRoles, openWheel, goHome, get G() { return G; }, newGame, act, Q, dawn: dawnV2, nextModal, host, Sim: CR.Sim, stepV2, tapStation, tapFloor, tapPerson, doorSheet, pickDest, sendOut, startControlled, returnParties, lookSheet, homeMenu, get modalOpen() { return modalOpen; } };
+if (typeof window !== 'undefined') window.__crisis = { save, radioNews, dropDawn, intelOf, priceMul, guestDawn, useStation, hurt, wearTool, wearWord, sitePiles, POOL, LOCS, personPage, cupboardSheet, rescueRumour, calendarDawn, arcDawn, arcPhase, dateStr, priceMul, epilogue, renderEnd, collectorVisit, mkState, evTrade, barter, tapStation, strangersReturn, exposeDeeds, othersScavenge, readTrace, tellSheet, kill, raidWarn, forceEnc, nightRoles, openWheel, goHome, get G() { return G; }, newGame, act, Q, dawn: dawnV2, nextModal, host, Sim: CR.Sim, stepV2, tapStation, tapFloor, tapPerson, doorSheet, pickDest, sendOut, startControlled, returnParties, lookSheet, homeMenu, get modalOpen() { return modalOpen; } };
 render();
 })();

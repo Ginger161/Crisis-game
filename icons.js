@@ -69,7 +69,7 @@ def('clock', ['...kkkk...', '..kzzzzk..', '.kzzzkzzzk', 'kzzzzkzzzk', 'kzzzzkkkz
 def('gear', ['....kk....', '.kk.ss.kk.', '.kssssssk.', '..ksSSsk..', 'kssSkkSssk', 'kssSkkSssk', '..ksSSsk..', '.kssssssk.', '.kk.ss.kk.', '....kk....']);
 
 const MAP = { '☠': 'skull', '🍚': 'food', '🍲': 'meal', '💧': 'water', '🪵': 'wood', '⚙': 'gear', '🧵': 'cloth', '💊': 'meds', '🩹': 'bandage', '🍶': 'ogogoro', '🏏': 'club', '🔪': 'machete', '🔫': 'pistol', '❤': 'heart', '🚪': 'door', '☰': 'menu', '💬': 'talk', '📓': 'journal', '✓': 'check', '🎒': 'bag', '📻': 'radio', '📜': 'scroll', '🏛': 'hall', '👥': 'people', '🌍': 'world', '🌙': 'moon', '⚠': 'warn', '🛏': 'bed', '🗺': 'map', '🏠': 'house', '⏸': 'pause', '▶': 'play', '🩸': 'blood', '🤒': 'sick', '🍞': 'bread', '☁': 'cloud', '👁': 'eye', '🤫': 'hush', '🎯': 'target', '👆': 'tap', '🛠': 'tools', '🗣': 'voice', '👣': 'feet', '⚡': 'bolt', '🔒': 'lock' };
-const ITEM_ICON = { food: 'food', meal: 'meal', water: 'water', wood: 'wood', parts: 'parts', cloth: 'cloth', meds: 'meds', bandage: 'bandage', ogogoro: 'ogogoro', club: 'club', machete: 'machete', pistol: 'pistol', knife: 'knife', bullets: 'bullet', crowbar: 'crowbar', lockpick: 'lockpick', shovel: 'shovel', weed: 'weed', loud: 'loud', cigarettes: 'cigarettes', tobacco: 'tobacco', paper: 'paper' };
+const ITEM_ICON = { food: 'food', meal: 'meal', water: 'water', wood: 'wood', parts: 'parts', cloth: 'cloth', meds: 'meds', bandage: 'bandage', ogogoro: 'ogogoro', club: 'club', machete: 'machete', pistol: 'pistol', knife: 'knife', bullets: 'bullet', crowbar: 'crowbar', lockpick: 'lockpick', shovel: 'shovel', weed: 'weed', loud: 'loud', cigarettes: 'cigarettes', tobacco: 'tobacco', paper: 'paper', blanket: 'blanket', elec: 'elec', toolkit: 'toolkit', herbs: 'herbs' };
 
 const cache = {};
 
@@ -91,6 +91,11 @@ const LINE = {
   machete: 'M4 20l3-3M7 17L19 5c1 4-2 9-7 11l-3 3M7 17l2 2',
   pistol: 'M4 9h15v4H9l-1 7H5l1-7H4zM14 13v2',
   crowbar: 'M6 20L18 5c1-1 3 0 2 2M6 20l-2-1',
+  blanket: 'M4 7h16v11H4zM4 11h16M4 15h16M8 7v11M16 7v11',
+  fire: 'M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-3 2-4 2-7 2 1 2 3 3 3 0-2-1-4 0-6zM10 21h4',
+  elec: 'M7 7h10v10H7zM10 10h4v4h-4zM9 4v3M12 4v3M15 4v3M9 17v3M12 17v3M15 17v3M4 9h3M4 12h3M4 15h3M17 9h3M17 12h3M17 15h3',
+  toolkit: 'M3 10h18v9H3zM9 10V7h6v3M3 14h18M11 13h2v2h-2z',
+  herbs: 'M12 21V9M12 9c-3 0-5-2-5-5 3 0 5 2 5 5zM12 13c3 0 5-2 5-5-3 0-5 2-5 5zM12 17c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z',
   lockpick: 'M5 19l10-10M15 9l3-3 2 2-3 3M15 9l2 2M8 16l-2 2',
   shovel: 'M12 3v11M9 14h6v3c0 2-1 4-3 4s-3-2-3-4zM10 3h4',
   weed: 'M12 21v-8M12 13c-1-4-1-7 0-10 1 3 1 6 0 10zM12 13c-3-2-6-2-8-1 2 2 5 2 8 1zM12 13c3-2 6-2 8-1-2 2-5 2-8 1zM12 15c-2 0-4 1-5 3M12 15c2 0 4 1 5 3',

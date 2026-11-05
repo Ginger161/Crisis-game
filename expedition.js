@@ -11,6 +11,7 @@ const SC = () => C.Scenes, SD = () => C.Side, SP = () => C.Sprites;
 const ST = () => C.Sites;
 const FLOOR = 70, SEG = 240, VW = 176, FIG = 0.95;   /* same scale as the hideout: rooms 240 x 64, the camera 176 wide */
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const pickOne = (a) => a[Math.floor(Math.random() * a.length)];
 function mulberry(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const usable = () => typeof document !== 'undefined' && document.createElementNS && document.createElement && typeof document.createElement('div').appendChild === 'function';
 
@@ -97,10 +98,10 @@ function build(e, info) {
 <mask id="xm" maskUnits="userSpaceOnUse" x="-600" y="-600" width="${W + 1200}" height="1400"><rect x="-600" y="-600" width="${W + 1200}" height="1400" fill="#fff"/><g id="xlamp"><circle cx="0" cy="0" r="46" fill="url(#xlg)"/></g><g id="xpb"></g></mask></defs>
 <g id="xwg"><g id="xworld">${C.House && C.House.toneSvg ? C.House.toneSvg(others + L.art + props) : others + L.art + props}</g><g id="xact"></g>
 <rect id="xdark" x="-600" y="${FLOOR - 80}" width="${W + 1200}" height="96" fill="#02040b" opacity="${info.day ? 0.3 : 0.93}" mask="url(#xm)" pointer-events="none"/>
-<g id="xwarm" pointer-events="none"><circle id="xwcone" cx="0" cy="0" r="46" fill="url(#xwr)"/>${[0, 1, 2, 3, 4, 5, 6].map((i) => `<rect class="dust" style="animation-delay:-${(i * 1.3).toFixed(1)}s;--dx:${(8 + i * 11)}px" x="${8 + i * 10}" y="${-14 + (i * 7) % 24}" width=".7" height=".7" fill="#ffe8c0" opacity=".55"/>`).join('')}</g></g>
+<g id="xring" pointer-events="none"></g><g id="xwarm" pointer-events="none"><circle id="xwcone" cx="0" cy="0" r="46" fill="url(#xwr)"/>${[0, 1, 2, 3, 4, 5, 6].map((i) => `<rect class="dust" style="animation-delay:-${(i * 1.3).toFixed(1)}s;--dx:${(8 + i * 11)}px" x="${8 + i * 10}" y="${-14 + (i * 7) % 24}" width=".7" height=".7" fill="#ffe8c0" opacity=".55"/>`).join('')}</g></g>
 <rect id="xtint" x="-50" y="-400" width="1000" height="900" fill="#0b1430" opacity="${info.day ? 0.04 : 0.24}" pointer-events="none"/><rect id="xvig" x="-50" y="-400" width="1000" height="900" fill="none" pointer-events="none"/><rect id="xflash" x="-50" y="-400" width="1000" height="900" fill="#b8402f" opacity="0" pointer-events="none"/></svg>`;
   const svg = X.root.querySelector('svg');
-  X.st = { W, nseg, R, svg, L, wg: svg.querySelector('#xwg'), actors: svg.querySelector('#xact'), dark: svg.querySelector('#xdark'), lamp: svg.querySelector('#xlamp'), warm: svg.querySelector('#xwarm'), pb: svg.querySelector('#xpb'), rain: !!info.rain, nextBolt: performance.now() + 15000 + Math.random() * 20000, flash: svg.querySelector('#xflash'), spots, hides, blocks, traces, stairs: L.stairs, walls: L.walls, pats: [], npcs: [], cam: 0, t: performance.now(), e, info, tick: 0 };
+  X.st = { W, nseg, R, svg, L, wg: svg.querySelector('#xwg'), actors: svg.querySelector('#xact'), dark: svg.querySelector('#xdark'), lamp: svg.querySelector('#xlamp'), warm: svg.querySelector('#xwarm'), pb: svg.querySelector('#xpb'), ring: svg.querySelector('#xring'), rain: !!info.rain, nPrev: e.noise || 0, nextBolt: performance.now() + 15000 + Math.random() * 20000, flash: svg.querySelector('#xflash'), spots, hides, blocks, traces, stairs: L.stairs, walls: L.walls, pats: [], npcs: [], cam: 0, t: performance.now(), e, info, tick: 0 };
   const S = X.st;
   const startX = e.arrive === 'left' ? 52 : e.arrive === 'right' ? W - 52 : 32;
   const pl = mkEn(info.sp, startX, 'idle', e.arrive === 'right' ? -1 : 1, info.state, {}); pl.sneak = false; pl.target = null; pl.busy = false; pl.hidden = false; pl.walked = 0; S.p = pl;
@@ -112,10 +113,10 @@ function build(e, info) {
     let room = Math.floor(R() * nseg); if (room === startRoom) room = (room + 1 + Math.floor(R() * (nseg - 1))) % nseg; if (room === startRoom) continue;
     /* most patrols keep to their own room; some walk the whole floor through the doorways */
     const roam = R() < 0.35; const r0 = roam ? 40 : room * SEG + 26, r1 = roam ? W - 40 : room * SEG + SEG - 26;
-    const sp = SP().gen(types[Math.floor(R() * types.length)], Math.floor(R() * 1e6));
+    const ty = types[Math.floor(R() * types.length)]; const sp = SP().gen(ty, Math.floor(R() * 1e6));
     { const qm = document.createElementNS(NS, 'text'); qm.setAttribute('font-size', '9'); qm.setAttribute('fill', '#ffd070'); qm.setAttribute('text-anchor', 'middle'); qm.setAttribute('display', 'none'); qm.textContent = '?'; S.actors.appendChild(qm); S.qms = S.qms || []; S.qms.push(qm); }
     let q0 = r0, q1 = r1; const x0p = room * SEG + 60; blocks.forEach((b) => { if (!b.open) { if (b.x <= x0p && b.x + 10 > q0) q0 = b.x + 14; if (b.x > x0p && b.x - 10 < q1) q1 = b.x - 14; } });
-    S.pats.push(mkEn(sp, room * SEG + 60 + R() * (SEG - 120), 'walk', R() < 0.5 ? 1 : -1, 'ok', { qi: S.pats.length, cone: true, range: 44, speed: 11 + R() * 4, r0: q0, r1: q1, pause: 0, cool: 0 }));
+    S.pats.push(mkEn(sp, room * SEG + 60 + R() * (SEG - 120), 'walk', R() < 0.5 ? 1 : -1, 'ok', { heavy: ty === 'bandit_heavy', qi: S.pats.length, cone: true, range: 44, speed: 11 + R() * 4, r0: q0, r1: q1, pause: 0, cool: 0 }));
   }
   S.camp = null;
   if (campOn) {
@@ -153,7 +154,7 @@ X.resolveAttack = function (pi, res) {
   }, 520);
 };
 X.stop = function () { try { if (C.Audio) { C.Audio.flies(0); C.Audio.hk = 0; } } catch (er) {} clearInterval(X.timer); X.timer = null; X.st = null; X.key = ''; if (X.root && X.root.querySelector) { const s = X.root.querySelector('.xsvg'); if (s) s.innerHTML = ''; } };
-function start() { if (X.timer) return; X.timer = setInterval(tick, 60); }
+function start() { const ms = C.Perf ? ({ full: 40, balanced: 60, light: 80 })[C.Perf.mode] || 60 : 60; if (X.timer && X.tickMs === ms) return; if (X.timer) clearInterval(X.timer); X.tickMs = ms; X.timer = setInterval(tick, ms); }
 
 /* ---------- taps ---------- */
 function toWorld(ev) { const S = X.st, pt = S.svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY; const m = S.svg.getScreenCTM(); const q = m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 }; return { x: q.x + S.cam, y: q.y }; }
@@ -214,6 +215,26 @@ function placePill() {
   pill.style.left = Math.max(8, Math.min(r.width - 8, px)).toFixed(0) + 'px'; pill.style.top = Math.max(6, py).toFixed(0) + 'px'; pill.hidden = false; X.pillAct = n.act;
 }
 
+/* ---------- sound: every noise happens somewhere, spreads as a ring, fades ----------
+   Loudness 1 is a footstep, 3 a clatter, 5 a crowbar, 8 a gunshot. Walls and rubble swallow some of it.
+   Anyone inside the ring who cannot already see you comes to look at the spot, not at you. */
+const RING_PX = 22;
+function ringAt(x, r, col, op) {
+  const S = X.st; if (!S || !S.ring) return; const c = document.createElementNS(NS, 'circle');
+  c.setAttribute('cx', x.toFixed(1)); c.setAttribute('cy', FLOOR - 20); c.setAttribute('r', '2'); c.setAttribute('fill', 'none'); c.setAttribute('stroke', col); c.setAttribute('stroke-width', '0.8'); c.setAttribute('opacity', op);
+  c.style.setProperty('--rr', r.toFixed(0)); c.setAttribute('class', 'xr'); S.ring.appendChild(c);
+  const t0 = performance.now(), dur = 700 + r * 4; const step = () => { if (!c.isConnected) return; const k = Math.min(1, (performance.now() - t0) / dur); c.setAttribute('r', (2 + (r - 2) * (1 - (1 - k) * (1 - k))).toFixed(1)); c.setAttribute('opacity', (op * (1 - k)).toFixed(2)); if (k < 1) requestAnimationFrame(step); else c.remove(); }; requestAnimationFrame(step);
+}
+function muffle(a, b) { const S = X.st; const lo = Math.min(a, b), hi = Math.max(a, b); let d = hi - lo; (S.walls || []).forEach((w) => { if (w > lo && w < hi) d += 34; }); (S.blocks || []).forEach((q) => { if (!q.open && q.x > lo && q.x < hi) d += 50; }); return d; }
+X.sound = function (x, loud, who) {
+  const S = X.st; if (!S || loud <= 0) return; const r = 10 + loud * RING_PX; const now = performance.now();
+  if (who === 'them') { ringAt(x, r * 0.8, '#c8b8a0', 0.35); return; }
+  ringAt(x, r, loud >= 5 ? '#d86a4a' : '#e8dcc0', loud >= 5 ? 0.85 : 0.55);
+  S.pats.forEach((pt) => { if (pt.dead) return; const d = muffle(pt.x, x); if (d > r) return; if (pt.alert && pt.alert.x === x) return;
+    pt.alert = { x: x + (Math.random() - 0.5) * 20, until: now + 6000 + loud * 900 }; pt.pause = 0; });
+  /* something loud carries through the floors: the boots upstairs heard it too */
+  if (loud >= 5 && (S.info.floors || 1) > 1) S.e.heard = (S.e.heard || 0) + 1;
+};
 /* ---------- the loop ---------- */
 function tick() {
   const S = X.st; if (!S || !X.root || !X.root.isConnected) return;
@@ -233,16 +254,18 @@ function tick() {
     else { p.x += Math.sign(dx) * step; p.dir = Math.sign(dx); p.walked += step; setKind(p, p.sneak ? 'sneak' : p.run ? 'run' : 'walk'); if (!p.sneak && p.walked > 55) { p.walked = 0; e.noise += 1; } else if (p.sneak && p.walked > 170) { p.walked = 0; e.noise += 1; } }
   } else if (!p.busy && p.kind !== 'idle' && !p.hidden) setKind(p, 'idle');
   if (e.homing && p.target == null && !p.busy && !S.lock && !p.hidden) X.runHome();
+  { const rise = e.noise - S.nPrev; if (rise >= 0.99) X.sound(p.x, Math.round(rise), 'you'); e.noise = Math.max(0, e.noise - dt * (p.hidden ? 0.5 : 0.3)); S.nPrev = e.noise; }
   const roomOf = (v) => Math.floor(v / SEG);
   const sees = (pt) => { const a = Math.min(p.x, pt.x), b = Math.max(p.x, pt.x); if ((S.blocks || []).some((q) => !q.open && q.x > a && q.x < b)) return false; const between = (S.walls || []).filter((wx) => wx > a && wx < b); if (!between.length) return true; if (between.length > 1) return false; const wx = between[0]; return Math.abs(p.x - wx) < 14 && Math.abs(pt.x - wx) < 22; };
   S.pats.forEach((pt) => {
     const qm = S.qms && S.qms[pt.qi];
     /* a noise you made brings them to look, not to catch you through a wall */
-    if (!pt.alert && e.noise >= 6 && now > (pt.alertCool || 0) && !sees(pt) && Math.abs(p.x - pt.x) < SEG * 2.2) { pt.alert = { x: p.x, until: now + 9000 }; pt.alertCool = now + 25000; e.noise = Math.max(0, e.noise - 2); }
+    if (!pt.dead && pt.kind === 'walk' && now > (pt.stepT || 0)) { pt.stepT = now + (pt.alert ? 900 : 1700) + Math.random() * 600; if (Math.abs(pt.x - p.x) < 260) X.sound(pt.x, pt.heavy ? 1.6 : 1.1, 'them'); }
     if (pt.alert && now > pt.alert.until) pt.alert = null;
     if (qm) { qm.setAttribute('display', pt.alert ? 'inline' : 'none'); qm.setAttribute('x', pt.x); qm.setAttribute('y', FLOOR - 40); }
-    if (pt.alert) { const ad = pt.alert.x - pt.x; if (Math.abs(ad) > 6) { pt.dir = Math.sign(ad); pt.x += pt.dir * pt.speed * 1.5 * dt; setKind(pt, 'walk'); } else setKind(pt, 'idle'); }
+    if (pt.alert) { const ad = pt.alert.x - pt.x; if (Math.abs(ad) > 6) { pt.dir = Math.sign(ad); pt.x += pt.dir * pt.speed * 1.5 * dt; setKind(pt, 'walk'); } else { if (!pt.lookT || now > pt.lookT) { pt.dir = -pt.dir; pt.lookT = now + 1100 + Math.random() * 700; } setKind(pt, 'idle'); } }
     else if (now < pt.pause) { setKind(pt, 'idle'); }
+    else if (pt.x < pt.r0 - 2 || pt.x > pt.r1 + 2) { pt.dir = pt.x < pt.r0 ? 1 : -1; pt.x += pt.dir * pt.speed * dt; setKind(pt, 'walk'); }
     else { const nx = pt.x + pt.dir * pt.speed * dt; if (nx < pt.r0 || nx > pt.r1) { pt.dir *= -1; pt.pause = now + 1200 + Math.random() * 2500; } else pt.x = nx; setKind(pt, 'walk'); }
     const dx = p.x - pt.x; const facing = (dx > 0 && pt.dir > 0) || (dx < 0 && pt.dir < 0);
     const range = p.hidden ? 8 : (p.sneak ? 24 : 42) + Math.min(14, e.noise * 2); pt.range = Math.round(clamp(range, 18, 56));
@@ -260,7 +283,8 @@ function tick() {
     if (S.rain && now > S.nextBolt) { S.nextBolt = now + 14000 + Math.random() * 26000; const fx = S.flash; fx.setAttribute('fill', '#e8eeff'); fx.setAttribute('opacity', '.55'); S.dark.setAttribute('opacity', '0.1'); setTimeout(() => { fx.setAttribute('opacity', '0'); fx.setAttribute('fill', '#b8402f'); if (X.st) X.st.dark.setAttribute("opacity", X.st.info.day ? 0.3 : 0.93); }, 140); try { if (C.Audio && C.Audio.sfx) setTimeout(() => C.Audio.sfx('thunder'), 700); } catch (er) {} } }
   [p].concat(S.pats, S.bodies || []).forEach((en) => { en.el.style.transform = `translate(${en.x}px,0px)`; });
   if (S.tick % 4 === 0 && C.Audio) { try { let near = 1e9; S.pats.forEach((pt) => { if (!pt.dead) near = Math.min(near, Math.abs(pt.x - p.x) - (sees(pt) ? 0 : 40)); }); C.Audio.heart(clamp(1 - near / 90, 0, 1)); let bd = 1e9; S.spots.forEach((sp) => { if (sp.k === 'body') bd = Math.min(bd, Math.abs(sp.x - p.x)); }); C.Audio.flies(clamp(1 - bd / 70, 0, 1)); } catch (er) {} }
-  S.tick++; if (S.tick % 2 === 0) placePill(); if (S.tick % 5 === 0) { const nz = X.root.querySelector('.xnoise i'); if (nz) { nz.style.width = clamp(e.noise * 9, 0, 100) + '%'; const up = e.noise > (S.lastNoise || 0); if (up) S.noiseT = now; S.lastNoise = e.noise; nz.parentNode.classList.toggle('on', now - (S.noiseT || -1e9) < 3500); } if (e.hours <= 0.5 && !e.forced && !S.dawnHinted) { S.dawnHinted = true; hint(e.day ? 'The light is going.' : 'The sky is greying.'); } }
+  if ((S.info.floors || 1) > 1 && !S.info.day && now > (S.overT || (S.overT = now + 12000 + Math.random() * 15000))) { S.overT = now + 22000 + Math.random() * 30000 - Math.min(15000, (e.heard || 0) * 5000); const up = (e.floor || 0) < (S.info.floors - 1) && (Math.random() < 0.6 || !(e.floor > 0)); hint(up ? pickOne(['Boots on the floor above.', 'Something heavy dragged, upstairs.', 'A voice above you. Then nothing.']) : pickOne(['A door, somewhere below.', 'Footsteps on the stairs below. They stop.', 'Someone laughs, downstairs.'])); try { if (C.Audio) (up ? C.Audio.steps : C.Audio.creak)(); } catch (er) {} }
+  S.tick++; if (S.tick % 2 === 0) placePill(); if (S.tick % 5 === 0) { const nz = X.root.querySelector('.xnoise i'); if (nz) { nz.style.width = clamp(e.noise * 12, 0, 100) + '%'; const up = e.noise > (S.lastNoise || 0) + 0.2; if (up) S.noiseT = now; S.lastNoise = e.noise; nz.parentNode.classList.toggle('on', now - (S.noiseT || -1e9) < 3500); } if (e.hours <= 0.5 && !e.forced && !S.dawnHinted) { S.dawnHinted = true; hint(e.day ? 'The light is going.' : 'The sky is greying.'); } }
 }
 /* after being caught, whoever caught you moves off along their route, so you are not standing in their light when the sheets close */
 function settle(S, now) { const p = S.p; S.pats.forEach((pt) => { if (Math.abs(pt.x - p.x) < 110) { pt.x = pt.x < p.x ? Math.max(pt.r0, p.x - 160) : Math.min(pt.r1, p.x + 160); pt.dir = pt.x < p.x ? -1 : 1; pt.cool = now + 20000; pt.pause = now + 2500; } }); }

@@ -25,7 +25,7 @@ const setMem = (k, v) => { H.G.mem = H.G.mem || {}; H.G.mem[k] = v === undefined
 
 /* ---------- relationships ---------- */
 function rel(a, b) {
-  const G = H.G; G.rel = G.rel || {}; const k = key(a.cid || a, b.cid || b);
+  const G = H.G; G.rel = G.rel || {}; const rk = (x) => (typeof x === 'string' ? x : x && x.cid ? x.cid : x && x.id != null ? 'p' + x.id : String(x)); const k = key(rk(a), rk(b));   /* strangers who joined have no cast id: key them by their person id */
   return G.rel[k] || (G.rel[k] = { fond: 0, tension: 0, love: 0, hist: [] });
 }
 function bond(a, b, fond, tension, note) {
@@ -69,7 +69,7 @@ function applyFx(s, fx, text) {
   if (fx.m) H.mood(s, fx.m);
   if (fx.all) H.moodAll(fx.all);
   if (fx.hp) H.hurt(s, -fx.hp, 'The ordeal took its toll.'); // negative hp means damage
-  if (fx.heal) { s.hp = Math.min(100, s.hp + fx.heal); s.wound = false; }
+  if (fx.heal) { s.hp = Math.min(100, s.hp + fx.heal); s.wound = false; s.wnd = null; }
   if (fx.flag) setMem(fx.flag);
   if (fx.inv) Object.entries(fx.inv).forEach(([k, n]) => H.add(k, n));
   if (fx.fond) Object.entries(fx.fond).forEach(([oid, n]) => { const o = H.alive().find((x) => x.cid === oid); if (o) bond(s, o, n, 0); });

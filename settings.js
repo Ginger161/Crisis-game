@@ -3,7 +3,7 @@
 'use strict';
 const C = root.Crisis = root.Crisis || {};
 const KEY = 'crisis_settings';
-const DEFAULTS = { text: 'm', reduce: false, sound: true, master: 0.8, music: 0.55, sfx: 0.8, haptics: true, gore: true, tutorialSeen: false, egg: false };
+const DEFAULTS = { text: 'm', reduce: false, sound: true, master: 0.8, music: 0.55, sfx: 0.8, haptics: true, gore: true, perf: 'auto', tutorialSeen: false, egg: false };
 const S = { v: Object.assign({}, DEFAULTS), onChange: null,
   load() { try { const raw = localStorage.getItem(KEY); if (raw) S.v = Object.assign({}, DEFAULTS, JSON.parse(raw)); } catch (e) {} S.apply(); return S.v; },
   save() { try { localStorage.setItem(KEY, JSON.stringify(S.v)); } catch (e) {} },
@@ -15,6 +15,7 @@ const S = { v: Object.assign({}, DEFAULTS), onChange: null,
     ['t-s', 't-m', 't-l', 't-xl'].forEach((c) => h.remove(c)); h.add('t-' + S.v.text);
     if (S.v.reduce) h.add('reduce'); else h.remove('reduce');
     if (C.Audio && C.Audio.apply) C.Audio.apply();
+    if (C.Perf && C.Perf.apply && C.Perf.chosen !== S.v.perf) C.Perf.apply();
   }
 };
 C.Settings = S;

@@ -47,7 +47,7 @@ L.turnSurvivor = function (s) {
 };
 function rejoin(cid) {
   const g = G(), s = g.S.find((x) => x.cid === cid && !x.alive && x.gone); if (!s) return null;
-  s.alive = true; s.gone = false; s.hunger = 60; s.thirst = 50; s.mood = 45; s.hp = Math.max(s.hp, 60); s.trust = 20; s.wound = false;
+  s.alive = true; s.gone = false; s.hunger = 60; s.thirst = 50; s.mood = 45; s.hp = Math.max(s.hp, 60); s.trust = 20; s.wound = false; s.wnd = null;
   const gate = P.fac('gate'); if (gate) gate.members = gate.members.filter((m) => m !== cid); const t = (g.turned || []).find((q) => q.cid === cid); if (t) t.rejoined = true; g.stats.left = Math.max(0, g.stats.left - 1); return s;
 }
 

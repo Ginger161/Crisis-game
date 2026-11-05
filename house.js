@@ -31,6 +31,7 @@ function furniture(id, st, y1, B, G) {
     case id === 'door': {
       const L = B.barricade || 0;
       o += rect(-5, y1 - 42, 11, 42, '#1b110b') + rect(-5, y1 - 42, 11, 2, WOOD2);
+      if (B.doorDmg) o += rect(-4, y1 - 41, 3, 41, '#c8b488', 'opacity=".35"') + `<path d="M-1 ${y1 - 42} L7 ${y1 - 40} L6 ${y1 - 2} L-1 ${y1}" fill="#3a2618"/>` + rect(5, y1 - 26, 3, 1.2, '#14100c') + [[-7, -3], [-9, -1], [-6, -1.5], [9, -2]].map(([dx, dy]) => rect(dx, y1 + dy, 3, 1, '#6a4a32')).join('');
       if (L >= 1) { for (let i = 0; i < 3; i++) o += rect(-8, y1 - 34 + i * 11, 18, 3, i % 2 ? WOOD2 : WOOD) + rect(-8, y1 - 34 + i * 11, 18, 1, '#9a7a52'); }
       if (L >= 2) { o += rect(-2, y1 - 40, 3, 40, WOOD) + rect(2, y1 - 40, 3, 40, WOOD2); o += rect(-8, y1 - 26, 12, 8, '#7a7f85') + rect(-8, y1 - 26, 12, 1, '#a9aeb3'); }
       if (L >= 3) { for (let i = 0; i < 4; i++) o += rect(-22 + (i % 2) * 6, y1 - 6 - i * 4, 12, 4, '#a99468') + rect(-22 + (i % 2) * 6, y1 - 6 - i * 4, 12, 1, '#c8b488'); }
@@ -80,6 +81,9 @@ function furniture(id, st, y1, B, G) {
     }
     case id === 'garden': return B.garden ? rect(x - 18, y1 - 8, 36, 8, '#5a3d28') + rect(x - 17, y1 - 9, 34, 2, '#3d2a1a') + [-12, -4, 4, 12].map((d, i) => rect(x + d, y1 - 16 - (i % 2) * 3, 1.5, 8 + (i % 2) * 3, '#4a8a3a') + rect(x + d - 2, y1 - 14 - (i % 2) * 3, 5, 2, '#5aa04a')).join('') : ghost(x - 19, y1 - 14, 38, 14);
     case id === 'patch': return B.weed ? rect(x - 18, y1 - 6, 36, 6, '#4a3020') + rect(x - 17, y1 - 7, 34, 1.5, '#3a2416') + [-14, -9, -4, 1, 6, 11, 15].map((d, i) => rect(x + d, y1 - 14 - (i % 3) * 3, 1.2, 8 + (i % 3) * 3, '#3a7a2a') + rect(x + d - 2.5, y1 - 13 - (i % 3) * 3, 6, 1.4, '#4a9a34') + rect(x + d - 1.5, y1 - 16 - (i % 3) * 3, 4, 1.4, '#5aaa40')).join('') : ghost(x - 19, y1 - 16, 38, 16);
+    case id === 'brazier': { if (!B.brazier) return B.broken && B.broken.brazier ? wreckArt(x, y1) : ghost(x - 7, y1 - 14, 14, 14); const lit = !!(G && G.fire);
+      return rect(x - 6, y1 - 13, 12, 11, '#3a3632') + rect(x - 6, y1 - 13, 12, 1.5, '#5a544c') + rect(x - 5, y1 - 10, 10, 0.8, '#2a2622') + rect(x - 5, y1 - 7, 10, 0.8, '#2a2622') + rect(x - 4, y1 - 2, 1.2, 2, '#2a2622') + rect(x + 3, y1 - 2, 1.2, 2, '#2a2622') + [-3, 0, 3].map((d) => rect(x + d - 0.8, y1 - 12, 1.6, 0.9, lit ? 'rgb(240,100,40)' : '#4a4038')).join('')
+        + (lit ? rect(x - 4, y1 - 17, 3, 4, 'rgb(255,128,36)', 'class="flame"') + rect(x - 1, y1 - 19, 3, 6, 'rgb(255,196,90)', 'class="flame" style="animation-delay:-.25s"') + rect(x + 2, y1 - 16, 2.5, 3, 'rgb(255,110,30)', 'class="flame"') + rect(x - 5, y1 - 13, 10, 1.4, 'rgb(255,90,30)') : rect(x - 3, y1 - 14, 6, 1.2, '#6a6058')); }
     case id === 'rack': return B.rack ? rect(x - 12, y1 - 30, 1.5, 30, WOOD) + rect(x + 10, y1 - 30, 1.5, 30, WOOD) + rect(x - 12, y1 - 30, 24, 1.5, WOOD2) + rect(x - 12, y1 - 20, 24, 1, WOOD2) + [-9, -5, -1, 3, 7].map((d, i) => rect(x + d, y1 - 29, 2.5, 7 + (i % 2) * 2, i % 2 ? '#5a7a3a' : '#7a8a3a') + rect(x + d, y1 - 19, 2.5, 6, '#8a7a3a')).join('') : ghost(x - 13, y1 - 30, 26, 30);
     case id === 'roof': return B.bucket ? rect(x - 8, y1 - 16, 16, 16, '#3a5a8a') + rect(x - 8, y1 - 16, 16, 2, '#6a8ab8') + rect(x - 10, y1 - 10, 20, 1.5, '#222') + rect(x - 3, y1 - 40, 6, 24, 'rgba(120,160,200,.2)') : ghost(x - 11, y1 - 18, 22, 18);
   }
@@ -196,6 +200,12 @@ function junkArt(x, y1, rubble) {
   o += `<path d="M${x - 2} ${y1 - 14} l6 -6 m-3 2 l5 2" stroke="#3a3a3a" stroke-width=".8"/>` + rect(x + 10, y1 - 12, 4, 5, '#a8c0c8', 'opacity=".6"');
   return o;
 }
+/* what is left of something they smashed: bent metal, a cracked casing, glass */
+function wreckArt(x, y1) {
+  let o = rect(x - 10, y1 - 4, 9, 4, '#3a3632') + rect(x - 10, y1 - 4, 9, 1, '#5a544c') + `<path d="M${x - 1} ${y1} L${x + 4} ${y1 - 7} L${x + 8} ${y1 - 6} L${x + 6} ${y1}" fill="#4a4440"/>`;
+  for (let i = 0; i < 7; i++) o += rect(x - 14 + i * 4.3, y1 - 1 - (i % 3) * 0.6, 1.4 + (i % 2), 0.8, i % 3 ? '#8a8a82' : '#b8c0c8');
+  return o + rect(x + 9, y1 - 2.5, 4, 2.5, '#2a2622') + rect(x - 4, y1 - 9, 1, 6, '#5a5550');
+}
 function siteArt(id, x, y1) {
   let o = '';
   switch (id) {
@@ -235,7 +245,7 @@ const DECOR = [
   (x, y, R) => rect(x - 3, y - 6, 6, 6, '#c8a050') + rect(x - 1, y - 9, 1.5, 3, '#f0e0a0'),                                                                        // candle on box
   (x, y, R) => rect(x - 8, y - 14, 16, 14, '#3a3a40') + rect(x - 7, y - 13, 14, 11, '#1a1a1e') + rect(x - 5, y - 2, 10, 2, '#555'),                                // dead TV
 ];
-const DYN = new Set(['cupboard', 'water', 'tally']);
+const DYN = new Set(['cupboard', 'water', 'tally', 'brazier']);
 /* the dead keep their place: their bunk keeps their things and a candle, their photo goes up by the tally, the ones who died here are buried in the yard */
 function memorial(G, S) {
   const M = G.mem2 || []; if (!M.length) return ''; let o = ''; const tb = S.tally;
@@ -252,7 +262,7 @@ function buildDyn0(G) {
   DYN.forEach((id) => { const s = S[id]; if (!s) return; const y1 = yb(s.f); const art = furniture(id, s, y1, B, G); const k = FSCALE[id] || 1; d += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
   return d;
 }
-function dynKey(G) { const mm = (G.mem2 || []).length; const n = Object.values(G.inv || {}).reduce((a, b) => a + b, 0); return [mm, G.day, Math.min(3, Math.floor(n / 14)), Math.min(4, Math.ceil(((G.inv && G.inv.water) || 0) / 3)), (G.build || {}).cupboard].join('|'); }
+function dynKey(G) { const mm = (G.mem2 || []).length + (G.fire ? 'f' : '') + ((G.build || {}).brazier ? 'b' : ''); const n = Object.values(G.inv || {}).reduce((a, b) => a + b, 0); return [mm, G.day, Math.min(3, Math.floor(n / 14)), Math.min(4, Math.ceil(((G.inv && G.inv.water) || 0) / 3)), (G.build || {}).cupboard].join('|'); }
 function refreshDyn(G) { if (!H.dynG) return; const k = dynKey(G); if (k !== H.dynK) { H.dynK = k; H.dynG.innerHTML = buildDyn(G); } }
 const GRC = { key: '', wall: [], fl: [] };
 
@@ -318,7 +328,7 @@ function buildStatic(G) {
     for (let i = 0; i < n; i++) { const x = 8 + R() * (W - 16); if (used.some((u) => Math.abs(u - x) < 22) || Math.abs(x - STAIRX) < 26) continue; o += DECOR[Math.floor(R() * DECOR.length)](x, y1, R); }
     if (f === 0) o += rect(6, y1 - 3, 8, 3, '#2a2420') + rect(10, y1 - 3, 6, 3, '#4a3a2a');
   }
-  Object.values(S).forEach((s) => { if (DYN.has(s.id)) return; const y1 = yb(s.f); const J = B.junk && B.junk[s.id]; const art = J ? junkArt(s.x, y1, J === 'rubble') : s.built === false ? siteArt(s.id, s.x, y1) : furniture(s.id, s, y1, B, G); const k = s.built === false ? 1 : (FSCALE[s.id] || 1); o += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
+  Object.values(S).forEach((s) => { if (DYN.has(s.id)) return; const y1 = yb(s.f); const J = B.junk && B.junk[s.id]; const art = J ? junkArt(s.x, y1, J === 'rubble') : s.built === false ? (B.broken && B.broken[s.id] ? wreckArt(s.x, y1) : siteArt(s.id, s.x, y1)) : furniture(s.id, s, y1, B, G); const k = s.built === false ? 1 : (FSCALE[s.id] || 1); o += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
   for (let f = 0; f < N; f++) {
     const y1 = yb(f), y0 = y1 - FH; const used = Object.values(S).filter((s) => s.f === f).map((s) => s.x);
     if (GRC.fl[f] === undefined) { let t = floorGrime(Rg, y1) + cobweb(0, y0 + 5, 1) + cobweb(W, y0 + 5, -1); if (f % 2 === 0 || Rg() < 0.4) { const cands = [60, 90, 150, 190, 40, 205].filter((x) => !used.some((u) => Math.abs(u - x) < 22) && Math.abs(x - STAIRX) > 26); if (cands.length) t += toilet(cands[Math.floor(Rg() * cands.length)], y1); } if (Rg() < 0.45) t += skeleton(Rg() < 0.5 ? 6 : W - 28, y1, 1); t += critters(Rg, y1); GRC.fl[f] = t; }
@@ -366,7 +376,7 @@ function drawActor(a, p, kind, dir, state, sel, bds) {
   const key = kind + '|' + dir + '|' + state + '|' + (sel ? 1 : 0) + '|' + (bds || []).join(','); if (a.key === key) return; a.key = key;
   const body = SD().place(p.sp, kind, 0, 0, { dir, state, s: SC });
   const mark = sel ? `<path d="M-4 ${-(36 * SC) - 26} L4 ${-(36 * SC) - 26} L0 ${-(36 * SC) - 20} Z" fill="#f6b37f"/><rect x="-5" y="${-(36 * SC) - 12}" width="10" height="2" fill="#f6b37f" opacity=".0"/>` : '';
-  const IC = C.Icons; const top = -(36 * SC) - 12; const bd = (bds || []).map((n, i, arr) => { const x = -((arr.length * 10) / 2) + i * 10; return `<rect x="${x - 0.5}" y="${top - 0.5}" width="10" height="10" rx="2" fill="rgba(15,11,8,.8)"/>` + (IC ? IC.svg(n).replace('<svg class="ic"', `<svg x="${x + 0.5}" y="${top + 0.5}" width="8" height="8"`) : ''); }).join('');
+  const IC = C.Icons; const top = -(36 * SC) - 12; const bd = (bds || []).map((n, i, arr) => { const x = -((arr.length * 10) / 2) + i * 10; return `<rect x="${x - 0.5}" y="${top - 0.5}" width="10" height="10" rx="2" fill="rgba(15,11,8,.8)"/>` + (IC ? IC.svg(n).replace(/<svg class="ic( line)?"/, `<svg x="${x + 0.5}" y="${top + 0.5}" width="8" height="8"`) : ''); }).join('');
   a.body.innerHTML = `<rect x="-11" y="${-36 * SC - 6}" width="22" height="${36 * SC + 8}" fill="transparent" data-p="${p.id}"${sel ? ' pointer-events="none"' : ''}/>` + body + mark + bd;
 }
 function sync(G) {
@@ -382,6 +392,8 @@ function sync(G) {
 function frame(ts) {
   if (!H.root || !H.root.isConnected) { H.raf = null; return; }
   H.raf = requestAnimationFrame(frame);
+  const PF = C.Perf; if (PF && !PF.gate(H, ts)) return;
+  if (PF) PF.frame(ts);
   draw(ts);
 }
 function draw(ts) {
@@ -400,7 +412,7 @@ function draw(ts) {
     const y = yb(pos.f) - (pos.up || 0) - (kind === 'sleep' ? 9 : 0); const x = pos.x;
     const dp = pos.depth || 0; const back = dp > 0.02; if (a.back !== back) { a.back = back; (back ? H.layerB : H.layer).appendChild(a.el); }
     const sc = 1 - 0.17 * dp; a.el.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)})`);
-    const lvl = dp > 0.02 ? Math.min(4, 1 + Math.floor(dp * 3.999)) : 0; if (a.lvl !== lvl) { a.lvl = lvl; if (lvl) a.el.setAttribute('filter', `url(#dim${lvl})`); else a.el.removeAttribute('filter'); }
+    const lvl = dp > 0.02 ? Math.min(4, 1 + Math.floor(dp * 3.999)) : 0; const lite = !!(C.Perf && C.Perf.lite()); if (a.lvl !== lvl || a.lite !== lite) { a.lvl = lvl; a.lite = lite; if (lvl && !lite) { a.el.setAttribute('filter', `url(#dim${lvl})`); a.el.removeAttribute('opacity'); } else { a.el.removeAttribute('filter'); if (lvl) a.el.setAttribute('opacity', (1 - lvl * 0.13).toFixed(2)); else a.el.removeAttribute('opacity'); } }
     /* progress over the head for timed jobs at a station */
     let bar = '';
     if (act && act.walkLeft <= 0 && act.total > 6 && /build|cook|craft/.test(act.k)) { const q = act.k === 'build' ? (G.bq || []).find((z) => z.id === act.job.id) : null; const pr = q ? q.prog / Math.max(1, q.need) : 1 - act.left / act.total; bar = `<rect x="-9" y="${-36 * SC - 14}" width="18" height="2.6" fill="#1a1410" stroke="#f2ebcf" stroke-width=".3"/><rect x="-9" y="${-36 * SC - 14}" width="${(18 * clamp(pr, 0, 1)).toFixed(1)}" height="2.6" fill="#7bbf6a"/>`; }
@@ -411,6 +423,7 @@ function draw(ts) {
   updateChips(G, ts);
   drawYard(G);
   placeBubbles(G);
+  { const S0 = SIM().stations(); const bz = S0.brazier; const gk = G.fire && bz ? bz.f + ':' + bz.x : ''; if (gk !== H.glowK) { H.glowK = gk; H.glow.innerHTML = gk ? `<g class="flame" style="animation-duration:1.4s">${[44, 30, 18].map((r, i) => `<ellipse cx="${bz.x}" cy="${yb(bz.f) - 14}" rx="${r}" ry="${r * 0.6}" fill="#ff9a40" opacity="${[0.09, 0.11, 0.15][i]}"/>`).join('')}</g>` : ''; } }
   const tone = toneOf(G.t); if (tone !== H.tone) { H.tone = tone; H.dark.setAttribute('opacity', tone.toFixed(2)); H.stars.setAttribute('opacity', Math.max(0, (tone - 0.25) * 1.6).toFixed(2)); }
 }
 const ZOOMW = 176;                                   // how many scene units wide the camera shows: smaller = closer
@@ -507,11 +520,39 @@ H.attach = function (container, G) {
     H.key = key; const old = H.layer; H.actors = {}; H.bub = {};
     const staticSvg = H.toneSvg(buildStatic(G));
     H.root.querySelector('.hsvg').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VX} 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges"><g id="hstatic">${staticSvg}</g><g id="hdyn"></g><g id="hhint" pointer-events="none"></g><g id="hactb"></g><g id="hrail">${railOut}</g><g id="hyard"></g><g id="hact"></g><rect id="hhaze" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#5a4c38" opacity=".16" pointer-events="none"/><rect id="hdark" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#060a22" opacity="0" pointer-events="none"/><g id="hstars" opacity="0" pointer-events="none">${Array.from({ length: 14 }, (_, i) => rect(VX + ((i * 37) % VW), 2 + ((i * 11) % 14), 0.8, 0.8, '#f2ebcf')).join('')}</g><g id="hglow" pointer-events="none"></g></svg>`;
-    H.svg = H.root.querySelector('svg'); H.layer = H.svg.querySelector('#hact'); H.layerB = H.svg.querySelector('#hactb'); H.dynG = H.svg.querySelector('#hdyn'); H.dynK = null; refreshDyn(G); H.hintG = H.svg.querySelector('#hhint'); H.hintSig = null; H.chipSig = null; H.active = new Set(); H.dark = H.svg.querySelector('#hdark'); H.stars = H.svg.querySelector('#hstars'); H.yard = H.svg.querySelector('#hyard'); H.glow = H.svg.querySelector('#hglow'); H.yardKey = null; H.tone = -1;
+    H.svg = H.root.querySelector('svg'); H.layer = H.svg.querySelector('#hact'); H.layerB = H.svg.querySelector('#hactb'); H.dynG = H.svg.querySelector('#hdyn'); H.dynK = null; refreshDyn(G); if (C.Perf && C.Perf.bitmap()) bakeStatic(staticSvg, key); H.hintG = H.svg.querySelector('#hhint'); H.hintSig = null; H.chipSig = null; H.active = new Set(); H.dark = H.svg.querySelector('#hdark'); H.stars = H.svg.querySelector('#hstars'); H.yard = H.svg.querySelector('#hyard'); H.glow = H.svg.querySelector('#hglow'); H.yardKey = null; H.tone = -1;
   }
   if (H.root.parentNode !== container) container.appendChild(H.root);
   if (!H.raf) H.raf = requestAnimationFrame(frame);
 };
+/* the house that does not move, drawn once into a picture. Until the picture is ready the drawn version shows,
+   so nothing flickers. Tap targets (floors, the poster) and the shared filters stay real. */
+function bakeStatic(src, key) {
+  if (typeof Image === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) return;
+  const x0 = VX - 30, y0 = -60, w = VW + 60, h = VH + 90;
+  const dpr = Math.min(3, (typeof devicePixelRatio !== 'undefined' && devicePixelRatio) || 1);
+  let px = Math.ceil((Math.max(320, (typeof innerWidth !== 'undefined' ? innerWidth : 390)) * dpr) / (H.zoomW || ZOOMW));
+  px = Math.max(2, Math.min(px, 7, Math.floor(Math.sqrt(6e6 / (w * h)))));
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0} ${y0} ${w} ${h}" width="${Math.round(w * px)}" height="${Math.round(h * px)}" shape-rendering="crispEdges">${src}</svg>`;
+  const u0 = URL.createObjectURL(new Blob([doc], { type: 'image/svg+xml' })); const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(u0); if (H.key !== key || !H.svg) return;
+    try {
+      const cv = document.createElement('canvas'); cv.width = Math.round(w * px); cv.height = Math.round(h * px); const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = false; cx.drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob((b) => {
+        if (!b || H.key !== key || !H.svg) return; const gs = H.svg.querySelector('#hstatic'); if (!gs) return;
+        if (H.bakedUrl) URL.revokeObjectURL(H.bakedUrl); H.bakedUrl = URL.createObjectURL(b);
+        const defs = gs.querySelector('defs'); const keep = [...gs.querySelectorAll('[data-fl],[data-st]')].map((el) => el.outerHTML).join('');
+        const bg = gs.firstElementChild && gs.firstElementChild.nextElementSibling; /* the sky rect, kept as vector beyond the picture's edges */
+        const ground = `<rect x="${VX - 600}" y="${yb(0)}" width="${VW + 1200}" height="${GR + 900}" fill="${H.toneSvg('#6a5a44')}"/>`;
+        gs.innerHTML = (defs ? defs.outerHTML : '') + (bg ? bg.outerHTML : '') + ground + `<image href="${H.bakedUrl}" x="${x0}" y="${y0}" width="${w}" height="${h}" preserveAspectRatio="none" style="image-rendering:pixelated"/>` + keep;
+        H.baked = key;
+      }, 'image/png');
+    } catch (e) {}
+  };
+  img.onerror = () => URL.revokeObjectURL(u0);
+  img.src = u0;
+}
 H.reset = function () { H.key = ''; H.svg = null; H.actors = {}; };
 H.geom = () => ({ N, FH, W, OUT, VX, VW, VH, yb });
 function svgPoint(e) { const pt = H.svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const m = H.svg.getScreenCTM(); return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 }; }

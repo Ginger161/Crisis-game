@@ -17,11 +17,13 @@ const SCREENS = {
   pause() {
     const i = (M.hooks.info && M.hooks.info()) || null;
     return page('Paused', `${i ? `<div class="dim" style="text-align:center;margin:-4px 0 14px">Day ${i.day} · ${i.place}<br>${i.alive} alive · saved automatically</div>` : ''}
-      <div class="mbtns"><button class="primary" data-mn="close">Resume</button><button data-mn="howto">How to play</button><button data-mn="settings">Settings</button><button data-mn="saveNow">Save now</button><button data-mn="confirmRestart">Restart this run</button><button class="danger" data-mn="confirmQuit">Quit to title</button></div>`);
+      <div class="mbtns"><button class="primary" data-mn="close">Resume</button><button data-mn="howto">How to play</button><button data-mn="settings">Settings</button><button data-mn="saveNow">Save now</button><button data-mn="report">Copy a problem report</button><button data-mn="confirmRestart">Restart this run</button><button class="danger" data-mn="confirmQuit">Quit to title</button></div>`);
   },
   settings() {
     return page('Settings', `
       ${seg('text', 'Text size', [['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Huge']])}
+      ${seg('perf', 'Graphics', [['auto', 'Auto'], ['full', 'Full'], ['balanced', 'Balanced'], ['light', 'Light']])}
+      <div class="dim mperf">${(root.Crisis && root.Crisis.Perf) ? `Running: ${root.Crisis.Perf.label()}. Auto picks for your phone and remembers.` : ''}</div>
       ${tog('reduce', 'Reduce motion', 'Stops animation and the shelter\'s wandering. Easier on the eyes and the battery.')}
       <div class="msub">Sound</div>
       ${tog('sound', 'Sound', 'Generated in the game. Starts after your first tap.')}
@@ -86,6 +88,7 @@ function handle(e) {
     case 'pause': M.screen = 'pause'; M.from = null; render(); break;
     case 'settings': case 'howto': case 'about': M.from = M.screen === 'confirm' ? M.prevScreen : M.screen; M.screen = a; if (a === 'howto') M.card = 0; render(); break;
     case 'saveNow': if (M.hooks.save) M.hooks.save(); toast('Saved'); break;
+    case 'report': if (M.hooks.report) { M.close(); M.hooks.report(); } break;
     case 'resetSettings': S().reset(); render(); toast('Settings reset'); break;
     case 'startFirst': S().set('tutorialSeen', true); M.close(); break;
     case 'confirmRestart': M.confirm({ title: 'Restart this run?', text: 'You will lose this run, and everyone in it. A new one will begin.', yes: 'Restart', danger: true, do: () => { M.close(); M.hooks.restart(); } }); break;
