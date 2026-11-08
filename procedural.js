@@ -57,7 +57,7 @@ reg('dream', 'camp', 1.2, (A) => ({ title: 'What they dreamed', text: `${first(A
 reg('prank', 'humor', 1.6, (A, B) => ({ title: 'The missing shoe', text: `${first(A)} cannot find one shoe. ${first(B)} is looking at the ceiling with great innocence.\n\n${speak(A, `${first(B)}. Where. Is. It.`)}`, choices: [
   { label: 'Side with the prankster', fn() { warmOrCold(A, B, 3, 2); mood(B, 4); all(2); return `<i>The shoe is found in the water bucket. Everyone is delighted except ${first(A)}.</i>`; } },
   { label: 'Make them give it back', fn() { warmOrCold(A, B, 1, -1); mood(A, 3); return `<i>${first(B)} hands it over, cold and a little ashamed.</i>`; } },
-  { label: 'Hide the other one too', fn() { warmOrCold(A, B, 4, 0); all(3); return `<i>It is the first time in days that the whole shelter has laughed at once.</i>`; } }] }));
+  { label: 'Hide the other one too', fn() { warmOrCold(A, B, 4, 0); all(3); return `<i>It is the first time in a long while that the whole shelter has laughed at once.</i>`; } }] }));
 reg('boast', 'humor', 1.3, (A, B) => ({ title: 'A tall story', text: `${first(A)} claims to have once ${pick(['outrun a police van', 'cooked for a governor', 'won a debate against a professor', 'fought a goat and won', 'been on the radio'])}.\n\n${speak(B, `Eh? When? Who saw it? Where is the evidence?`)}`, choices: [
   { label: 'Demand a demonstration', fn() { warmOrCold(A, B, 3, 0); all(2); return `<i>It goes terribly, which was the point.</i>`; } },
   { label: 'Back the story', fn() { mood(A, 4); warmOrCold(A, B, 2, 1); return `<i>${first(A)} straightens up an inch. ${first(B)} mutters about favouritism.</i>`; } },
@@ -76,7 +76,7 @@ reg('footprints', 'horror', 1.6, (A) => { const pl = pick(PLACE); return { title
   { label: 'Follow them', fn() { if (chance(0.45)) { H().hurt(A, rnd(5, 14), 'Ambushed following footprints.'); all(-3); return `<i>${pick(['A blade.', 'A pipe.', 'A fall through the floor.'])} ${first(A)} comes back bleeding. Whoever left the prints is long gone.</i>`; } all(-2); H().add('food', 1); return `<i>They end at a cracked window. On the sill: a small bundle of food, left or forgotten.</i>`; } },
   { label: 'Sweep them away', fn() { all(-1); return `<i>By morning, there are new ones. Smaller. Closer.</i>`; } },
   { label: 'Set a watch', fn() { mood(A, -2); all(1); return `<i>You see nothing. That is almost worse.</i>`; } }] }; });
-reg('smell', 'horror', 1.2, (A) => ({ title: 'The sweet smell', text: `A sweet, heavy smell is coming from ${pick(PLACE)}. Not rot, exactly. Not yet.\n\n${speak(A, `I know that smell. Please do not make me say what it is.`)}`, choices: [
+reg('smell', 'horror', 1.2, (A) => ({ title: 'The sweet smell', text: `A sweet, heavy smell hangs ${pick(PLACE)}. Not rot, exactly. Not yet.\n\n${speak(A, `I know that smell. Please do not make me say what it is.`)}`, choices: [
   { label: 'Seal the room', fn() { H().add('cloth', -1); all(-1); return `<i>It stays shut. The smell stays in the walls.</i>`; } },
   { label: 'Open it and look', fn() { all(-5); mood(A, -4); return `<i>You will not describe what is in there. Somebody will say a prayer. Somebody will be sick.</i>`; } },
   { label: 'Burn something to cover it', fn() { H().add('wood', -1); all(-1); return `<i>The smoke fills the corridor. Nobody mentions the smell again. Nobody forgets it.</i>`; } }] }));

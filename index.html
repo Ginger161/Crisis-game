@@ -1,4 +1,3 @@
-n
 <!doctype html>
 <html lang="en">
 
@@ -16,6 +15,8 @@ n
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="apple-mobile-web-app-title" content="Crisis">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="pc.css">
+  <link rel="stylesheet" href="mob.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- fonts load in the background: on a slow connection the game appears at once and switches font when they arrive -->
@@ -39,6 +40,22 @@ n
       window.addEventListener('resize', fit); window.addEventListener('orientationchange', function () { setTimeout(fit, 250); });
       if (window.visualViewport) { window.visualViewport.addEventListener('resize', fit); window.visualViewport.addEventListener('scroll', fit); }
       window.addEventListener('pageshow', fit); window.addEventListener('focus', fit);
+    })();
+  </script>
+  <script>
+    /* PC or phone: a real desktop (a mouse that hovers, a big enough window) gets its own layout, not a stretched phone screen.
+       Settings can force either. It is decided before the first draw and again whenever the window changes size. */
+    (function () {
+      function pick() {
+        var o = ''; try { o = localStorage.getItem('crisis_layout') || ''; } catch (e) {}
+        var fine = window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches;
+        var pc = o === 'pc' || (o !== 'phone' && fine && innerWidth >= 1100 && innerHeight >= 620);
+        /* a phone held upright gets the portrait layout: the house on top, one sheet you pull up from the bottom */
+        var mob = !pc && innerHeight > innerWidth * 1.1;
+        var el = document.documentElement, was = el.classList.contains('pc'), wasM = el.classList.contains('mob'); el.classList.toggle('pc', pc); el.classList.toggle('mob', mob);
+        if ((was !== pc || wasM !== mob) && window.Crisis && window.Crisis.relayout) window.Crisis.relayout();
+      }
+      pick(); window.addEventListener('resize', pick); window.__pickLayout = pick;
     })();
   </script>
   <div id="app"></div>
@@ -73,7 +90,10 @@ n
   <script src="game.js"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js').catch(() => { });
+      /* a new version takes over at once: reload one time so players never run yesterday's files */
+      const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+      navigator.serviceWorker.register('sw.js').then((r) => { try { r.update(); } catch (e) {} }).catch(() => { });
     }
   </script>
 </body>

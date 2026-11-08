@@ -167,6 +167,23 @@ X.runHome = function (forced) {
   if ((S.e.floor || 0) > 0 && st) goto(st.x, () => { if (X.hooks.stairs) X.hooks.stairs(-1); }); else goto(26, () => { if (X.hooks.exit) X.hooks.exit(true); });
 };
 function unhide() { const p = X.st.p; p.hidden = false; p.el.style.opacity = 1; }
+
+/* PC: what is under the mouse on a run, by the same rules as a click */
+const SPOTWORD = { crate: 'Crate', desk: 'Desk', shelf: 'Shelf', wardrobe: 'Wardrobe', counter: 'Counter', locker: 'Locker', bed: 'Bed', fridge: 'Fridge', cabinet: 'Cabinet', bag: 'Bag', body: 'A body', box: 'Box', pile: 'Pile', drawer: 'Drawers', trolley: 'Trolley' };
+X.hoverText = function (ev) {
+  const S = X.st; if (!S || !S.svg) return '';
+  const w = toWorld(ev); const p = S.p;
+  if ((S.e.floor || 0) === 0 && w.x < 24 && w.y > FLOOR - 50) return '<b>The way out</b><span class="go">Click: leave</span>';
+  if (S.camp) { const tp = S.camp.people.find((q) => Math.abs(w.x - q.x) <= 12 && w.y > FLOOR - 42); if (tp) return '<b>People</b><span class="go">Click: go and talk</span>'; }
+  const sti = S.stairs.find((q) => Math.abs(w.x - q.x) <= 18 && w.y > FLOOR - 64); if (sti) return `<b>Stairs</b><span class="go">Click: go ${sti.dir > 0 ? 'up' : 'down'}</span>`;
+  const b = (S.blocks || []).find((q) => !q.open && Math.abs(w.x - q.x) <= 12 && w.y > FLOOR - 46); if (b) return `<b>${b.kind === 'lock' ? 'A locked door' : 'Rubble in the way'}</b><span class="go">Click: ${b.kind === 'lock' ? 'try to get through' : 'clear a way'}</span>`;
+  const sp = S.spots.find((s) => !s.empty && Math.abs(w.x - s.x) <= 14 && w.y > FLOOR - 44 && w.y < FLOOR - 6);
+  if (sp) return `<b>${SPOTWORD[sp.k] || (sp.k ? sp.k[0].toUpperCase() + sp.k.slice(1) : 'Something')}</b>${sp.locked ? '<i>Locked</i><span class="go">Click: try the lock</span>' : `<span class="go">Click: ${sp.searched ? 'look again' : 'search it'}</span>`}`;
+  const h = S.hides.find((q) => Math.abs(w.x - q.x) <= 12 && w.y > FLOOR - 44 && w.y < FLOOR - 6); if (h) return '<b>A place to hide</b><span class="go">Click: hide here</span>';
+  const n = S.npcs.find((q) => !q.done && Math.abs(w.x - q.x) <= 12 && w.y > FLOOR - 40); if (n) return `<b>${n.name || 'Someone'}</b><span class="go">Click: ${(n.label || 'approach').toLowerCase()}</span>`;
+  const pt = S.pats.find((q) => !q.dead && Math.abs(w.x - q.x) <= 10 && w.y > FLOOR - 40); if (pt) return '<b>A patrol</b><i>Armed. Do not let them see you.</i>';
+  return '';
+};
 function onTap(ev) {
   const S = X.st; if (!S || (X.hooks.modalOpen && X.hooks.modalOpen()) || C.paused) return; ev.preventDefault(); const p = S.p;
   try { if (C.Audio) { C.Audio.start(); C.Audio.sfx('tap'); } } catch (e) {}
@@ -189,7 +206,7 @@ function search(i) {
   p.busy = true; setKind(p, sp.searched ? 'idle' : 'sitfloor');
   setTimeout(() => { if (!X.st) return; p.busy = false; setKind(p, 'idle'); if (X.hooks.search) X.hooks.search(i, sp.k); }, sp.searched ? 120 : 700);
 }
-function hide() { const p = X.st.p; p.hidden = true; p.el.style.opacity = 0.35; setKind(p, 'idle'); hint('Hidden. Tap anywhere to come out.'); }
+function hide() { const p = X.st.p; p.hidden = true; p.el.style.opacity = 0.35; setKind(p, 'idle'); hint(`Hidden. ${C.tw ? C.tw(true) : 'Tap'} anywhere to come out.`); }
 
 /* ---------- the one thing you can do right here ---------- */
 const REACH = 24;

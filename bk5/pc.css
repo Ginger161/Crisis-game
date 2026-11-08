@@ -1,0 +1,147 @@
+/* ============================================================================================
+   Crisis on a PC. Not a stretched phone: the whole house is the screen, the group stands down the
+   left like a roll call, the clock and the speed sit along the top, and everything else (items,
+   the world, the journal, the sheets) slides over the right of the house so the house never goes
+   away. A mouse can point, so things answer when you hover; a keyboard is there, so every common
+   action has a key. Everything here is scoped to html.pc: the phone layout is untouched.
+   ============================================================================================ */
+html.pc{--rw:320px;--hh:60px;font-size:16px}
+html.pc body{font-size:16px}
+html.pc kbd{font:600 10px/1 system-ui,sans-serif;color:var(--dim);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:2px 4px;margin-left:6px;background:var(--bg);letter-spacing:0;text-transform:none}
+
+/* ---------- the frame ---------- */
+html.pc .pcshell{display:grid;grid-template-columns:var(--rw) minmax(0,1fr);grid-template-rows:var(--hh) minmax(0,1fr);width:100%;max-width:none;height:var(--app-h,100vh);margin:0}
+html.pc .pcshell .stage{grid-row:2;grid-column:2;position:relative;overflow:hidden;aspect-ratio:auto;height:auto;border:0;background:radial-gradient(ellipse at 50% 60%,#16130f 0,#0b0a09 70%)}
+html.pc .pcshell #hstage{position:absolute;inset:0}
+html.pc .pcshell #hstage .house{height:100%}
+
+/* ---------- top bar ---------- */
+html.pc .pchud{grid-column:1/3;grid-row:1;display:flex;align-items:center;gap:18px;padding:0 18px 0 12px;min-height:var(--hh);border-bottom:1px solid var(--line);background:linear-gradient(#1a1714,#141210)}
+html.pc .pchud .menubtn{width:42px;height:42px;font-size:20px;border-radius:10px}
+html.pc .pchud .hudt{min-width:190px}
+html.pc .pchud .hudt b{font-size:21px}
+html.pc .pchud .phase{font-size:12px}
+html.pc .pchud .chips{flex:1;justify-content:center;gap:8px}
+html.pc .pchud .chip{font-size:15px;padding:4px 12px}
+html.pc .spdg{display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+html.pc .spdg button{min-width:44px;height:36px;border:0;border-radius:8px;background:transparent;color:var(--dim);padding:0 8px;display:flex;align-items:center;justify-content:center;gap:1px;cursor:pointer}
+html.pc .spdg button:hover{background:var(--panel2);color:var(--text)}
+html.pc .spdg button.on{background:var(--cream);color:#1a1008}
+html.pc .pcend{min-width:150px;display:flex;justify-content:flex-end}
+html.pc .pcend .endday{display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:10px;font-size:15px;white-space:nowrap;cursor:pointer}
+html.pc .pcend .endday .icw{width:18px;height:18px}
+html.pc .pcend span.endday.on{color:var(--orange);font-style:italic;border:0;background:none;cursor:default}
+
+/* ---------- the group: a roll call down the left ---------- */
+html.pc .roster{grid-row:2;grid-column:1;display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
+html.pc .rcards{flex:1 1 auto;overflow-y:auto;padding:12px 10px 6px;display:flex;flex-direction:column;gap:8px;min-height:0}
+html.pc .rcard{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:12px;text-align:left;width:100%;padding:8px 10px 8px 8px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer;transition:border-color .12s,background .12s}
+html.pc .rcard:hover{border-color:#5a5248;background:#24201c}
+html.pc .rcard.sel{border-color:var(--cream);background:#2a2520;box-shadow:inset 3px 0 0 var(--cream)}
+html.pc .rcard.away{opacity:.55}
+html.pc .rcard kbd{align-self:start}
+html.pc .rpic{position:relative;width:64px;height:64px;display:flex;align-items:flex-end;justify-content:center;background:#0f0d0b;border-radius:10px;overflow:hidden}
+html.pc .rpic svg:not(.rring){height:60px;width:auto}
+html.pc .rring{position:absolute;inset:2px;width:60px;height:60px;transform:rotate(-90deg)}
+html.pc .rring circle{fill:none;stroke-width:2.6}
+html.pc .rring .rb{stroke:rgba(255,255,255,.12)}
+html.pc .rring .rf{stroke:var(--cream);stroke-dasharray:100;transition:stroke-dashoffset .4s linear}
+html.pc .rtx{display:flex;flex-direction:column;gap:2px;min-width:0}
+html.pc .rtx b{font-family:Georgia,serif;font-weight:normal;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pc .rmood{font-size:13px;color:var(--text);opacity:.85;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pc .rmood i{flex:none;width:8px;height:8px;border-radius:50%}
+html.pc .rdo{font-size:13px;color:var(--dim);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pc .rsel{flex:none;padding:10px 14px 12px;border-top:1px solid var(--line)}
+html.pc .rselh{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-bottom:6px}
+html.pc .rsel .mini{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+html.pc .rsel .fdiary{margin-top:8px;font-size:13px;font-style:italic;color:var(--dim);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+html.pc .rtabs{flex:none;display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line)}
+html.pc .rtabs button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px 9px;border:0;border-radius:0;background:transparent;color:var(--dim);font-size:13px;cursor:pointer;position:relative}
+html.pc .rtabs button+button{border-left:1px solid var(--line)}
+html.pc .rtabs button:hover{color:var(--text);background:var(--panel2)}
+html.pc .rtabs button.on{color:var(--text);background:var(--panel2);box-shadow:inset 0 2px 0 var(--accent)}
+html.pc .rtabs .icw{width:20px;height:20px}
+html.pc .rtabs kbd{position:absolute;top:6px;right:8px;margin:0}
+
+/* ---------- drawers: Items, World, Journal slide over the right of the house ---------- */
+html.pc .drawer{position:absolute;top:0;right:0;bottom:0;width:min(520px,44%);display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--line);box-shadow:-18px 0 40px rgba(0,0,0,.45);z-index:6;animation:drw .16s ease-out}
+@keyframes drw{from{transform:translateX(24px);opacity:.5}to{transform:none;opacity:1}}
+html.pc .drawer .dhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px 18px;border-bottom:1px solid var(--line)}
+html.pc .drawer .dhead b{font-family:Georgia,serif;font-weight:normal;font-size:20px}
+html.pc .drawer .dhead button{width:36px;height:36px;border-radius:9px;cursor:pointer}
+html.pc .drawer .panel-area{flex:1;overflow-y:auto;padding:14px 18px}
+
+/* ---------- news: a quiet feed in the corner of the house, not a card over the middle ---------- */
+html.pc .feed{position:absolute;left:16px;bottom:16px;z-index:5;display:flex;flex-direction:column;gap:6px;max-width:440px;pointer-events:none}
+html.pc .feed .fd{background:rgba(20,18,16,.92);border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:8px;padding:8px 12px;font-size:14px;line-height:1.35;color:var(--text);animation:fdin .2s ease-out;transition:opacity .5s,transform .5s}
+html.pc .feed .fd.out{opacity:0;transform:translateY(6px)}
+@keyframes fdin{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+html.pc #toast2{left:auto;right:24px;bottom:24px;transform:none;max-width:420px}
+
+/* ---------- sheets: docked on the right, full height, the house still beside them ---------- */
+html.pc #modal.dock{box-shadow:-18px 0 40px rgba(0,0,0,.5)}
+html.pc #modal.dock .box{border-top:0;border-left:2px solid var(--orange);padding:18px 20px 16px;animation:sheetpc .18s ease-out}
+@keyframes sheetpc{from{transform:translateX(18px);opacity:.4}to{transform:none;opacity:1}}
+html.pc #modal.dock .mhead h3{font-size:22px}
+html.pc #modal.dock .story{font-size:16px;line-height:1.55}
+html.pc #modal.dock .btns button,html.pc #modal.dock [data-m]{cursor:pointer}
+html.pc #modal.dock [data-m]{position:relative}
+html.pc #modal.dock [data-m] kbd{position:absolute;right:12px;top:50%;transform:translateY(-50%)}
+html.pc #modal.dock [data-m]:hover{border-color:var(--cream)}
+
+/* ---------- pointing: things answer the mouse ---------- */
+html.pc button,html.pc [data-a],html.pc .hchip,html.pc [data-st],html.pc [data-p]{cursor:pointer}
+html.pc .hchip:hover{transform:translate(-50%,-50%) scale(1.08)}
+html.pc .hover-tip{position:fixed;z-index:40;pointer-events:none;background:rgba(18,16,14,.96);border:1px solid #4a443c;border-radius:8px;padding:7px 11px;font-size:14px;line-height:1.35;color:var(--text);max-width:300px;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+html.pc .hover-tip b{display:block;font-family:Georgia,serif;font-weight:normal;font-size:16px}
+html.pc .hover-tip i{color:var(--dim)}
+html.pc .hover-tip .go{color:var(--cream)}
+html.pc .hover-tip .no{color:#d98a7a}
+
+/* the phone-only bits never show on a PC */
+html.pc .pcshell .nav,html.pc .pcshell .panelwrap{display:none}
+
+/* need bars under the selected person */
+html.pc .rsel .mini i{display:block;height:6px;background:#2a2622;border-radius:3px;overflow:hidden}
+html.pc .rsel .mini b{display:block;height:100%;background:var(--good)}
+html.pc .rsel .mini .m-warn b{background:var(--warn)} html.pc .rsel .mini .m-bad b{background:var(--bad)}
+html.pc .rsel .mini small{display:block;font-size:12px;color:var(--dim);text-align:center;margin-top:3px}
+/* the chosen speed: the icon stays readable */
+html.pc .spdg button.on{background:var(--accent);color:var(--cream)}
+
+/* hovering an object in the house outlines it */
+html.pc #hstage [data-st]:hover{fill:rgba(255,236,190,.07);stroke:rgba(242,235,207,.55);stroke-width:.8;stroke-dasharray:2 1.5}
+html.pc #hstage [data-p]:hover{fill:rgba(255,236,190,.06)}
+/* a docked sheet is as tall as what it says, up to the full height: a two-line event is a card, a barter is a panel */
+html.pc #modal.dock{align-items:flex-start;pointer-events:none;box-shadow:none}
+html.pc #modal.dock .box{pointer-events:auto;max-height:100%;box-shadow:-18px 12px 40px rgba(0,0,0,.5);border-bottom:1px solid var(--line);border-radius:0 0 0 12px}
+html.pc #modal.dock .box .story{flex:0 1 auto}
+
+/* ---------- the menu: a dialog over the dimmed game, not a black page ---------- */
+html.pc #menu{background:rgba(8,7,6,.72);backdrop-filter:blur(2px);align-items:center}
+html.pc #menu .mpage{width:520px;max-height:min(760px,calc(100vh - 80px));overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 26px 24px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+html.pc #menu .mbtns button{min-height:46px;font-size:16px;cursor:pointer}
+html.pc #menu .mbtns button:hover{border-color:#6a6258}
+html.pc #menu .mpage{height:auto;flex:none;align-self:center}
+/* the live-drawn objects (stove fire, junk, the brazier glow) never catch the mouse: the object's own area underneath answers */
+#hdyn,#hglow{pointer-events:none}
+
+/* ---------- the wheel: opens at the object you clicked, over a light dim, not across the whole screen ---------- */
+html.pc .wheel{background:rgba(10,8,6,.55);display:block}
+html.pc .wheel:after{display:none}
+html.pc .wring.pcw{position:absolute;width:0;height:0;max-width:none}
+html.pc .wring.pcw .wcenter{width:150px}
+html.pc .wkeys{display:block;margin-top:4px;font-size:11px;color:var(--dim);letter-spacing:.06em}
+html.pc .wedge{cursor:pointer}
+html.pc .wedge:not(.off):hover .wcard{border-color:#fff4d8;transform:translateY(-2px);box-shadow:inset 0 0 0 2px #17120e,0 6px 14px rgba(0,0,0,.5)}
+
+/* ---------- the run ---------- */
+kbd.pck{display:none}
+html.pc kbd.pck{display:inline-block;position:absolute;top:4px;right:4px;margin:0}
+html.pc .shell.run{max-width:none}
+html.pc .rhud{min-height:var(--hh);padding:0 18px 0 12px}
+html.pc .rhud .hudt b{font-size:21px}
+html.pc .rhud .phase{font-size:12px}
+html.pc .rhud .rclk{font-size:26px}
+html.pc .rbar{padding:10px 18px;gap:14px}
+html.pc .rbar .rbtn{position:relative;min-width:64px;min-height:56px;cursor:pointer}

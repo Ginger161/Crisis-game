@@ -1,0 +1,84 @@
+n
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0e0d0c">
+  <title>Crisis</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Crisis">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- fonts load in the background: on a slow connection the game appears at once and switches font when they arrive -->
+  <link rel="stylesheet" media="print" onload="this.media='all'"
+    href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Gochi+Hand&display=swap">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Gochi+Hand&display=swap"></noscript>
+</head>
+
+<body>
+  <script>
+    /* Phone browsers draw an address bar on top and a toolbar below, and they come and go. 100vh counts the area behind them, so the game
+       measures the part you can actually see (visualViewport) and sizes itself to that, on load, rotation, and whenever the bars move. */
+    (function () {
+      function fit() {
+        var v = window.visualViewport, h = v ? v.height : window.innerHeight, t = v ? v.offsetTop : 0;
+        document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+        document.documentElement.style.setProperty('--app-top', Math.round(t) + 'px');
+        if (window.scrollY || t) window.scrollTo(0, 0);
+      }
+      fit();
+      window.addEventListener('resize', fit); window.addEventListener('orientationchange', function () { setTimeout(fit, 250); });
+      if (window.visualViewport) { window.visualViewport.addEventListener('resize', fit); window.visualViewport.addEventListener('scroll', fit); }
+      window.addEventListener('pageshow', fit); window.addEventListener('focus', fit);
+    })();
+  </script>
+  <div id="app"></div>
+  <div id="modal" class="hidden"></div>
+  <div id="menu" class="hidden"></div>
+  <script src="settings.js"></script>
+  <script src="perf.js"></script>
+  <script src="ui.js"></script>
+  <script src="audio.js"></script>
+  <script src="campus.js"></script>
+  <script src="sprites.js"></script>
+  <script src="side.js"></script>
+  <script src="scenes.js"></script>
+  <script src="sim.js"></script>
+  <script src="house.js"></script>
+  <script src="sites.js"></script>
+  <script src="expedition.js"></script>
+  <script src="voice.js"></script>
+  <script src="cast.js"></script>
+  <script src="groups.js"></script>
+  <script src="lore.js"></script>
+  <script src="story.js"></script>
+  <script src="storylets.js"></script>
+  <script src="politics.js"></script>
+  <script src="polylets.js"></script>
+  <script src="procedural.js"></script>
+  <script src="life.js"></script>
+  <script src="tutorial.js"></script>
+  <script src="menu.js"></script>
+  <script src="icons.js"></script>
+  <script src="wheel.js"></script>
+  <script src="game.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      /* a new version takes over at once: reload one time so players never run yesterday's files */
+      const hadController = !!navigator.serviceWorker.controller; let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+      navigator.serviceWorker.register('sw.js').then((r) => { try { r.update(); } catch (e) {} }).catch(() => { });
+    }
+  </script>
+</body>
+
+</html>

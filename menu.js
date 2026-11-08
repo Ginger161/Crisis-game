@@ -9,7 +9,7 @@ const sfx = (n) => { try { if (C.Audio) { C.Audio.start(); C.Audio.sfx(n); } } c
 const el = () => (M.el = M.el || document.getElementById('menu'));
 
 const page = (title, body, back) => `<div class="mpage"><div class="mtop">${back ? `<button class="mback" data-mn="${back}">←</button>` : '<span></span>'}<h2>${title}</h2><span></span></div>${body}</div>`;
-const tog = (k, label, hint) => `<div class="mrow"><div><b>${label}</b>${hint ? `<div class="dim">${hint}</div>` : ''}</div><button class="tog ${V()[k] ? 'on' : ''}" data-mn="tog" data-k="${k}" aria-pressed="${!!V()[k]}"><i></i></button></div>`;
+const tog = (k, label, hint) => `<div class="mrow"><div><b>${label}</b>${hint ? `<div class="dim">${hint}</div>` : ''}</div><button class="tog ${V()[k] ? 'on' : ''}" data-mn="tog" data-k="${k}" aria-pressed="${!!V()[k]}" aria-label="${label}"><i></i></button></div>`;
 const slider = (k, label) => `<div class="mrow col"><div class="srow"><b>${label}</b><span class="dim" id="v_${k}">${Math.round(V()[k] * 100)}%</span></div><input type="range" min="0" max="100" value="${Math.round(V()[k] * 100)}" data-k="${k}"></div>`;
 const seg = (k, label, opts) => `<div class="mrow col"><b>${label}</b><div class="seg">${opts.map(([v, t]) => `<button class="${V()[k] === v ? 'on' : ''}" data-mn="seg" data-k="${k}" data-v="${v}">${t}</button>`).join('')}</div></div>`;
 
@@ -22,11 +22,12 @@ const SCREENS = {
   settings() {
     return page('Settings', `
       ${seg('text', 'Text size', [['s', 'Small'], ['m', 'Medium'], ['l', 'Large'], ['xl', 'Huge']])}
+      ${seg('layout', 'Layout', [['auto', 'Auto'], ['pc', 'PC'], ['phone', 'Phone']])}
       ${seg('perf', 'Graphics', [['auto', 'Auto'], ['full', 'Full'], ['balanced', 'Balanced'], ['light', 'Light']])}
       <div class="dim mperf">${(root.Crisis && root.Crisis.Perf) ? `Running: ${root.Crisis.Perf.label()}. Auto picks for your phone and remembers.` : ''}</div>
       ${tog('reduce', 'Reduce motion', 'Stops animation and the shelter\'s wandering. Easier on the eyes and the battery.')}
       <div class="msub">Sound</div>
-      ${tog('sound', 'Sound', 'Generated in the game. Starts after your first tap.')}
+      ${tog('sound', 'Sound', `Generated in the game. Starts after your first ${C.tw ? C.tw() : 'tap'}.`)}
       ${slider('master', 'Volume')}${slider('music', 'Ambience (wind, distance)')}${slider('sfx', 'Interface sounds')}
       ${tog('haptics', 'Vibration', 'A short buzz for deaths and attacks, on phones that support it.')}
       <div class="msub">Content</div>
@@ -36,17 +37,23 @@ const SCREENS = {
   },
   howto() {
     const CARDS = [
-      ['🎯', 'The goal', 'Keep your people alive. Soldiers will come. Nobody knows when.'],
-      ['👆', 'Move', 'Tap a person to select. Tap the floor and they walk there.'],
-      ['🛠', 'Use things', 'Tap the chest, table, bunk, stove or window. Build a stove and a radio at the table first.'],
-      ['🚪', 'The door', 'Tap the door to go out by day. Bandits patrol in daylight, so it is risky.'],
-      ['💬', 'Talk', 'Tap your selected person again. People open up slowly.'],
-      ['🍚', 'Cook', 'Raw food is quick but weak, and can make you sick. A cooked pot fills everyone and lifts the room.'],
-      ['🎒', 'Carry', 'The cupboard is shared and limited. Everyone also has a small pack of their own.'],
-      ['🌙', 'Night run', 'You walk the scavenger yourself. Tap glowing spots. Dodge the pale cones.'],
-      ['🛏', 'Night', 'One guards. One sleeps. One goes out for supplies.'],
-      ['🏛', 'Other groups', 'Fourteen groups live here. Trade, lend, threaten, betray. They remember.'],
-      ['🗣', 'Gist', 'People talk. Step in, take sides, or stay out. Enemies get made.']
+      ['🎯', 'The goal', 'Keep your people alive until help reaches the campus. Nobody knows when. What you do is remembered.'],
+      ...(document.documentElement.classList.contains('pc') ? [
+        ['🖱', 'Everyone', 'You give the orders for the whole group. Click a card on the left (or press 1 to 6) to pick someone. Click the floor to send them there, or click anything in the house to use it. Hover first: it tells you what a click will do. Right-click stops whoever you picked.'],
+        ['🛠', 'Use things', 'Click the cupboard, the workbench, the stove, a bunk or a window from anywhere in the house: whoever you picked walks over and does it. Junk and rubble must be cleared before you can build there.'],
+        ['⌨', 'Keys', 'Space pauses. F changes the speed. Tab moves between people. E ends the day. I, W and J open Items, the World and the Journal. In a choice, press its number. Esc closes whatever is open. On a run: S to sneak, H to head home.']
+      ] : [
+        ['👆', 'Everyone', 'You give the orders for the whole group. Tap a face below to pick someone, then tap the floor to send them there or tap anything in the house to use it. Someone on a long job is busy until it is done: tap their face again to stop them.'],
+        ['🛠', 'Use things', 'Tap the cupboard, the workbench, the stove, a bunk or a window: whoever you picked walks over and does it. Junk and rubble must be cleared before you can build there.']
+      ]),
+      ['⚙', 'Build and make', 'Empty spots in the house can be built on. The workbench makes bandages, weapons and tools. Tools wear out.'],
+      ['🍚', 'Food', 'Raw food is weak and can make you sick. A cooked pot feeds more and lifts the room. Water runs out faster than food.'],
+      ['🛏', 'The day', 'A day passes in a few minutes, and the others get on with their own work. When there is nothing left to do, ' + (C.tw ? C.tw() : 'tap') + ' End day.'],
+      ['🌙', 'The night plan', 'At 8 in the evening, choose who sleeps in a bed or on the floor, who keeps watch, who goes out and who is sent.'],
+      ['👣', 'The night run', 'You walk the runner yourself. ' + (C.tw ? C.tw(true) : 'Tap') + ' glowing spots to search. Every noise spreads in a ring, and bandits come to see. Be home by 5.'],
+      ['🤒', 'Staying alive', 'Wounds go bad if you leave them. Fevers get worse. Cold nights cost sleep. Bandage early, board up the windows, keep a fire.'],
+      ['💬', 'People', 'They remember what you did, and what you told them. They can break, refuse you, or leave. Sit with them.'],
+      ['🏛', 'Mai Kudi', "The bandits' collector comes every few days. Pay, bargain or refuse, and live with what follows."]
     ];
     const i = Math.max(0, Math.min(CARDS.length - 1, M.card || 0)); const c = CARDS[i], last = i === CARDS.length - 1;
     return page('How to play', `<div class="gcard"><div class="gi">${c[0]}</div><h3>${c[1]}</h3><p>${c[2]}</p></div>

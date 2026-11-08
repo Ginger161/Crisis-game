@@ -753,7 +753,7 @@ button.primary,.navb.go,.rhome{background:#7a1d14!important;border-color:#9a2a1c
 /* performance: light mode drops drifting particles, never the paper grain */
 .pf-light .dust,.pf-light .ember,.pf-light .smoke,.pf-light .crow,.pf-light .mflash{display:none}
 .pf-light .fire{animation:none}
-.mperf{font-size:.85em;margin:-6px 0 10px;text-align:center}
+.mperf{font-size:.85em;margin:8px 0 14px;text-align:center}
 
 /* cold */
 .chip.cold{color:#dfe8f0;background:#2a3a4a;border-color:#5a7a9a;font-family:'Gochi Hand',cursive;letter-spacing:.06em}
@@ -769,3 +769,162 @@ button.primary,.navb.go,.rhome{background:#7a1d14!important;border-color:#9a2a1c
 
 /* problem report shown for manual copying */
 textarea.rep{width:100%;height:42vh;margin-top:8px;background:#141310;color:var(--text);border:1px solid var(--line);border-radius:8px;font:12px/1.35 monospace;padding:8px;resize:none;-webkit-user-select:text;user-select:text}
+
+/* ---------- playtest fixes ---------- */
+/* empty build sites: a small quiet marker, not a white disc over the room */
+.hchip.site{width:34px!important;height:34px!important;background:rgba(20,16,12,.55)!important;border:1px dashed rgba(227,217,192,.6)!important;opacity:.85}
+.hchip.site .icw{width:18px!important;height:18px!important;opacity:.8}
+/* night plan: while a destination is being chosen, the other rows step aside */
+.rlroles.picking .rlrow:not(.cur){display:none}
+.rlroles.picking .rldlist{max-height:max(160px,calc(100dvh - 470px));overflow-y:auto}
+.rldest.one{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#1a1714}
+.rldest.one b{font-family:var(--title);font-weight:normal}
+.rlch{min-height:44px;padding:0 14px;font-size:14px}
+/* End the day */
+.face.endday{margin-left:auto;justify-content:center;gap:6px;background:#1a1714;border-style:dashed;color:#cfc5ad}
+.face.endday .edm .icw{width:30px;height:30px}
+.face.endday.on{border-style:solid;opacity:.75;font-style:italic;text-align:center;padding:4px}
+/* the new-day card */
+.daycard{position:fixed;inset:0;z-index:9000;background:#0b0a09;display:flex;align-items:center;justify-content:center;animation:dcin .6s ease both;cursor:pointer}
+.daycard.out{animation:dcout .35s ease both}
+.daycard .dcin{text-align:center;color:#e3d9c0;padding:24px}
+.daycard .dcn{font-family:'Gochi Hand',cursive;font-size:64px;letter-spacing:.06em;line-height:1}
+.daycard .dcd{font-family:'Kalam',cursive;font-size:18px;color:#a69e8a;margin-top:10px}
+.daycard .dcw{font-family:'Kalam',cursive;font-size:16px;color:#8ab0d0;margin-top:14px}
+.daycard .dct{font-size:13px;color:#6a645a;margin-top:42px;letter-spacing:.08em;text-transform:uppercase}
+@keyframes dcin{from{opacity:0}to{opacity:1}}
+@keyframes dcout{to{opacity:0}}
+
+/* the bag strip always fits on one line, however big the bag (a strong runner carries 14) */
+.rbag{flex-wrap:nowrap!important}
+.rbag .rs{flex:0 1 auto!important;width:calc((100% - (var(--n,10) - 1) * 3px) / var(--n,10))!important;max-width:24px;min-width:0}
+/* speech sits above the build markers (it is brief, and taps pass through it); empty-site markers are still a full 40px target */
+.house .hbub{z-index:3}
+.hchip.site{width:40px!important;height:40px!important}
+.house .hbub,.house .hbub *{pointer-events:none!important}
+
+/* End day lives at the end of the status line: always on screen, however many people there are */
+.flinewrap{display:flex;align-items:center;gap:8px;min-width:0}
+.flinewrap .fline{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flinewrap .endday{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;font-size:14px;border-style:dashed;margin:0}
+.flinewrap .endday .icw{width:18px;height:18px}
+.flinewrap .endday.on{border:0;font-style:italic;color:#a69e8a;min-height:0;padding:0 2px}
+/* night plan: while choosing the second destination, the first choice's summary steps aside too */
+.rlroles.picking .rldest.one{display:none}
+/* the top bar never overlaps: the clock takes the space it needs, the counters give way on narrow phones */
+.hud .hudt{flex:1 1 auto;min-width:0;overflow:hidden}
+.hud .chips{flex:0 0 auto}
+@media (max-width:374px){
+  .hud{gap:5px;padding:6px 6px}
+  .hud .hudt b{font-size:13px}
+  .hud .chips .chip:nth-child(n+3):not(.cold):not(.loud){display:none}
+  .hud .chip{padding:0 6px!important;min-width:0!important;gap:2px}
+  .hud .chip .icw{width:16px!important;height:16px!important}
+}
+/* a wide scene picture in a sheet header puts the title on its own line instead of pushing it off the screen */
+#modal .mhead{flex-wrap:wrap}
+#modal .mhead h3{min-width:40%}
+
+/* an empty deal says what to do across the whole box, not in a thin column */
+.btdeal .ltg .btwide{display:block;width:100%;grid-column:1/-1;flex:1 1 100%}
+
+/* TWoM-style loader: a ring round the station's icon fills as the work goes on */
+.hchip{position:absolute}
+.hchip .hring{position:absolute;inset:-5px;width:calc(100% + 10px);height:calc(100% + 10px);pointer-events:none;transform:rotate(-90deg);opacity:0;transition:opacity .25s}
+.hchip.working .hring{opacity:1}
+.hchip .hring circle{fill:none;stroke-width:3.2}
+.hchip .hring .rb{stroke:rgba(20,16,12,.55)}
+.hchip .hring .rf{stroke:#e3d9c0;stroke-dasharray:100;stroke-dashoffset:100;stroke-linecap:round;transition:stroke-dashoffset .4s linear}
+.hchip.working{opacity:1!important;border-style:solid!important}
+
+/* steam off a cooking pot */
+.steam{animation:steam 1.8s ease-in infinite}
+@keyframes steam{0%{transform:translateY(2px);opacity:0}30%{opacity:.5}100%{transform:translateY(-6px);opacity:0}}
+.pf-light .steam{display:none}
+
+/* ---------- tiles, not lists: every count, choice and place is a card that holds its own words ---------- */
+.ctiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;margin-top:8px}
+.ctile{background:#26221c;border:1px solid #4a4237;border-radius:12px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;text-align:center}
+.ctile .icw{width:24px;height:24px}
+.ctile b{font-size:21px;line-height:1.05;font-family:var(--title)}
+.ctile .cn{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ctile small{font-size:11px;color:var(--dim);line-height:1.15;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctile.zero{opacity:.45}
+.utiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.utiles .utile{min-height:72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 4px;border-radius:12px;text-align:center;min-width:0;margin:0}
+.utile .icw{width:24px;height:24px;flex:none}
+.utile span{font-size:13px;line-height:1.15;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.utile small{font-size:11px;color:var(--dim);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.jtiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.jtile{background:#26221c;border:1px solid #4a4237;border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.jtile b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jtile small{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jtile .tbar{display:block;height:5px;border-radius:3px;background:#3a352d;overflow:hidden;margin:2px 0 4px}
+.jtile .tbar b{display:block;height:100%;background:var(--good)}
+.jtile button{min-height:38px;font-size:13px;margin:0}
+.gtiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.gtile{background:#26221c;border:1px solid #4a4237;border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.gtile .icw{width:20px;height:20px}
+.gtile b{font-family:var(--title);font-weight:normal;font-size:15px;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.gtile small,.gtile .gst{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gtile .gst{color:#cfc5ad}
+.gtile.gone{opacity:.45}
+/* buildings: name, distance, and loot and danger as pips */
+.dgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.rld.dbtn{padding:0;min-height:0;background:none;border:0;display:block;text-align:left;width:100%}
+.dtile{display:flex;flex-direction:column;gap:4px;background:#26221c;border:1px solid #4a4237;border-radius:12px;padding:9px 10px;min-width:0;height:100%;text-align:left;color:var(--text)}
+.rld.on .dtile{border-color:#d9a06a;box-shadow:inset 0 0 0 1.5px #d9a06a;background:#33281e}
+.dtile.hot{border-color:#7a3a28}
+.dtile b{font-family:var(--title);font-weight:normal;font-size:15px;line-height:1.1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.drow{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);min-width:0}
+.drow .icw{width:14px;height:14px;flex:none}
+.dpips{display:inline-flex;gap:3px;align-items:center}
+.dpips i{width:9px;height:9px;border-radius:2px;background:#4a4237}
+.dpips i.f{background:#d9cfb5}.dpips i.r{background:#d0603f}
+.dflag{font-size:11px;align-self:flex-start;padding:1px 6px;border-radius:8px;background:#3a2018;color:#f0b49a;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.dlegend{display:flex;gap:14px;font-size:12px;color:var(--dim);margin-top:8px;flex-wrap:wrap}
+.dlegend span{display:inline-flex;align-items:center;gap:4px}.dlegend .icw{width:13px;height:13px}
+#modal .btns.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#modal .btns.tiles>button:not(.tb){grid-column:1/-1}
+#modal .btns.tiles>button.tb{padding:0;background:none;border:0;min-height:0;text-align:left;display:block;box-shadow:none}
+#modal .btns.tiles>button.tb[aria-disabled="true"] .dtile{opacity:.45}
+/* the night plan: a box for each place to be tonight, the faces inside */
+.nplan .nhint{font-size:13px;color:var(--dim)}
+.nboxes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.nbox{background:#1d1a16;border:1.5px dashed #4a4237;border-radius:14px;padding:7px 8px 9px;min-height:104px;display:flex;flex-direction:column;gap:6px;min-width:0;cursor:pointer;transition:border-color .12s,background .12s}
+.nbox.nb-send{grid-column:1/-1;min-height:84px}
+.nbox h5{margin:0;font-size:14px;display:flex;align-items:center;gap:6px;font-weight:normal;font-family:var(--title);min-width:0}
+.nbox h5 span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nbox h5 .icw{width:16px;height:16px;flex:none}
+.nbox h5 small{margin-left:auto;font-size:11px;color:var(--dim);font-family:var(--hand);white-space:nowrap;flex:none}
+.ntoks{display:flex;flex-wrap:wrap;gap:6px}
+.ntok{width:54px;padding:2px 0 3px;margin:0;border-radius:12px;background:#2a251f;border:1.5px solid #4a4237;display:flex;flex-direction:column;align-items:center;gap:0;min-height:0;touch-action:none;color:var(--text)}
+.ntok .ntp{height:40px;overflow:hidden;display:flex;align-items:flex-end}
+.ntok .ntp svg{height:42px;width:auto}
+.ntok .ntn{font-size:11px;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ntok.on{border-color:#f2ebcf;box-shadow:0 0 0 2px rgba(242,235,207,.3);background:#3b2a1c}
+.ntok.ndrag{opacity:.35}
+.ntok.nghost{position:fixed;z-index:999;pointer-events:none;transform:scale(1.08);box-shadow:0 8px 20px rgba(0,0,0,.6)}
+.nbox.can{border-color:#a86a3a;border-style:solid;background:#261d16}
+.nbox.no{opacity:.45}
+.nbox.over{border-color:#f2ebcf;border-style:solid}
+.ndest{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:13px;min-height:44px;padding:4px 8px;margin:0;border-radius:10px;background:#2a251f;border:1px solid #4a4237;min-width:0;text-align:left}
+.ndest span{line-height:1.15;min-width:0;overflow-wrap:anywhere}
+.ndest small{color:var(--dim);flex:none}
+.ndest.none{font-size:12px;color:var(--warn);border-style:dashed;background:none}
+.ndests{margin-top:4px}
+.rlroles.picking .nbox:not(.nb-go):not(.nb-send){display:none}
+.rlroles.picking .nbox.nb-go:not(:has(.ntok)),.rlroles.picking .nbox.nb-send:not(:has(.ntok)){display:none}
+.rlroles.picking .nbox{grid-column:1/-1;min-height:0;flex-direction:row;align-items:center;flex-wrap:wrap}
+.rlroles.picking .nbox h5{flex:1 1 100%}
+.rlroles.picking .ndest.none{display:none}
+#modal .btns button:has(.pips){height:auto;min-height:56px;padding-top:8px;padding-bottom:9px;flex-wrap:wrap;align-content:center}
+#modal .btns button .pips{display:block;line-height:1.1;margin-top:2px}
+#modal .story:empty{display:none}
+/* a sheet of actions: tiles with an icon, a short name and, under it, what it means right now */
+#modal .btns.acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#modal .btns.acts .atile{min-height:86px;margin:0;padding:10px 4px 8px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;text-align:center;border-radius:14px;min-width:0}
+#modal .btns.acts .atile .icw{width:24px;height:24px;flex:none}
+#modal .btns.acts .atile .al{font-size:14px;line-height:1.15;max-width:100%;overflow-wrap:anywhere}
+#modal .btns.acts .atile small{font-size:11px;line-height:1.15;color:var(--dim);max-width:100%;overflow-wrap:anywhere}
+#modal .btns button .csub{display:block;font-size:12px;color:var(--dim);margin-top:2px}

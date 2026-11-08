@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}iframe{border:0;width:390px;height:760px;display:block}pre{margin:0;color:#8f8;font:10px monospace;white-space:pre-wrap;width:490px}</style></head><body>
+<iframe id="f" src="index.html"></iframe><pre id="log"></pre>
+<script>
+const out=[];const L=m=>out.push(m);const f=document.getElementById('f');const wait=ms=>new Promise(r=>setTimeout(r,ms));
+f.onload=()=>setTimeout(run,300);
+async function run(){try{
+const w=f.contentWindow,d=f.contentDocument;const q=s=>d.querySelector(s),qa=s=>[...d.querySelectorAll(s)];
+w.addEventListener('error',e=>L('PAGE ERROR: '+e.message+' @'+(e.filename||'').split('/').pop()+':'+e.lineno));
+const modalOpen=()=>!q('#modal').classList.contains('hidden');
+q('[data-a=new]').click();let n=0;while(modalOpen()&&n++<40){const b=qa('#modal .btns button').find(x=>/Continue/.test(x.textContent))||q('#modal .btns button');if(!b)break;b.click();}
+const C=w.__crisis,G=C.G;G.speed=0;const toasts=[];w.Crisis.UI.toast=t=>toasts.push(String(t).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim());
+Object.assign(G.inv,{wood:9,parts:5,cloth:4,food:8});
+const me=G.S.find(s=>s.id===G.sel);
+C.openWheel('craft');await wait(500);
+L('craft wheel: '+qa('#wheel .wedge').map(e=>e.querySelector('.wl').textContent+' ['+qa('#wheel .wedge .wmeta')[qa('#wheel .wedge').indexOf(e)].textContent.replace(/\s+/g,' ').trim()+']').join(' | '));
+L('hub: '+(q('#wheel .whub svg')?'icon drawn':'no icon')+' | cost chips: '+qa('#wheel .cc').length+' | red (short) chips: '+qa('#wheel .cc.lack').length+' | time chips: '+qa('#wheel .ct').length);
+window.__shotReady=1;
+}catch(e){L('TEST ERROR: '+e.message+' @'+(e.stack||'').split('\n')[1])}
+document.getElementById('log').textContent=out.join('\n');}
+</script></body></html>

@@ -26,7 +26,9 @@ U.refresh = function () {
 U.soon = function () { if (typeof setTimeout === 'function') { setTimeout(U.refresh, 0); setTimeout(U.refresh, 250); } };
 let tt = null;
 U.toast = function (text) {
-  if (typeof document === 'undefined' || !document.body) return; let t = document.getElementById('toast2');
+  if (typeof document === 'undefined' || !document.body) return;
+  { const f = document.documentElement.classList.contains('pc') && document.getElementById('feed');
+    if (f) { const d = document.createElement('div'); d.className = 'fd'; d.innerHTML = String(text); f.appendChild(d); while (f.children.length > 4) f.removeChild(f.firstChild); setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 600); }, 7000); return; } } let t = document.getElementById('toast2');
   if (!t) { t = document.createElement('div'); t.id = 'toast2'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
   t.innerHTML = String(text); t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2600);
 };

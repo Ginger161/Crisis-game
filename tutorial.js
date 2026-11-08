@@ -4,12 +4,13 @@
 'use strict';
 const C = root.Crisis = root.Crisis || {};
 const T = { active: false, i: 0, el: null };
+const tw = (cap) => (C.tw ? C.tw(cap) : (cap ? 'Tap' : 'tap'));
 const STEPS = [
   { text: '<b>Keep your people alive.</b> Soldiers will come. Nobody knows when.', btn: 'Start' },
-  { text: '👆 <b>Tap a different person</b> in the room.', wait: 'select' },
-  { text: '👣 <b>Tap the floor.</b> They walk there.', wait: 'walk' },
-  { text: '🛠 <b>Tap the window, the chest or the table.</b> They go and use it.', wait: 'object' },
-  { text: '💬 <b>Tap your selected person again</b> to talk. Trust is earned.', wait: 'talk' },
+  { get text() { return `👆 <b>${tw(true)} a different person</b> in the room.`; }, wait: 'select' },
+  { get text() { return `👣 <b>${tw(true)} the floor.</b> They walk there.`; }, wait: 'walk' },
+  { get text() { return `🛠 <b>${tw(true)} the window, the chest or the table.</b> They go and use it.`; }, wait: 'object' },
+  { get text() { return `💬 <b>${tw(true)} your selected person again</b> to talk. Trust is earned.`; }, wait: 'talk' },
   { text: '🌍 <b>Tap World</b> at the bottom. Other groups live there.', wait: 'tab:world' },
   { text: '🎒 Hunger kills. <b>Tap Items</b>, then eat something. Cooked is best.', wait: 'use' },
   { text: '🌙 <b>Tap Night</b> when you are ready. ☰ at the top has the guide.', btn: 'Got it' }
@@ -33,6 +34,7 @@ function draw() {
 }
 T.place = function () {
   if (!T.el) return; const el = T.el; if (!T.active) { el.classList.add('hidden'); return; }
+  const ms = document.getElementById('msheet'); if (ms) { const r = ms.getBoundingClientRect(); el.style.left = (r.left + 8) + 'px'; el.style.width = (r.width - 16) + 'px'; el.style.top = 'auto'; el.style.bottom = Math.max(0, window.innerHeight - r.top + 10) + 'px'; el.classList.remove('hidden'); return; }
   const a = document.querySelector('.nav'), pw = document.querySelector('.panelwrap');
   if (!a || !pw) { el.classList.add('hidden'); return; }
   const r = pw.getBoundingClientRect(), ar = a.getBoundingClientRect();

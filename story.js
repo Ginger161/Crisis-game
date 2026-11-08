@@ -47,7 +47,7 @@ function bubble(name, to, text) {
   const me = avatar(); const mine = me ? first(me) : null;
   if (to === 'you') to = mine || 'you';
   if (mine && name === mine && (!to || to === mine)) { const c = CUR && [CUR.A, CUR.B, CUR.C].filter(Boolean).find((q) => q !== me); to = c ? first(c) : 'everyone'; }
-  const tag = (n) => (mine && n === mine ? `${n} <b class="me">(you)</b>` : n);
+  const tag = (n) => n;   /* you direct everyone: nobody is marked as you */
   return `<div class="bub"><div class="who">${tag(name)}${to ? ` <i>to</i> ${tag(to)}` : ''}</div>“${text}”</div>`;
 }
 function target(s) { const me = avatar(); const ids = [CUR && CUR.A, CUR && CUR.B, CUR && CUR.C].filter(Boolean); const o = ids.find((q) => q !== s && q !== me) || ids.find((q) => q !== s); if (o && ids.length >= 2) return first(o); return me && me !== s ? first(me) : 'everyone'; }
@@ -173,15 +173,28 @@ function startTopic(s, t) {
 /* ---------- the director ---------- */
 const HUMAN = ['beat', 'camp', 'pair', 'romance', 'grief', 'humor', 'gist', 'favor'];
 const DREAD = ['horror', 'crisis', 'nemesis'];
+/* storylets whose words fix them to a time of day: night (20:00-05:00), evening (17:00-02:00), morning (05:00-11:00) */
+const TOD = { meal_together: 'evening', mi_watch: 'night', ng_owambe: 'evening', mi_dream: 'morning', legacy_scream: 'night', broadcast: 'evening', knock_3am: 'night', lullaby: 'night', child_crying: 'night', story_fire: 'evening', closeness: 'evening', ghost: 'morning' };
+/* RETIRED: events that belong to an older version of the game, or that duplicate a newer one.
+   legacy_beg / legacy_trade -> the door visitors (v_need, v_trade); mi_rumour_trade, ng_paper_news, news_rumor -> the one rumour channel
+   (the morning report and the radio); envoy, standoff, secret_out, defector -> the faction-diplomacy layer, folded away:
+   the groups are now places and people you meet, not a negotiating table. */
+const RETIRED = new Set(['legacy_beg', 'legacy_trade', 'mi_rumour_trade', 'ng_paper_news', 'news_rumor', 'envoy', 'standoff', 'secret_out', 'defector']);
 function eligible(d, x) {
+  if (RETIRED.has(d.id)) return null;
+  /* one knock at the door a day: every visitor, favour, trader and returning stranger shares it */
+  if (d.door && (H.G.doorDay === H.G.day || H.G.day < (H.G.doorFree || 0))) return null;   /* knocks are spaced: after one, a day or two of quiet at the door */
   const G = H.G; G.dir = G.dir || { tension: 20, last: [], cool: {} };
   if (d.once && mem('fired:' + d.id)) return null;
   const last = G.dir.cool[d.id]; if (last != null && G.day - last < (d.cd == null ? 4 : d.cd)) return null;
   if (d.when && !d.when(x)) return null;
+  { const h = ((G.t || 0) % 1440) / 60; const tod = TOD[d.id] || (/^ng_prayer_warriors$|^mi_headcount$/.test(d.id) ? 'night' : null);   /* events written for a time of day only happen then */
+    if (tod === 'night' && !(h >= 20 || h < 5)) return null; if (tod === 'evening' && !(h >= 17 || h < 2)) return null; if (tod === 'morning' && !(h >= 5 && h < 11)) return null; }
   if (d.kind !== 'beat' && G.dir.last.slice(-2).includes(d.id)) return null;
   return resolveCast(d, x);
 }
 function fire(d, cs, x) {
+  if (d.door) { H.G.doorDay = H.G.day; H.G.doorFree = H.G.day + 1 + (Math.random() < 0.5 ? 1 : 0); }
   const G = H.G; G.dir = G.dir || { tension: 20, last: [], cool: {} };
   let ok = true; CUR = d.kind === 'beat' ? { A: d._s } : (cs || {});
   if (d.door && H.knock) ok = H.knock(d, cs, () => d.run(x, cs || {}));

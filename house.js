@@ -52,12 +52,29 @@ function furniture(id, st, y1, B, G) {
       return o + `<text x="${x - 11}" y="${y1 - 17}" font-size="3.6" fill="#8ab8e8" fill-opacity=".7" font-family="monospace">WATER</text>`;
     }
     case id === 'filter': return B.filter ? rect(x - 6, y1 - 20, 12, 20, '#5a6a72') + rect(x - 5, y1 - 18, 10, 3, '#8aa8b8') + rect(x - 3, y1 - 12, 6, 8, '#a8c0c8') + rect(x - 1, y1 - 3, 2, 3, '#3d7ab8') : ghost(x - 9, y1 - 22, 18, 22);
-    case id === 'bench': return B.bench ? rect(x - 16, y1 - 16, 32, 3, WOOD2) + rect(x - 15, y1 - 13, 2, 13, WOOD) + rect(x + 13, y1 - 13, 2, 13, WOOD) + rect(x - 12, y1 - 20, 5, 4, '#7a7f85') + rect(x - 2, y1 - 19, 8, 3, '#c0a060') + rect(x + 8, y1 - 21, 2, 5, '#a04a3a') + rect(x - 14, y1 - 30, 28, 14, 'none', `stroke="${TRIM}" stroke-width=".5"`) : ghost(x - 17, y1 - 20, 34, 20);
-    case id === 'still': return B.still ? rect(x - 7, y1 - 14, 14, 14, '#7a6a4a') + rect(x - 5, y1 - 22, 10, 8, '#8a7a5a') + `<path d="M${x + 5} ${y1 - 20} q8 -4 12 6 v${14}" stroke="#a89868" stroke-width="1.2" fill="none"/>` + rect(x + 14, y1 - 6, 6, 6, '#3d7ab8') : ghost(x - 9, y1 - 24, 18, 24);
+    case id === 'bench': return B.bench ? rect(x - 17, y1 - 17, 34, 4, WOOD2) + rect(x - 17, y1 - 17, 34, 1, '#a07a52') + rect(x - 16, y1 - 13, 3, 13, WOOD) + rect(x + 13, y1 - 13, 3, 13, WOOD) + rect(x - 14, y1 - 6, 28, 2, WOOD)   /* top, legs, shelf */
+      + rect(x - 15, y1 - 22, 7, 5, '#6a6e74') + rect(x - 16, y1 - 20, 9, 1.5, '#8a8e94') + rect(x - 2, y1 - 19, 9, 2, '#c0a060') + rect(x + 9, y1 - 21, 2, 4, '#a04a3a')   /* a vice, a plank, a tin */
+      + rect(x - 15, y1 - 44, 30, 18, '#5a4630') + rect(x - 15, y1 - 44, 30, 1.5, '#7a6040')                                   /* the pegboard */
+      + rect(x - 12, y1 - 41, 1.4, 11, '#9aa0a6') + rect(x - 13.5, y1 - 41, 4.5, 3, '#6a6e74')                                /* a hammer */
+      + `<path d="M${x - 5} ${y1 - 40} l9 0 l0 3 l-2 2 l-2 -2 l-2 2 l-2 -2 l-1 2z" fill="#b8bcc0"/>` + rect(x - 5, y1 - 42, 3, 2, '#6a3a24')   /* a saw */
+      + rect(x + 8, y1 - 41, 1.2, 10, '#9aa0a6') + rect(x + 7, y1 - 41, 3.2, 2, '#c84a2a') : ghost(x - 17, y1 - 44, 34, 44);   /* a screwdriver */
+    case id === 'still': return B.still ? rect(x - 8, y1 - 5, 16, 5, '#3a3532') + rect(x - 4, y1 - 4, 8, 2, 'rgb(200,90,30)')   /* a little fire under it */
+      + rect(x - 9, y1 - 19, 18, 14, '#b06a3a') + rect(x - 9, y1 - 19, 18, 2, '#d08a52') + rect(x - 9, y1 - 12, 18, 1, '#8a4a22')   /* the copper pot */
+      + rect(x - 4, y1 - 25, 8, 6, '#b06a3a') + rect(x - 4, y1 - 25, 8, 1.5, '#d08a52')                                         /* the neck */
+      + `<path d="M${x + 4} ${y1 - 23} q10 -3 12 4 q-4 2 0 4 q-4 2 0 4 q-4 2 0 5" stroke="#d08a52" stroke-width="1.4" fill="none"/>`   /* the coil */
+      + rect(x + 13, y1 - 8, 8, 8, '#3d7ab8') + rect(x + 15, y1 - 10, 3, 2, '#2d5a8a') : ghost(x - 10, y1 - 26, 30, 26);   /* the jerrycan */
     case id === 'stove': {
-      if (!B.stove) return ghost(x - 11, y1 - 26, 22, 26);
-      o += rect(x - 8, y1 - 18, 16, 18, '#3a3532') + rect(x - 8, y1 - 18, 16, 2, '#5a5550') + rect(x - 4, y1 - 12, 8, 6, '#14100d') + rect(x - 2, y1 - 11, 4, 3, '#e8802a', 'class="flame"');
-      o += rect(x - 1.5, y1 - 44, 3, 26, '#4a4540') + rect(x - 3, y1 - 44, 6, 2, '#5a5550');
+      if (!B.stove) return ghost(x - 13, y1 - 26, 26, 26);
+      /* waist-high, so a cook can reach the pot: a cut-down drum on legs, a fire door, a pot on the hot plate, a pipe out */
+      const cooking = !!(G && G.S && G.S.some((p) => p.act && p.act.k === 'cook' && p.act.walkLeft <= 0));
+      o += rect(x - 11, y1 - 4, 2, 4, '#2a2420') + rect(x + 9, y1 - 4, 2, 4, '#2a2420');                                         /* legs */
+      o += rect(x - 12, y1 - 17, 24, 13, '#7a3f22') + rect(x - 12, y1 - 17, 24, 2, '#9a5a32') + rect(x - 12, y1 - 7, 24, 1, '#5a2e18');   /* the drum, ribbed */
+      o += rect(x - 6, y1 - 14, 12, 8, '#1a0f0a') + rect(x - 6, y1 - 14, 12, 1, '#3a2a20');                                    /* the fire door */
+      o += cooking ? rect(x - 4, y1 - 11, 3, 4, 'rgb(255,128,36)', 'class="flame"') + rect(x - 1, y1 - 12, 3, 5, 'rgb(255,196,90)', 'class="flame" style="animation-delay:-.2s"') + rect(x + 2, y1 - 10, 2, 3, 'rgb(255,110,30)', 'class="flame"') : rect(x - 4, y1 - 8, 8, 1.5, 'rgb(150,60,30)');
+      o += rect(x - 13, y1 - 19, 26, 2, '#3a3532');                                                                           /* the hot plate */
+      o += rect(x - 7, y1 - 26, 12, 7, '#2a2826') + rect(x - 8, y1 - 26, 14, 1.5, '#55524e') + rect(x - 2, y1 - 28, 2, 2, '#55524e');   /* a pot with a lid */
+      if (cooking) o += [0, 1, 2].map((i) => `<path class="steam" style="animation-delay:-${i * 0.6}s" d="M${x - 3 + i * 3} ${y1 - 29} q-2 -4 0 -7 q2 -3 0 -6" stroke="#d8d0c0" stroke-width=".8" fill="none" opacity=".5"/>`).join('');
+      o += rect(x + 8, y1 - 50, 3, 31, '#4a4540') + rect(x + 8, y1 - 50, 10, 3, '#4a4540');                                    /* the pipe out */
       return o;
     }
     case id === 'table': return rect(x - 18, y1 - 17, 36, 3, WOOD2) + rect(x - 16, y1 - 14, 2, 14, WOOD) + rect(x + 14, y1 - 14, 2, 14, WOOD) + rect(x - 24, y1 - 9, 6, 9, WOOD) + rect(x - 24, y1 - 9, 6, 2, WOOD2) + rect(x + 18, y1 - 9, 6, 9, WOOD) + rect(x + 18, y1 - 9, 6, 2, WOOD2) + rect(x - 6, y1 - 20, 5, 3, '#c8c0a8') + rect(x + 4, y1 - 20, 5, 3, '#c8c0a8');
@@ -191,13 +208,26 @@ function critters(R, y1) {
   return o;
 }
 
-const FSCALE = { cupboard: 0.8, water: 0.85, bench: 0.8, still: 0.85, stove: 0.85, table: 0.78, radio: 0.85, tally: 0.85, garden: 0.85, roof: 0.85, infirm: 0.9, filter: 0.85, mat: 1 };
+const FSCALE = { cupboard: 0.8, water: 0.85, bench: 1, still: 1, stove: 1.05, table: 0.78, radio: 0.85, tally: 0.85, garden: 0.85, roof: 0.85, infirm: 0.9, filter: 0.85, mat: 1 };
 /* the last residents' junk heaped on the build sites, and rubble on the roof */
+/* what blocks a build site. Rubble: a fallen heap of concrete, brick and bent iron, wider than a person and plainly in the way.
+   Junk: a pile of broken furniture, a mattress, boxes and a smashed chair. Both are drawn bigger and bolder than the room's clutter. */
 function junkArt(x, y1, rubble) {
-  let o = rect(x - 16, y1 - 1.2, 32, 1.2, '#2a2018', 'opacity=".6"');
-  if (rubble) { [[-12, 5, 9], [-4, 8, 12], [5, 6, 10], [12, 4, 8], [-8, 12, 7], [1, 14, 9], [8, 11, 6]].forEach(([dx, hh, w], i) => { o += rect(x + dx - w / 2, y1 - hh, w, hh, ['#6a6258', '#7a7064', '#5a5248', '#8a6a52'][i % 4]) + rect(x + dx - w / 2, y1 - hh, w, 0.8, '#9a9080'); }); return o + rect(x - 3, y1 - 20, 1.5, 9, '#5a5f66') + rect(x + 6, y1 - 17, 1.2, 7, '#5a5f66'); }
-  o += rect(x - 15, y1 - 9, 12, 9, '#5a4330') + rect(x - 15, y1 - 9, 12, 1.5, '#7a5a3c') + rect(x - 4, y1 - 14, 10, 14, '#4a3a5a', 'opacity=".9"') + rect(x + 6, y1 - 7, 10, 7, '#8a8270') + rect(x + 7, y1 - 6, 8, 1, '#5a5248') + rect(x - 10, y1 - 13, 6, 4, '#c8c0a8') + rect(x + 1, y1 - 17, 9, 3, '#6a3a2a') + rect(x - 13, y1 - 3, 30, 1, '#d8d0b0', 'opacity=".5"');
-  o += `<path d="M${x - 2} ${y1 - 14} l6 -6 m-3 2 l5 2" stroke="#3a3a3a" stroke-width=".8"/>` + rect(x + 10, y1 - 12, 4, 5, '#a8c0c8', 'opacity=".6"');
+  let o = `<ellipse cx="${x}" cy="${y1 - 0.5}" rx="24" ry="2.2" fill="#1a140f" opacity=".55"/>`;
+  if (rubble) {
+    o += `<path d="M${x - 24} ${y1} L${x - 18} ${y1 - 9} L${x - 10} ${y1 - 14} L${x - 2} ${y1 - 21} L${x + 7} ${y1 - 17} L${x + 15} ${y1 - 11} L${x + 22} ${y1 - 5} L${x + 25} ${y1} Z" fill="#6e675d"/>`;   /* the heap */
+    o += `<path d="M${x - 18} ${y1 - 9} L${x - 10} ${y1 - 14} L${x - 2} ${y1 - 21} L${x + 7} ${y1 - 17}" stroke="#9a9284" stroke-width="1" fill="none"/>`;
+    [[-14, -6, 9, 5, '#8a8478'], [-5, -12, 10, 6, '#7a746a'], [4, -8, 11, 5, '#8e887c'], [12, -4, 9, 4, '#7a746a'], [-20, -3, 7, 3, '#8a8478']].forEach(([dx, dy, w, h, c]) => { o += rect(x + dx, y1 + dy - h, w, h, c) + rect(x + dx, y1 + dy - h, w, 0.8, '#aaa294'); });   /* slabs of concrete */
+    [[-9, -4], [0, -3], [9, -2], [-3, -15], [16, -7]].forEach(([dx, dy], k) => { o += rect(x + dx, y1 + dy - 3, 5, 3, k % 2 ? '#8a4a32' : '#9a5a3a') + rect(x + dx, y1 + dy - 3, 5, 0.6, '#b07050'); });   /* bricks */
+    o += `<path d="M${x - 4} ${y1 - 19} l-3 -9 M${x + 2} ${y1 - 18} l4 -10 l2 1 M${x + 9} ${y1 - 15} l6 -6" stroke="#3a3632" stroke-width="1.1" fill="none"/>`;   /* bent iron bars */
+    o += [0, 1, 2, 3, 4, 5].map((k) => rect(x - 22 + k * 8, y1 - 1, 2, 1, '#9a9284')).join('');   /* dust and grit */
+    return o;
+  }
+  o += rect(x - 18, y1 - 6, 22, 6, '#a89a7c') + rect(x - 18, y1 - 6, 22, 1.2, '#c8bc9c') + rect(x - 12, y1 - 5, 1, 4, '#8a7c5e');   /* a stained mattress */
+  o += rect(x - 14, y1 - 16, 13, 10, '#6a5034') + rect(x - 14, y1 - 16, 13, 1.5, '#8a6a46') + rect(x - 9, y1 - 12, 3, 2, '#3a2a1c');   /* a box */
+  o += rect(x - 1, y1 - 20, 11, 14, '#4a3a5a') + rect(x - 1, y1 - 20, 11, 1.5, '#6a5a7a');   /* a broken locker door */
+  o += rect(x + 10, y1 - 10, 12, 10, '#8a8270') + rect(x + 10, y1 - 10, 12, 1.2, '#a8a08c') + rect(x + 12, y1 - 7, 8, 1, '#5a5248');   /* a crate */
+  o += `<path d="M${x + 4} ${y1 - 22} l9 -6 m-4 2 l6 3 M${x + 14} ${y1 - 12} l4 -8" stroke="#3a2a1c" stroke-width="1.1"/>` + rect(x - 16, y1 - 22, 7, 5, '#c8c0a8') + rect(x + 17, y1 - 16, 4, 6, '#a8c0c8', 'opacity=".7"');   /* chair legs, papers, a bottle */
   return o;
 }
 /* what is left of something they smashed: bent metal, a cracked casing, glass */
@@ -245,7 +275,7 @@ const DECOR = [
   (x, y, R) => rect(x - 3, y - 6, 6, 6, '#c8a050') + rect(x - 1, y - 9, 1.5, 3, '#f0e0a0'),                                                                        // candle on box
   (x, y, R) => rect(x - 8, y - 14, 16, 14, '#3a3a40') + rect(x - 7, y - 13, 14, 11, '#1a1a1e') + rect(x - 5, y - 2, 10, 2, '#555'),                                // dead TV
 ];
-const DYN = new Set(['cupboard', 'water', 'tally', 'brazier']);
+const DYN = new Set(['cupboard', 'water', 'tally', 'brazier', 'stove']);   /* things that change while you watch: the stove lights up and steams when someone cooks */
 /* the dead keep their place: their bunk keeps their things and a candle, their photo goes up by the tally, the ones who died here are buried in the yard */
 function memorial(G, S) {
   const M = G.mem2 || []; if (!M.length) return ''; let o = ''; const tb = S.tally;
@@ -259,10 +289,10 @@ function memorial(G, S) {
 function buildDyn(G) { return H.toneSvg(buildDyn0(G)); }
 function buildDyn0(G) {
   const B = G.build || {}; const S = SIM().stations(); let d = memorial(G, S);
-  DYN.forEach((id) => { const s = S[id]; if (!s) return; const y1 = yb(s.f); const art = furniture(id, s, y1, B, G); const k = FSCALE[id] || 1; d += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
+  DYN.forEach((id) => { const s = S[id]; if (!s) return; const y1 = yb(s.f); const J = B.junk && B.junk[id]; const art = J ? junkArt(s.x, y1, J === 'rubble') : furniture(id, s, y1, B, G); const k = FSCALE[id] || 1; d += k === 1 ? art : `<g transform="translate(${s.x} ${y1}) scale(${k}) translate(${-s.x} ${-y1})">${art}</g>`; });
   return d;
 }
-function dynKey(G) { const mm = (G.mem2 || []).length + (G.fire ? 'f' : '') + ((G.build || {}).brazier ? 'b' : ''); const n = Object.values(G.inv || {}).reduce((a, b) => a + b, 0); return [mm, G.day, Math.min(3, Math.floor(n / 14)), Math.min(4, Math.ceil(((G.inv && G.inv.water) || 0) / 3)), (G.build || {}).cupboard].join('|'); }
+function dynKey(G) { const mm = JSON.stringify((G.build || {}).junk || {}).length + '|' + (G.mem2 || []).length + (G.fire ? 'f' : '') + ((G.build || {}).brazier ? 'b' : '') + ((G.build || {}).stove ? 's' : '') + (G.S.some((p) => p.act && p.act.k === 'cook' && p.act.walkLeft <= 0) ? 'c' : ''); const n = Object.values(G.inv || {}).reduce((a, b) => a + b, 0); return [mm, G.day, Math.min(3, Math.floor(n / 14)), Math.min(4, Math.ceil(((G.inv && G.inv.water) || 0) / 3)), (G.build || {}).cupboard].join('|'); }
 function refreshDyn(G) { if (!H.dynG) return; const k = dynKey(G); if (k !== H.dynK) { H.dynK = k; H.dynG.innerHTML = buildDyn(G); } }
 const GRC = { key: '', wall: [], fl: [] };
 
@@ -340,7 +370,8 @@ function buildStatic(G) {
   const tb = S.tally; if (tb) o += rect(tb.x + 21, yb(tb.f) - 36, 0.1, 0.1, 'none');
   /* floor labels and hot areas */
   for (let f = 0; f < N; f++) o += `<rect data-fl="${f}" x="0" y="${yb(f) - FH}" width="${W}" height="${FH}" fill="transparent"/>`;
-  Object.values(S).forEach((s) => { if (s.id === 'tally' || isDirect(s)) { const y1 = yb(s.f), bx = hitBox(s, y1, y1 - FH); o += `<rect data-st="${s.id}" x="${bx[0].toFixed(1)}" y="${bx[1].toFixed(1)}" width="${bx[2]}" height="${bx[3]}" fill="transparent"/>`; } });
+  /* every object can be clicked or tapped from anywhere: whoever you are directing walks over and uses it (you direct everyone, nobody has to stand next to it first) */
+  Object.values(S).forEach((s) => { if (s.id !== 'stairs') { const y1 = yb(s.f), bx = hitBox(s, y1, y1 - FH); o += `<rect data-st="${s.id}" x="${bx[0].toFixed(1)}" y="${bx[1].toFixed(1)}" width="${bx[2]}" height="${bx[3]}" fill="transparent"/>`; } });
   railOut = rail;
   return o;
 }
@@ -356,9 +387,12 @@ function poseFor(p, a, pos) {
     case 'rest': return /bunk|infirm/.test(a.st) ? 'sleep' : 'sitfloor';
     case 'eat': return 'sit';
     case 'pray': return 'pray';
-    case 'chat': return 'idle';
+    case 'chat': return a.job && (a.job.k === 'comfort' || a.job.sit || a.job.comfort) ? 'sitfloor' : 'idle';   /* sitting with someone: both on the floor */
     case 'life': { const l = a.job && a.job.life; if (l === 'pray') return 'pray'; if (l === 'cry' || l === 'sit') return 'sitfloor'; if (l === 'write') return 'sit'; if (l === 'exercise') return 'jump'; return 'idle'; }
     case 'watch': case 'look': return 'idle';
+    case 'build': { const jk = a.job && a.job.k; return jk === 'sort' ? 'sweep' : jk === 'dig' ? 'dig' : 'hammer'; }
+    case 'craft': return 'hammer';
+    case 'cook': return 'stir';
     default: return 'idle';
   }
 }
@@ -368,7 +402,7 @@ function dirFor(p, a, pos, f) {
   if (a && a.k === 'chat' && a.job) { const o = H.hooks.person && H.hooks.person(a.job.with); if (o) return o.x >= pos.x ? 1 : -1; }
   /* lying on a bunk or the sick bed: head on the pillow, which is at the right-hand end */
   if (a && (a.k === 'sleep' || a.k === 'rest') && /^bunk|^infirm/.test(a.st || '')) return -1;
-  if (a && a.st === 'stove') return 1; if (a && a.st === 'bench') return 1; if (a && a.st === 'table') return -1;
+  if (a && a.st === 'stove') return a.k === 'cook' ? -1 : 1; if (a && a.st === 'bench') return 1; if (a && a.st === 'table') return -1;
   return p._dir || 1;
 }
 const groundAdj = (kind, st) => (kind === 'sleep' && /bunk|infirm/.test(st || '') ? 10 : kind === 'sit' ? 0 : 0);
@@ -411,11 +445,13 @@ function draw(ts) {
     drawActor(a, p, kind, dir, state, sel === p.id, H.hooks.badges ? H.hooks.badges(p) : []);
     const y = yb(pos.f) - (pos.up || 0) - (kind === 'sleep' ? 9 : 0); const x = pos.x;
     const dp = pos.depth || 0; const back = dp > 0.02; if (a.back !== back) { a.back = back; (back ? H.layerB : H.layer).appendChild(a.el); }
+    { const hide = H.strip && Math.abs(pos.f - H.stripF) > 0.35; if (a.hid !== hide) { a.hid = hide; a.el.style.display = hide ? 'none' : ''; } }
+    if (!Number.isFinite(x) || !Number.isFinite(y)) { if (!H.badPos) { H.badPos = 1; try { (window.__errors = window.__errors || []).push('house: no position for ' + p.name + ' act=' + JSON.stringify(p.act && { k: p.act.k, st: p.act.st, label: p.act.label, to: p.act.to, from: p.act.from })); } catch (e) {} } return; }
     const sc = 1 - 0.17 * dp; a.el.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)})`);
     const lvl = dp > 0.02 ? Math.min(4, 1 + Math.floor(dp * 3.999)) : 0; const lite = !!(C.Perf && C.Perf.lite()); if (a.lvl !== lvl || a.lite !== lite) { a.lvl = lvl; a.lite = lite; if (lvl && !lite) { a.el.setAttribute('filter', `url(#dim${lvl})`); a.el.removeAttribute('opacity'); } else { a.el.removeAttribute('filter'); if (lvl) a.el.setAttribute('opacity', (1 - lvl * 0.13).toFixed(2)); else a.el.removeAttribute('opacity'); } }
     /* progress over the head for timed jobs at a station */
     let bar = '';
-    if (act && act.walkLeft <= 0 && act.total > 6 && /build|cook|craft/.test(act.k)) { const q = act.k === 'build' ? (G.bq || []).find((z) => z.id === act.job.id) : null; const pr = q ? q.prog / Math.max(1, q.need) : 1 - act.left / act.total; bar = `<rect x="-9" y="${-36 * SC - 14}" width="18" height="2.6" fill="#1a1410" stroke="#f2ebcf" stroke-width=".3"/><rect x="-9" y="${-36 * SC - 14}" width="${(18 * clamp(pr, 0, 1)).toFixed(1)}" height="2.6" fill="#7bbf6a"/>`; }
+    if (false && act && act.walkLeft <= 0 && act.total > 6 && /build|cook|craft/.test(act.k)) { const q = act.k === 'build' ? (G.bq || []).find((z) => z.id === act.job.id) : null; const pr = q ? q.prog / Math.max(1, q.need) : 1 - act.left / act.total; bar = `<rect x="-9" y="${-36 * SC - 14}" width="18" height="2.6" fill="#1a1410" stroke="#f2ebcf" stroke-width=".3"/><rect x="-9" y="${-36 * SC - 14}" width="${(18 * clamp(pr, 0, 1)).toFixed(1)}" height="2.6" fill="#7bbf6a"/>`; }
     if (a.barKey !== bar) { a.bar.innerHTML = bar; a.barKey = bar; }
   });
   updateView(G);
@@ -427,13 +463,34 @@ function draw(ts) {
   const tone = toneOf(G.t); if (tone !== H.tone) { H.tone = tone; H.dark.setAttribute('opacity', tone.toFixed(2)); H.stars.setAttribute('opacity', Math.max(0, (tone - 0.25) * 1.6).toFixed(2)); }
 }
 const ZOOMW = 176;                                   // how many scene units wide the camera shows: smaller = closer
+/* PC: the whole building, always. It fits the part of the stage you can see; when a drawer or a sheet covers the right side,
+   the house slides and shrinks into what is left, so nobody it is about goes out of view */
+function updateViewPC(G, box) {
+  let coverL = box.right;
+  const st = H.root.closest && H.root.closest('.stage'); const dr = st && st.querySelector('.drawer'); if (dr) coverL = Math.min(coverL, dr.getBoundingClientRect().left);
+  const mb = H.hooks.modalOpen && H.hooks.modalOpen() && document.querySelector('#modal:not(.hidden)'); if (mb) { const l = mb.getBoundingClientRect().left; if (l > box.left + 240 && l < coverL) coverL = l; }
+  const visW = Math.max(240, coverL - box.left - 12), padY = 22;
+  const s = Math.min(visW / (VW + 8), box.height / (VH + padY * 2));        // screen px per scene unit
+  const vw = box.width / s, vh = box.height / s;
+  const x0 = VX + VW / 2 - (visW / 2 + 6) / s, y0 = VH / 2 - vh / 2 + 4;
+  if (H.vy == null || H.vw == null) { H.vx = x0; H.vy = y0; H.vw = vw; }
+  H.vx += (x0 - H.vx) * 0.14; H.vy += (y0 - H.vy) * 0.14; H.vw += (vw - H.vw) * 0.14; const vhh = H.vw * box.height / box.width;
+  H.svg.setAttribute('viewBox', `${H.vx.toFixed(1)} ${H.vy.toFixed(1)} ${H.vw.toFixed(1)} ${vhh.toFixed(1)}`);
+  H.strip = false; H.pxs = box.width / H.vw;
+  H.root.querySelectorAll('.hfl').forEach((b) => { b.style.display = 'none'; });
+}
 function updateView(G) {
   const box = H.root.getBoundingClientRect(); if (!box.width || !box.height) return;
+  if (document.documentElement.classList.contains('pc')) { updateViewPC(G, box); return; }
+  H.vw = null;
   const vw = Math.min(VW, H.zoomW || ZOOMW), vh = vw * box.height / box.width;
   const selP = G.S.find((q) => q.id === (H.hooks.selected && H.hooks.selected())); const sp = selP ? SIM().posOf(selP, SIM().frac ? SIM().frac() : 0) : { f: 0, x: 120 };
   const selF = Math.round(sp.f); if (H.lastSelF !== selF) { H.lastSelF = selF; H.focus = null; }
   const f = H.focus != null ? H.focus : sp.f;
-  let y0 = yb(clamp(f, 0, N - 1)) - FH * 0.42 - vh / 2; y0 = clamp(y0, -6, VH - vh + 4); if (vh >= VH + 6) y0 = VH - vh;
+  H.strip = vh < FH * 1.7; H.stripF = Math.round(clamp(f, 0, N - 1));   /* a short strip shows one floor: people on the others would be cut in half at the edges */
+  /* a sheet open over the house covers its lower part: centre the floor in the part you can still see, so the person the sheet is about stays in view */
+  let seen = vh; { const sb = (H.hooks.modalOpen && H.hooks.modalOpen() && document.querySelector('#modal:not(.hidden) .box')) || document.querySelector('.msheet.up'); if (sb) { const top = sb.getBoundingClientRect().top; if (top > box.top + 40 && top < box.bottom) seen = vh * (top - box.top) / box.height; } }
+  let y0 = yb(clamp(f, 0, N - 1)) - FH * 0.42 - seen / 2; y0 = clamp(y0, -6, VH - seen + 4); if (seen >= VH + 6) y0 = VH - seen; if (seen === vh && vh >= VH + 6) y0 = VH - vh;
   let x0 = clamp(sp.x - vw / 2, VX, VX + VW - vw);
   if (H.vy == null) { H.vy = y0; H.vx = x0; } H.vy += (y0 - H.vy) * 0.12; H.vx += (x0 - H.vx) * 0.12;
   H.svg.setAttribute('viewBox', `${H.vx.toFixed(1)} ${H.vy.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}`);
@@ -442,7 +499,8 @@ function updateView(G) {
 function toneOf(t) { const h = (t % 1440) / 60; if (h >= 21 || h < 4.5) return 0.62; if (h >= 19) return 0.12 + (h - 19) * 0.25; if (h < 6.5) return 0.62 - (h - 4.5) * 0.25; return 0; }
 /* speech: one bubble at a time, only for people you can see, and only for a few real seconds, whatever the game speed */
 function placeBubbles(G) {
-  const box = H.root.querySelector('.hbub'); const svg = H.svg; const m = svg.getScreenCTM(); if (!m) return; const host = H.root.getBoundingClientRect(); const now = performance.now();
+  const box = H.root.querySelector('.hbub');
+  if (H.hooks.modalOpen && H.hooks.modalOpen()) { Object.keys(H.bub || {}).forEach((k) => { H.bub[k].remove(); delete H.bub[k]; }); H.curBub = null; return; }   /* no speech over an open sheet */ const svg = H.svg; const m = svg.getScreenCTM(); if (!m) return; const host = H.root.getBoundingClientRect(); const now = performance.now();
   const vb = svg.viewBox.baseVal; const sel = H.hooks.selected && H.hooks.selected();
   H.bs = H.bs || {};
   /* start the clock on the first frame a line is seen */
@@ -450,7 +508,7 @@ function placeBubbles(G) {
   let cur = H.curBub && H.bs[H.curBub] && H.bs[H.curBub].t0 && now - H.bs[H.curBub].t0 < 3200 ? H.curBub : null;
   if (!cur && H.curBub) { const e = H.bs[H.curBub]; if (e) { const p0 = G.S.find((q) => q.id === H.curBub); if (p0) p0.bub = null; delete H.bs[H.curBub]; } H.curBub = null; H.bubGap = now + 1400; }
   if (!cur && now >= (H.bubGap || 0)) {
-    const vis = G.S.filter((p) => { const e = H.bs[p.id]; if (!e || e.t0 || !H.actors[p.id]) return false; const pos = SIM().posOf(p, 0); return pos.x >= vb.x - 4 && pos.x <= vb.x + vb.width + 4 && yb(pos.f) - 20 >= vb.y && yb(pos.f) <= vb.y + vb.height + 4; });
+    const vis = G.S.filter((p) => { const e = H.bs[p.id]; if (!e || e.t0 || !H.actors[p.id] || H.actors[p.id].hid) return false; const pos = SIM().posOf(p, 0); return pos.x >= vb.x - 4 && pos.x <= vb.x + vb.width + 4 && yb(pos.f) - 20 >= vb.y && yb(pos.f) <= vb.y + vb.height + 4; });
     vis.sort((a, b) => (a.id === sel ? -1 : 0) - (b.id === sel ? -1 : 0));
     if (vis[0]) { H.curBub = vis[0].id; H.bs[vis[0].id].t0 = now; cur = H.curBub; }
   }
@@ -467,7 +525,10 @@ function placeBubbles(G) {
 /* ---------- floating action buttons: the only way to use or build something ---------- */
 const isDirect = (s) => s.built !== false && (/^win\d/.test(s.id) || s.id === 'post' || /^bunk/.test(s.id) || s.id === 'door' || s.id === 'cupboard' || s.id === 'radio');
 const CHIPICON = { door: 'door', cupboard: 'bag', bench: 'tools', stove: 'meal', still: 'ogogoro', filter: 'water', radio: 'radio', garden: 'bread', roof: 'water', infirm: 'meds', mat: 'heart', post: 'eye' };
-function chipIcon(s) { if (isDirect(s)) return null; if (/^win\d/.test(s.id) || s.id === 'post') return 'eye'; if (/^bunk/.test(s.id)) return 'bed'; if (s.built === false) return 'tools'; return CHIPICON[s.id] || null; }
+function chipIcon(s) { const G = H.hooks.G && H.hooks.G(); const J = G && G.build && G.build.junk && G.build.junk[s.id]; if (J) return J === 'rubble' ? 'shovel' : 'broom';   /* clearing looks different from building */
+  if (isDirect(s)) return null; if (/^win\d/.test(s.id) || s.id === 'post') return 'eye'; if (/^bunk/.test(s.id)) return 'bed'; if (s.built === false) return 'tools'; return CHIPICON[s.id] || null; }
+/* how far along the work at a station is (0..1), or null if nobody is working there */
+function workAt(G, id) { if (id === 'door' && G.knockUntil && G.knockUntil > G.t) return Math.max(0, Math.min(1, (G.knockUntil - G.t) / Math.max(1, G.knockUntil - (G.knockAt || G.t)))); if (id === 'door') return null; for (const p of G.S) { const a = p.act; if (!p.alive || !a || a.st !== id || !(a.walkLeft <= 0) || !/^(build|craft|cook)$/.test(a.k)) continue; if (a.job && a.job.k === 'build') { const q = (G.bq || []).find((z) => z.id === a.job.id); if (q) return Math.max(0, Math.min(1, q.prog / Math.max(1, q.need))); } return Math.max(0, Math.min(1, 1 - a.left / Math.max(1, a.total))); } return null; }
 const REACH = 34;                                  // how close the character you control has to be before something answers to a tap
 function activeSet(G) {
   const sel = G.S.find((q) => q.id === (H.hooks.selected && H.hooks.selected())); const set = new Set(); if (!sel || sel.out || !sel.alive) return set;
@@ -477,25 +538,36 @@ function activeSet(G) {
 }
 function chipList(G) {
   const S = SIM().stations(); const act = H.active || new Set();
-  let c = Object.values(S).filter((s) => act.has(s.id) && chipIcon(s));
+  const G0 = H.hooks.G && H.hooks.G(); const JK = (G0 && G0.build && G0.build.junk) || {};
+  /* junk and rubble always show their marker (they are jobs waiting), like work in progress; everything else answers when you are close */
+  const knocking = !!(G0 && G0.knockUntil && G0.knockUntil > G0.t);   /* someone at the door: its marker shows from anywhere, with a ring running down while they wait */
+  let c = Object.values(S).filter((s) => (act.has(s.id) || JK[s.id] || (knocking && s.id === 'door') || (G0 && workAt(G0, s.id) !== null)) && (chipIcon(s) || (G0 && workAt(G0, s.id) !== null)));
   let bunks = 0; c = c.filter((s) => { if (/^bunk/.test(s.id)) { bunks++; return bunks <= 2; } return true; });
-  return c.slice(0, 6);
+  if (H.strip) c = c.filter((s) => Math.abs(s.f - H.stripF) < 0.35);   /* the short view shows one floor: its markers only, never the floor above spilling in */
+  return c.slice(0, 10);
 }
 function updateChips(G, ts) {
   const box = H.root.querySelector('.hchips'); if (!box) return;
   if (!H.chipT || ts - H.chipT > 120) {
-    H.chipT = ts; H.active = activeSet(G); const S = chipList(G); const sig = S.map((s) => s.id + (s.built === false ? 'n' : '')).join(',');
-    if (sig !== H.chipSig) { H.chipSig = sig; box.innerHTML = S.map((s) => `<button class="hchip${s.built === false ? ' site' : ''}" data-st="${s.id}" aria-label="${s.label}">${C.Icons ? C.Icons.html(chipIcon(s)) : ''}</button>`).join(''); H.chipEls = [...box.children].map((el, i) => ({ el, s: S[i] })); if (C.Icons) C.Icons.skin(box); }
+    H.chipT = ts; H.active = activeSet(G); const S = chipList(G); const JK = (G.build && G.build.junk) || {}; const sig = S.map((s) => s.id + (s.built === false ? 'n' : '') + (JK[s.id] || '')).join(',');
+    if (sig !== H.chipSig) { H.chipSig = sig; box.innerHTML = S.map((s) => `<button class="hchip${s.built === false ? ' site' : ''}" data-st="${s.id}" aria-label="${s.label}">${C.Icons ? C.Icons.html(chipIcon(s) || CHIPICON[s.id] || 'tools') : ''}<svg class="hring" viewBox="0 0 48 48" aria-hidden="true"><circle class="rb" cx="24" cy="24" r="21"/><circle class="rf" cx="24" cy="24" r="21" pathLength="100"/></svg></button>`).join(''); H.chipEls = [...box.children].map((el, i) => ({ el, s: S[i] })); if (C.Icons) C.Icons.skin(box); }
     /* a soft pulse around the objects you can tap right now */
     const Sall = SIM().stations(); const hint = [...H.active].map((id) => Sall[id]).filter((s) => s && isDirect(s)).map((s) => { const y1 = yb(s.f), bx = hitBox(s, y1, y1 - FH); return `<rect class="hint" x="${(bx[0] - 1).toFixed(1)}" y="${(bx[1] - 1).toFixed(1)}" width="${bx[2] + 2}" height="${bx[3] + 2}" rx="2" fill="none" stroke="#f6b37f" stroke-width=".9"/>`; }).join('');
     if (hint !== H.hintSig) { H.hintSig = hint; H.hintG.innerHTML = hint; }
+    /* the ring round the icon fills as the work goes on, like TWoM */
+    (H.chipEls || []).forEach(({ el, s }) => { const w = workAt(G, s.id); const on = w !== null; el.classList.toggle('working', on); const f = el.querySelector('.rf'); if (f) f.style.strokeDashoffset = on ? String(100 - Math.round(w * 100)) : '100'; });
   }
   const m = H.svg.getScreenCTM(); if (!m || !H.chipEls) return; const host = H.root.getBoundingClientRect();
-  const pts = H.chipEls.map(({ el, s }) => { const y1 = yb(s.f); const hb = hitBox(s, y1, y1 - FH); const pt = H.svg.createSVGPoint(); pt.x = s.x; pt.y = hb[1] - 5; const q = pt.matrixTransform(m); return { el, x: q.x - host.left, y: q.y - host.top }; });
+  const pts = H.chipEls.map(({ el, s }) => { const y1 = yb(s.f); const hb = hitBox(s, y1, y1 - FH); const pt = H.svg.createSVGPoint(); pt.x = s.x; pt.y = Math.min(hb[1] - 5, y1 - 44);   /* above head height, never over the person using it */ const q = pt.matrixTransform(m); return { el, x: q.x - host.left, y: q.y - host.top }; });
   /* bubbles never sit on top of each other: spread neighbours at least 50px apart, and keep the whole row on screen */
-  pts.sort((a, b) => a.x - b.x); for (let i = 1; i < pts.length; i++) { if (Math.abs(pts[i].y - pts[i - 1].y) < 54 && pts[i].x - pts[i - 1].x < 50) pts[i].x = pts[i - 1].x + 50; }
-  if (pts.length) { const over = pts[pts.length - 1].x - (host.width - 28); if (over > 0) pts.forEach((p) => { p.x -= over; }); const under = 28 - pts[0].x; if (under > 0) pts.forEach((p) => { p.x += under; }); }
-  pts.forEach((p) => { p.el.style.left = p.x + 'px'; p.el.style.top = Math.max(26, p.y) + 'px'; });
+  /* per row of markers (one floor): spread them at least 50px apart, but squeeze the gap when a crowded floor would not fit, so none is ever pushed off screen */
+  const rows = []; pts.slice().sort((a, b) => a.y - b.y).forEach((p) => { const r = rows.find((q) => Math.abs(q[0].y - p.y) < 54); if (r) r.push(p); else rows.push([p]); });
+  const lo = 28, hi = host.width - 28;
+  rows.forEach((r) => { r.sort((a, b) => a.x - b.x); const gap = r.length > 1 ? Math.min(50, (hi - lo) / (r.length - 1)) : 50; for (let i = 1; i < r.length; i++) if (r[i].x - r[i - 1].x < gap) r[i].x = r[i - 1].x + gap;
+    const over = r[r.length - 1].x - hi; if (over > 0) r.forEach((p) => { p.x -= over; }); const under = lo - r[0].x; if (under > 0) r.forEach((p) => { p.x += under; }); r.forEach((p) => { p.x = clamp(p.x, lo, hi); }); });
+  /* the short view has floor buttons on the right edge: a marker that would sit under the up button drops just below it, over its own site */
+  const upB = H.root.querySelector('.hfl.up'); const ub = upB && upB.offsetParent ? upB.getBoundingClientRect() : null;
+  pts.forEach((p) => { let y = Math.max(26, p.y); if (ub && host.left + p.x + 22 > ub.left && host.top + y - 22 < ub.bottom) y = ub.bottom - host.top + 24; p.el.style.left = p.x + 'px'; p.el.style.top = y + 'px'; });
 }
 
 /* ---------- yard visitors (only drawn when somebody is looking out) ---------- */
@@ -563,9 +635,11 @@ function onTap(e) {
   /* what is under the finger, top to bottom: a bubble, then an object you are close enough to use, then a person */
   const stack = (document.elementsFromPoint ? document.elementsFromPoint(e.clientX, e.clientY) : [t]);
   const chip = stack.find((el) => el.classList && el.classList.contains('hchip')); if (chip) { H.hooks.tapStation && H.hooks.tapStation(chip.getAttribute('data-st')); return; }
-  const obj = stack.find((el) => el.getAttribute && el.getAttribute('data-st') && el.getAttribute('data-st') !== 'tally' && H.active && H.active.has(el.getAttribute('data-st')));
-  if (obj) { H.hooks.tapStation && H.hooks.tapStation(obj.getAttribute('data-st')); return; }
+  /* someone standing in front of an object is picked before the object; the selected person lets taps through to what they stand at */
   const pe = stack.find((el) => el.getAttribute && el.getAttribute('data-p')); if (pe) { H.hooks.tapPerson && H.hooks.tapPerson(+pe.getAttribute('data-p')); return; }
+  /* any object, from anywhere in the house: whoever you are directing walks over and uses it */
+  const obj = stack.find((el) => el.getAttribute && el.getAttribute('data-st') && el.getAttribute('data-st') !== 'tally');
+  if (obj) { H.hooks.tapStation && H.hooks.tapStation(obj.getAttribute('data-st')); return; }
   if (stack.some((el) => el.getAttribute && el.getAttribute('data-st') === 'tally') && H.hooks.knock) H.hooks.knock();
   const p = svgPoint(e);
   if (p.x < -4) { H.hooks.tapFloor && H.hooks.tapFloor(0, 8); return; }

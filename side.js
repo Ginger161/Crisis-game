@@ -64,7 +64,7 @@ function dims(sp) {
 function pose(sp, kind, i) {
   const d = dims(sp), leg = d.thigh + d.shin, stoop = sp.body === 'elder' ? 1.6 : 0;
   const p = { P: [15, ANKLE - leg * 0.97], lean: stoop, tl: d.tl, hdx: 1.4 + stoop * 0.4, hdy: -4.3, rot: 0, F1: null, F2: null, K1: null, K2: null, H1: null, H2: null, sw1: 0, sw2: 0, breath: 0, item: 'low', flash: false, shoe: 'fwd', lie: false, bow: 0 };
-  const n = { idle: 2, walk: 6, run: 6, sneak: 4, limp: 6, sit: 2, sitfloor: 2, pray: 2, sleep: 2, dead: 4, jump: 4, aim: 4, stand: 1, climb: 2, peek: 2 }[kind] || 1;
+  const n = { hammer: 4, sweep: 4, dig: 4, stir: 4, idle: 2, walk: 6, run: 6, sneak: 4, limp: 6, sit: 2, sitfloor: 2, pray: 2, sleep: 2, dead: 4, jump: 4, aim: 4, stand: 1, climb: 2, peek: 2 }[kind] || 1;
   const t = i % n, ph = (t / n) * Math.PI * 2;
   const gait = (A, lift, bob, lean, armSw) => {
     p.P[1] += bob * Math.abs(Math.sin(ph)); p.lean += lean;
@@ -117,6 +117,25 @@ function pose(sp, kind, i) {
     case 'peek': {       /* standing on the stool, hands on the sill, looking out */
       p.P = [15, ANKLE - leg * 0.97 - 7]; p.lean = 0.9; p.F1 = [p.P[0] + 1, ANKLE - 7]; p.F2 = [p.P[0] - 1, ANKLE - 7]; p.hdy = -4.9 - t * 0.5;
       p.H1 = [p.P[0] + 6, p.P[1] - 13 + t * 0.6]; p.H2 = [p.P[0] + 4, p.P[1] - 14]; p.breath = t ? 0.5 : 0; break;
+    }
+    /* work you can see: hammering at a bench or a wall, sweeping junk, shovelling rubble, stirring a pot */
+    case 'hammer': {
+      p.F1 = [p.P[0] + 2.4, ANKLE]; p.F2 = [p.P[0] - 2, ANKLE]; p.lean = 1.2 + stoop; p.item = 'none'; p.tool = 'hammer'; p.tt = t;
+      p.H2 = [p.P[0] + 6.5, p.P[1] - 1.5];
+      p.H1 = [[p.P[0] + 4, p.P[1] - 15], [p.P[0] + 6.5, p.P[1] - 10], [p.P[0] + 8, p.P[1] - 3.5], [p.P[0] + 6.5, p.P[1] - 10]][t]; break;
+    }
+    case 'sweep': {
+      const dx = [-2.5, 0, 2.5, 0][t]; p.F1 = [p.P[0] + 3, ANKLE]; p.F2 = [p.P[0] - 2.4, ANKLE]; p.P[1] += 1.2; p.lean = 2.8 + stoop; p.item = 'none'; p.tool = 'broom'; p.tt = t;
+      p.H1 = [p.P[0] + 7 + dx, p.P[1] + 5]; p.H2 = [p.P[0] + 4 + dx * 0.6, p.P[1] - 1.5]; break;
+    }
+    case 'dig': {
+      const k = [[3.2, 7.5, 6, 4.5, 1], [2.2, 6.5, -2, 3.5, -6], [1, 3, -8, 1, -11], [2.2, 6.5, -2, 3.5, -6]][t];
+      p.F1 = [p.P[0] + 3.4, ANKLE]; p.F2 = [p.P[0] - 2.6, ANKLE]; p.P[1] += t === 0 ? 2 : 0.6; p.lean = k[0] + stoop; p.item = 'none'; p.tool = 'shovel'; p.tt = t;
+      p.H1 = [p.P[0] + k[1], p.P[1] + k[2]]; p.H2 = [p.P[0] + k[3], p.P[1] + k[4]]; break;
+    }
+    case 'stir': {
+      const a = (t / 4) * Math.PI * 2; p.F1 = [p.P[0] + 1.6, ANKLE]; p.F2 = [p.P[0] - 1.4, ANKLE]; p.lean = 0.9 + stoop; p.item = 'none'; p.tool = 'spoon'; p.tt = t;
+      p.H1 = [p.P[0] + 6.5 + 1.6 * Math.cos(a), p.P[1] - 11 + 1 * Math.sin(a)]; p.H2 = [p.P[0] + 6, p.P[1] - 8.5];   /* the pot sits high on the drum: reach up and stir, the other hand steadying the rim */ p.breath = 0; break;
     }
     case 'aim': {
       p.F1 = [p.P[0] + 2.2, ANKLE]; p.F2 = [p.P[0] - 2.4, ANKLE]; p.lean = 0.8 + stoop; p.item = 'aim'; p.flash = t === 3;
@@ -285,7 +304,15 @@ function draw(sp, kind, i, opts) {
   /* held items */
   const H = A1.end, hx = H[0], hy = H[1];
   const gun = (x1, y1, x2, y2, long) => { seg(x1, y1, x2, y2, 0.55, '#202020'); seg(x1, y1, x1 + (x2 - x1) * 0.28, y1 + (y2 - y1) * 0.28, 1.1, '#6b4a2a'); const mx = x1 + (x2 - x1) * 0.45, my = y1 + (y2 - y1) * 0.45; seg(mx, my, mx - 0.5, my + 2.4, 0.55, '#141414'); };
-  switch (sp.item) {
+  /* the tool in a worker's hands: you can tell building from sweeping from digging from cooking at a glance */
+  if (P.tool) {
+    const WD = '#8a6a3a', MT = '#9aa0a6';
+    if (P.tool === 'hammer') { const e = [[hx - 1.5, hy - 4.5], [hx + 3, hy - 3], [hx + 4.5, hy + 0.5], [hx + 3, hy - 3]][P.tt || 0]; seg(hx, hy, e[0], e[1], 0.55, WD); rect(rr(e[0]) - 1, rr(e[1]) - 1, 3, 2, '#4a4e54'); px(e[0] + 1, e[1] - 1, MT); }
+    else if (P.tool === 'broom') { seg(hx - 3.5, hy - 7, hx + 2.5, G - 2.5, 0.55, WD); rect(rr(hx) + 1, G - 3, 5, 2, '#c8a050'); px(hx + 6, G - 2, '#a08040'); if ((P.tt || 0) % 2) { px(hx + 7, G - 3, '#9a9284'); px(hx + 8, G - 2, '#9a9284'); } }
+    else if (P.tool === 'shovel') { const B2 = A2.end; let ux = hx - B2[0], uy = hy - B2[1]; const m = Math.hypot(ux, uy) || 1; ux /= m; uy /= m; const bx = hx + ux * 4, by = hy + uy * 4; seg(B2[0] - ux * 2, B2[1] - uy * 2, bx, by, 0.55, WD); rect(rr(bx) - 1, rr(by) - 1, 3, 3, '#6a6e74'); px(bx, by + 1, MT); if (P.tt === 2) { px(bx - 1, by - 2, '#7a6a52'); px(bx, by - 2, '#8a7a62'); px(bx + 1, by - 2, '#7a6a52'); } }
+    else if (P.tool === 'spoon') { seg(hx, hy - 1.5, hx + 1, hy + 4, 0.5, WD); px(hx + 1, hy + 4, '#6a4a2a'); }
+  }
+  if (!P.tool) switch (sp.item) {
     case 'ak': case 'rifle': case 'dane': {
       const L2 = sp.item === 'ak' ? 1 : 1.2;
       if (P.item === 'aim') { gun(S[0] - 1, hy - 0.4, S[0] + 15 * L2, hy - 0.8, true); if (P.flash) { rect(rr(S[0] + 15 * L2) + 1, rr(hy) - 2, 3, 3, '#ffe27a'); px(S[0] + 15 * L2 + 4, hy - 0.8, '#fff3b0'); } }
@@ -334,6 +361,7 @@ function draw(sp, kind, i, opts) {
 
 /* ---------- animations + render ---------- */
 const SA = {
+  hammer: { n: 4, dur: 0.9 }, sweep: { n: 4, dur: 1 }, dig: { n: 4, dur: 1.3 }, stir: { n: 4, dur: 1.2 },
   stand: { n: 1, dur: 1 }, idle: { n: 2, dur: 1.8 }, walk: { n: 6, dur: 0.78 }, run: { n: 6, dur: 0.5 }, sneak: { n: 4, dur: 1.1 }, limp: { n: 6, dur: 1.3 },
   sit: { n: 2, dur: 2.4 }, sitfloor: { n: 2, dur: 2.4 }, pray: { n: 2, dur: 2.6 }, sleep: { n: 2, dur: 3 }, dead: { n: 4, dur: 1.2 }, jump: { n: 4, dur: 0.8 }, aim: { n: 4, dur: 2.2 }, climb: { n: 2, dur: 0.5 }, peek: { n: 2, dur: 1.8 }
 };

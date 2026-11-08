@@ -116,7 +116,7 @@ S.add({ id: 'standoff', kind: 'politics', w: 3, cd: 6, tension: 5, when: (x) => 
   } });
 
 /* ---------- market day at the New Cafeteria ---------- */
-S.add({ id: 'market_day', kind: 'politics', w: 2.2, cd: 5, when: (x) => x.G.zones && x.G.zones.newcaf && x.G.zones.newcaf.holder && x.G.zones.newcaf.tension < 50 && x.dayGE(3),
+S.add({ id: 'market_day', kind: 'politics', w: 0,   /* off: a trip across campus that happened instantly; to be rewritten as a real day trip */ cd: 5, when: (x) => x.G.zones && x.G.zones.newcaf && x.G.zones.newcaf.holder && x.G.zones.newcaf.tension < 50 && x.dayGE(3),
   run(x) {
     const G = x.G, z = G.zones.newcaf, f = fac(z.holder); if (!f) return false;
     const mk = (give, get, gq, wq) => ({ label: `Give ${gq} ${NAME[give]}, get ${wq} ${NAME[get]}`, off: H().inv(give) < gq, fn() { H().add(give, -gq); H().add(get, wq); f[give] = (f[give] || 0) + gq; f[get] = Math.max(0, (f[get] || 0) - wq); f.p = clamp(f.p + 2, -100, 100); G.rep.wealth++; return `<i>Money changes hands, or the thing that stands in for it.</i>`; } });
@@ -126,7 +126,7 @@ S.add({ id: 'market_day', kind: 'politics', w: 2.2, cd: 5, when: (x) => x.G.zone
   } });
 
 /* ---------- council session at the New Theatre ---------- */
-S.add({ id: 'council', kind: 'politics', w: 2, cd: 6, when: (x) => x.G.zones && x.G.zones.theatre && x.G.zones.theatre.holder && x.dayGE(4),
+S.add({ id: 'council', kind: 'politics', w: 0,   /* off: same reason as market_day */ cd: 6, when: (x) => x.G.zones && x.G.zones.theatre && x.G.zones.theatre.holder && x.dayGE(4),
   run(x) {
     const G = x.G, z = G.zones.theatre, h = fac(z.holder); if (!h) return false;
     const laws = [

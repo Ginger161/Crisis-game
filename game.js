@@ -113,7 +113,9 @@ function mkPerson(trait, pool) {
   if (trait && TRAIT_ARCH[trait]) { const c = TRAIT_ARCH[trait].filter((a) => POOLS[pool].includes(a)); if (c.length) arch = pick(c); }
   let seed = Math.floor(R() * 1e9);
   let sp = CR.Sprites.gen(arch, seed);
-  while (sp.body === 'child') { seed = Math.floor(R() * 1e9); sp = CR.Sprites.gen(arch, seed); }   // children are NPCs, never survivors
+  /* children are NPCs, never survivors; and a stranger never shares a name with anyone you know (your people, the living or the dead) */
+  const taken = new Set(((typeof G !== 'undefined' && G && G.S) ? G.S : []).map((s) => s.name).concat(((typeof G !== 'undefined' && G && G.dead) || []).map((d) => d.name)));
+  for (let t = 0; t < 40 && (sp.body === 'child' || taken.has(sp.name)); t++) { seed = Math.floor(R() * 1e9); sp = CR.Sprites.gen(arch, seed); }
   const tr = trait || (TRAIT_BY_ARCH[arch] && chance(0.7) ? TRAIT_BY_ARCH[arch] : pick(Object.keys(TRAITS)));
   const student = /^Students/.test(sp.group) || sp.group === 'Children';
   return {
@@ -215,14 +217,14 @@ function newGame() {
   CR.World.init(host); PO.init(host, party); ST.initRel();
   CR.Sim.start(G);
   rollTonight();
-  G.sched = [10, 15, 20];
+  G.sched = [11, 17];
   const missingLine = party.map((cid) => { const c = KS.by[cid]; const g = KS.group[c.group]; return g ? `${c.name}'s friends from ${g.name} are somewhere across the campus.` : ''; }).filter(Boolean).slice(0, 2).join(' ');
   const intro = pick([
     'Bandits have cut every road into Bwari and the edges of Abuja. The FCT is under lockdown. The university gates were chained by the administration, then abandoned by it.',
     'The bandits came out of the bush the way they always do, but this time they did not leave. The roads closed. The FCT locked down. The radio said "stay indoors," then stopped saying anything.',
     'First the checkpoints fell. Then the police stations. By the time anyone said the word lockdown, there was no one left to enforce it and no one left to call.'
   ]);
-  try { if (!localStorage.getItem('crisis_rotate')) { localStorage.setItem('crisis_rotate', '1'); Q.push({ title: 'Hold it how you like', text: '<div class="rotcard"><div class="rotphone"><i></i></div><b>Upright, you see the whole house.<br>Turn it sideways for a wider view.</b><div class="dim" style="margin-top:8px">Same game either way. Turn it whenever you want.</div></div>', choices: [{ label: 'Got it' }], art: null }); } } catch (e) {}
+  try { if (!isPC() && !localStorage.getItem('crisis_rotate')) {   /* turning the phone means nothing on a PC */ localStorage.setItem('crisis_rotate', '1'); Q.push({ title: 'Hold it how you like', text: '<div class="rotcard"><div class="rotphone"><i></i></div><b>Upright, you see the whole house.<br>Turn it sideways for a wider view.</b><div class="dim" style="margin-top:8px">Same game either way. Turn it whenever you want.</div></div>', choices: [{ label: 'Got it' }], art: null }); } } catch (e) {}
   say('Day 1', `${intro}\n\nFour of you are holed up in ${LOCBY[G.shelter].name} on the Veritas campus. No power. No signal. Little food. Others are out there too, in the other blocks, behind their own doors, deciding what they will do to survive. ${missingLine}\n\nYou are the one the others look to. The last word on the radio, before it died: <i>"Remain where you are. Help is coming."</i> It did not say when.`);
   log('Day 1. The siege begins.');
   flush();
@@ -247,14 +249,18 @@ function load() {
     const ok = g && g.v === SAVE_V && g.shelter && LOCBY[g.shelter] && Array.isArray(g.S) && g.S.every((x) => x.sp && x.sp.arch && (x.cid || x.name)) && g.tonight && g.build && g.fac && g.fac.length && g.rel && g.dir && typeof g.t === 'number';
     if (!ok) { const why = !g ? 'empty' : g.v !== SAVE_V ? 'old' : [['shelter', g.shelter && LOCBY[g.shelter]], ['people', Array.isArray(g.S)], ['sprites', Array.isArray(g.S) && g.S.every((x) => x.sp && x.sp.arch && (x.cid || x.name))], ['tonight', g.tonight], ['build', g.build], ['groups', g.fac && g.fac.length], ['rel', g.rel], ['dir', g.dir], ['time', typeof g.t === 'number']].filter(([, v]) => !v).map(([k]) => k).join(',');
       try { localStorage.setItem('crisis_save_bad_detail', why); } catch (e) {} setAside(s, why === 'old' ? 'old' : 'broken'); return false; }
-    G = g; if (CR.House) CR.House.reset(); G.pend = null; G.away = false; if (CR.Sim) CR.Sim.start(G); if (PO && PO.setHost) PO.setHost(host); return true;
+    G = g; if (CR.House) CR.House.reset(); G.pend = null; G.away = false;
+    if (G.roles && G.screen === 'day') { G.roles = null; setTimeout(() => { try { nightRoles(); flush(); } catch (e) { reportError(e); } }, 50); }   /* the night plan was open when the game closed: open it again */ if (CR.Sim) CR.Sim.start(G); if (PO && PO.setHost) PO.setHost(host); return true;
   } catch (e) { try { const raw = localStorage.getItem('crisis_save'); if (raw) setAside(raw, 'broken'); } catch (e2) {} reportError(e); return false; }
 }
 
 /* ---------- modal queue ---------- */
-function ask(title, text, choices, art) { Q.push({ title, text, choices, art: expandArt(art || curArt), cur: ST.cur }); }
-function say(title, text, art) { if (Q.length >= 6 && !/dead|killed|gone/i.test(String(title))) { try { log(`${title}: ${String(text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140)}`, 'warn'); } catch (e) {} return; } Q.push({ title, text, choices: [{ label: 'Continue' }], art: expandArt(art || curArt), cur: ST.cur }); }
-function flush(cb) { if (cb) after = cb; if (!modalOpen) nextModal(); }
+/* a death is always the last thing you read: anything that happens in the same moment (the fight, the fall) comes first */
+function qPush(item) { if (item.death) { Q.push(item); return; } let i = Q.length; while (i > 0 && Q[i - 1].death) i--; Q.splice(i, 0, item); }
+function ask(title, text, choices, art) { qPush({ title, text, choices, art: expandArt(art || curArt), cur: ST.cur }); }
+function say(title, text, art) { if (Q.length >= 6 && !/dead|killed|gone/i.test(String(title))) { try { log(`${title}: ${String(text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140)}`, 'warn'); } catch (e) {} return; } qPush({ title, text, choices: [{ label: 'Continue' }], art: expandArt(art || curArt), cur: ST.cur }); }
+let HOLD = 0;   /* while a knock is being set up nothing opens: the visitor's sheets wait until someone answers */
+function flush(cb) { if (cb) after = cb; if (!modalOpen && !HOLD) nextModal(); }
 function nextModal() {
   const m = Q.shift(); const el = $('#modal');
   if (!m) { modalOpen = false; if (el) el.classList.add('hidden'); try { const hs = document.querySelector('.house .hsvg'); if (hs) { hs.style.height = ''; hs.style.bottom = ''; } } catch (e0) {} const a = after; after = null; save(); render(); if (a) a(); return; }
@@ -262,9 +268,10 @@ function nextModal() {
     modalOpen = true; render();
     const ch = m.choices.filter((c) => c.show === undefined || c.show); const prompt = ch.length > 1 ? `<div class="prompt">${m.choices.prompt || 'What do you do?'}</div>` : '';
     const BACKRE = /^(leave it|never mind|nevermind|close|back|cancel|stay inside|wait inside|not now|that's all|enough|leave)\b/i; const bi = ch.length > 1 ? ch.findIndex((c) => BACKRE.test(String(c.label).replace(/<[^>]+>/g, '').trim())) : -1; const backBtn = bi >= 0 ? `<button class="mback" data-m="${bi}">← ${String(ch[bi].label).replace(/<[^>]+>/g, '').replace(/[.!…]+$/, '')}</button>` : '';
-    el.innerHTML = `<div class="box">${backBtn}<div class="mhead">${artHtml(m.art)}<h3>${m.title}</h3></div><div class="story">${m.text.replace(/\n/g, '<br>')}</div>${prompt}<div class="btns">${ch.map((c, i) => (i === bi ? '' : `<button data-m="${i}" ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${c.label}</button>`)).join('')}</div></div>`;
+    const acts = ch.filter((c, i) => i !== bi).length >= 3 && ch.every((c, i) => i === bi || c.icon);   /* a sheet of actions, every one with an icon: tiles, not a list */
+    el.innerHTML = `<div class="box">${backBtn}<div class="mhead">${artHtml(m.art)}<h3>${m.title}</h3></div><div class="story">${m.text.replace(/\n/g, '<br>')}</div>${acts ? '' : prompt}<div class="btns${m.choices.tiles ? ' tiles' : ''}${acts ? ' acts' : ''}">${ch.map((c, i) => (i === bi ? '' : acts ? `<button data-m="${i}" class="atile" ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${icn(c.icon)}<span class="al">${c.label}</span>${c.sub ? `<small>${c.sub}</small>` : ''}</button>` : `<button data-m="${i}"${c.tile ? ' class="tb"' : ''} ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${c.label}${c.sub ? `<small class="csub">${c.sub}</small>` : ''}</button>`)).join('')}</div>${m.choices.tiles ? DLEGEND() : ''}</div>`;
     el.classList.remove('hidden'); el.dataset.tall = '0'; placeModal(); sfx('open');
-    requestAnimationFrame(() => { try { const bx = el.querySelector('.box'); if (!bx) return; const st = bx.querySelector('.story'), bt = bx.querySelector('.btns'); const over = (st && st.scrollHeight > st.clientHeight + 2) || (bt && bt.scrollHeight > bt.clientHeight + 2) || bx.scrollHeight > el.clientHeight + 4; if (over) { const extra = (st ? st.scrollHeight - st.clientHeight : 0) + (bt ? Math.max(0, bt.scrollHeight - bt.clientHeight) : 0); el.dataset.need = String(el.clientHeight + extra + 72); el.dataset.tall = '1'; placeModal(); } } catch (e) {} }); if (CR.UI) CR.UI.soon();
+    requestAnimationFrame(() => { try { const bx = el.querySelector('.box'); if (!bx) return; const st = bx.querySelector('.story'), bt = bx.querySelector('.btns'); const over = (st && st.scrollHeight > st.clientHeight + 2) || (bt && bt.scrollHeight > bt.clientHeight + 2) || bx.scrollHeight > el.clientHeight + 4; if (over) { const extra = (st ? st.scrollHeight - st.clientHeight : 0) + (bt ? Math.max(0, bt.scrollHeight - bt.clientHeight) : 0); el.dataset.need = String(Math.max(el.clientHeight + extra + 72, bx.scrollHeight + 28));   /* the whole sheet's real height, so every choice is on screen */ el.dataset.tall = '1'; placeModal(); } } catch (e) {} }); if (CR.UI) CR.UI.soon();
     el.querySelectorAll('[data-m]').forEach((b) => {
       b.onclick = () => {
         if (b.getAttribute('aria-disabled')) { toastWhy(b.dataset.why); return; }
@@ -285,27 +292,47 @@ function reportError(err) { try { console.error(err); (window.__errors = window.
 
 /* ---------- someone knocks: you decide who answers ---------- */
 function knockRun(d, cs, runFn) {
-  const saved = Q.splice(0, Q.length); let r; try { r = runFn(); } catch (e) { reportError(e); r = false; }
+  const saved = Q.splice(0, Q.length); let r; HOLD++; try { r = runFn(); } catch (e) { reportError(e); r = false; } finally { HOLD--; }
   const got = Q.splice(0, Q.length); Q.push(...saved);
   if (r === false) return false; if (!got.length) return true;
   knockModal(d, got, null); return true;
 }
-function knockModal(d, got, peek) {
-  const al = alive().filter((s) => !s.out && s.id !== G.sel); const brave = (s) => (ST.cd(s) ? ST.cd(s).axes.brave : 0.3);   /* only someone who is home can answer; you can always open it yourself */
-  const cands = al.slice().sort((a, b) => brave(b) - brave(a)).slice(0, 2);
-  sfx('hit'); setTimeout(() => sfx('hit'), 330); setTimeout(() => sfx('hit'), 660); buzz([40, 70, 40, 70, 40]);
+/* the door is a place, not a menu. A knock does not stop the game: the visitor waits outside for a while (armed men least, the
+   desperate longest). Pick anyone and tap the door: they walk there, look through the gap, and then you decide. If nobody comes,
+   whoever it was gives up and goes. Sending a sleeper wakes them; sending the look-out leaves the window unwatched until they go back. */
+let KNOCK = null;
+function knockModal(d, got) {
   const a0 = Array.isArray(got[0].art) ? got[0].art[0] : got[0].art;
-  if (a0 && a0.sp && !peek) { const armed0 = a0.sp.item === 'ak' || a0.sp.item === 'rifle' || /bandit|soldier/.test(a0.sp.arch || ''); const needy0 = /hungry|starving|hurt|sick/.test(a0.state || ''); G.yard = [{ sp: a0.sp, kind: armed0 ? 'aim' : needy0 ? 'sitfloor' : 'idle', state: a0.state || 'ok', until: G.t + 60, text: armed0 ? 'An armed figure stands at the door.' : needy0 ? 'Someone thin is waiting at the door, shaking.' : 'Someone is waiting at the door.' }]; }
-  const intro = pick(['Three slow knocks on the barricade.', 'Knocking: quick, soft, desperate.', 'Two polite knocks, a pause, then two more.', 'A fist on the wood, patient and heavy.']);
-  const ch = [{ label: 'Open the door yourself', fn() { Q.unshift(...got); return ''; } }];
-  cands.forEach((c) => ch.push({ label: `Send ${c.name} to answer`, fn() { c.trust = clamp((c.trust || 0) + 1, 0, 100); Q.unshift({ title: `${c.name} answers`, text: `<i>${c.name} goes to the door, slides the bolt back a hand's width, and asks who it is.</i>`, choices: [{ label: 'Continue' }], art: { sp: c.sp, state: stateOf(c) }, cur: null }, ...got); return ''; } }));
-  if (!peek) ch.push({ label: 'Look through the gap first', fn() {
-    const armed = a0 && a0.sp && (a0.sp.item === 'ak' || a0.sp.item === 'rifle' || /bandit|soldier/.test(a0.sp.arch || '')); const needy = a0 && /hungry|starving|hurt|sick/.test(a0.state || '');
-    const t = armed ? 'Boots, a rifle sling, and more than one shadow behind the first.' : needy ? 'One person, thin, shaking, with their hands where you can see them.' : 'One person, steady, watching the gap as if they know you can see them.';
-    knockModal(d, got, t); return ''; } });
-  ch.push({ label: 'Stay quiet. Do not answer.', fn() { log('Someone knocked. Nobody answered.', 'warn'); if (d.onIgnore) d.onIgnore(); return `<i>The knocking goes on a while. Then it stops, and the quiet afterwards is worse.</i>`; } });
-  ch.prompt = 'Who answers?';
-  ask('Knock, knock', `${intro}\n\nEveryone in the room goes still.${peek ? `\n\n<i>${peek}</i>` : ''}`, ch, { icon: '🚪' });
+  const armed = !!(a0 && a0.sp && (a0.sp.item === 'ak' || a0.sp.item === 'rifle' || /bandit|soldier/.test(a0.sp.arch || ''))); const needy = !!(a0 && /hungry|starving|hurt|sick/.test(a0.state || ''));
+  const wait = armed ? 25 : needy ? 60 : 40;
+  KNOCK = { d, got, armed, needy, a0, peek: armed ? 'Boots, a rifle sling, and more than one shadow behind the first.' : needy ? 'One person, thin, shaking, with their hands where you can see them.' : a0 && a0.sp ? 'One person, steady, watching the gap as if they know someone is looking.' : 'Nobody you can see. Just the voice.' };
+  G.knockAt = G.t; G.knockUntil = G.t + wait;
+  /* a knock stops any fast-forward, so you get the same real time to react at night as by day; it resumes once the door is dealt with */
+  KNOCK.ff = G.ff || null; G.ff = null;
+  if (a0 && a0.sp) G.yard = [{ sp: a0.sp, kind: armed ? 'aim' : needy ? 'sitfloor' : 'idle', state: a0.state || 'ok', until: G.knockUntil, text: armed ? 'An armed figure stands at the door.' : needy ? 'Someone thin is waiting at the door.' : 'Someone is waiting at the door.' }];
+  sfx('hit'); setTimeout(() => sfx('hit'), 330); setTimeout(() => sfx('hit'), 660); buzz([40, 70, 40, 70, 40]);
+  const awake = alive().filter((s) => !s.out && !(s.act && s.act.k === 'sleep'));
+  notice(pick(['Three slow knocks on the barricade.', 'Knocking at the door: quick, soft, desperate.', 'Two polite knocks, a pause, then two more.', 'A fist on the wood, patient and heavy.']) + (awake.length ? ` Pick someone and ${CR.tw()} the door to answer.` : ' Everyone is asleep. Wake someone and send them, or let it go.'));
+  log('Someone is knocking at the door.', 'warn');
+}
+const goingToDoor = () => alive().some((p) => p.act && p.act.job && p.act.job.what === 'door' && !p.out);
+function knockTick() {
+  if (!KNOCK) { if (G.knockUntil) G.knockUntil = 0; return; }        // a reload loses whoever was at the door
+  if (G.t < G.knockUntil) return;
+  if (goingToDoor()) { G.knockUntil = G.t + 3; return; }          // someone is on the way: they hear "Coming!" and wait
+  const k = KNOCK; KNOCK = null; G.knockUntil = 0; G.yard = []; if (k.ff && !G.ff) G.ff = k.ff;
+  log('Someone knocked. Nobody came to the door, and they went away.', 'warn'); notice('The knocking has stopped. Whoever it was has gone.');
+  if (k.d && k.d.onIgnore) k.d.onIgnore();
+}
+function answerDoor(p) {
+  const k = KNOCK; if (!k) { doorSheet(p); return; }
+  KNOCK = null; G.knockUntil = 0; if (k.ff && !G.ff) G.ff = k.ff;
+  const ignore = () => { G.yard = []; log(`${p.name} stood behind the door and said nothing. Whoever knocked went away.`, 'warn'); if (k.d && k.d.onIgnore) k.d.onIgnore(); return `<i>The knocking goes on a while. Then it stops, and the quiet afterwards is worse.</i>`; };
+  ask(`${p.name} at the door`, `<i>${p.name} slides the bolt back a hand's width and looks through the gap.</i>\n\n${k.peek}`, [
+    { label: 'Open up and talk', fn() { p.trust = clamp((p.trust || 0) + 1, 0, 100); G.yard = []; Q.unshift(...k.got); return ''; } },
+    { label: 'Say nothing. Step back.', fn: ignore }
+  ], { sp: p.sp, state: stateOf(p) });
+  flush();
 }
 
 /* ---------- inventory: the cupboard (group) and each person's pack ---------- */
@@ -344,7 +371,7 @@ function invList(s, mode, target) {
   if (items.length > 1 && room() > 0) ch.push({ label: 'Move everything that fits', fn() { items.forEach((k) => move(k, src[k])); if (mode === 'give') target.trust = clamp((target.trust || 0) + 2, 0, 100); invList(s, mode, target); return ''; } });
   ch.push({ label: 'Back', fn() { if (mode === 'give') invWho(s); else invMenu(s); return ''; } });
   const head = mode === 'take' ? 'Take from the cupboard' : mode === 'put' ? 'Put into the cupboard' : `Give to ${target.name}`;
-  ask(head, items.length ? `<i>Tap an item to move one. Cupboard ${stashCount()}/${stashCap()} · ${s.name} ${packCount(s)}/${packCap(s)}${mode === 'give' ? ` · ${target.name} ${packCount(target)}/${packCap(target)}` : ''}</i>` : '<i>Nothing left to move.</i>', ch, { sp: s.sp, state: stateOf(s) });
+  ask(head, items.length ? `<i>${CR.tw(true)} an item to move one. Cupboard ${stashCount()}/${stashCap()} · ${s.name} ${packCount(s)}/${packCap(s)}${mode === 'give' ? ` · ${target.name} ${packCount(target)}/${packCap(target)}` : ''}</i>` : '<i>Nothing left to move.</i>', ch, { sp: s.sp, state: stateOf(s) });
 }
 
 /* ---------- why something is greyed out ---------- */
@@ -412,8 +439,8 @@ function kill(s, why) {
   if (s.cid) ST.onDeath(s, why);
   Object.entries(s.pack || {}).forEach(([k, v]) => add(k, v)); s.pack = {};
   sfx('death'); buzz([90, 60, 220]);
-  if (G.exp && G.exp.sid === s.id && /patrol|shot|fight|struggle|killed|bandit|stabbed|cut|beaten|bursary/i.test(why || '')) { capturedDeath(s, why); return; }
-  Q.push({ title: `${s.name} is dead`, text: deathText(s, why), choices: [{ label: 'Continue' }], art: { side: true, sp: s.sp, kind: 'dead', state: 'dead' } });
+  if (G.exp && G.exp.sid === s.id && /patrol|bandit|bursary|gate boys|collector|mai kudi/i.test(why || '')) { capturedDeath(s, why); return; }   /* the slow death is the bandits' signature: not a scavenger's knife or a fall */
+  Q.push({ death: true, title: `${s.name} is dead`, text: deathText(s, why), choices: [{ label: 'Continue' }], art: { side: true, sp: s.sp, kind: 'dead', state: 'dead' } });
 }
 /* the bandits do not kill a runner they catch quickly. The end of that night is shown once, here, and the place keeps what was left */
 const CAUGHT = [
@@ -436,8 +463,8 @@ function capturedDeath(s, why) {
   art += SD.place(b1, 'idle', 46, 74, { dir: 1, state: 'ok', s: 1 }) + SD.place(Object.assign({}, b2, { item: 'ak' }), 'aim', 118, 74, { dir: -1, state: 'ok', s: 1 });
   art += R_(100, 71, 10, 2.5, '#7a7f85') + R_(108, 70, 3, 1.4, '#3a2a1c') + R_(54, 72, 7, 2, '#5a5f66') + R_(30, 66, 8, 8, '#3a5a7a') + R_(30, 66, 8, 1.5, '#7a9aba');
   const html = `<svg class="caught" viewBox="0 0 160 90" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${art}</svg>`;
-  Q.length = 0;
-  Q.push({ title: `${s.name}`, text: `<i>${pick(CAUGHT)(s.name, f, h)}</i>`, choices: [{ label: 'Continue' }], art: { html } });
+  Q.splice(0, Math.max(0, Q.length - 1));   /* keep only what just happened (the fight), then the death */
+  Q.push({ death: true, title: `${s.name}`, text: `<i>${pick(CAUGHT)(s.name, f, h)}</i>`, choices: [{ label: 'Continue' }], art: { html } });
   other.forEach((o) => remember(o, `${s.name} never came back. Somebody heard screaming from ${L ? L.name : 'across the campus'} all night. I heard it too, I think.`, { w: 16, who: s.id, bark: `Do you think ${ST.first(s)} called for us?` }));
   if (other.length) toReport(`${s.name} never came back. In the morning, somebody from another block says they heard screaming all night from ${L ? L.name : 'across the campus'}.`);
 }
@@ -741,9 +768,9 @@ function barterHtml() {
   const yours = left(mine, b.give).map(([k, v]) => cell('y', k, v)).join('') || '<span class="dim">Nothing.</span>';
   const deal = (side, set) => Object.entries(set).filter(([, v]) => v > 0).map(([k, v]) => cell(side === 't' ? 'tt' : 'yy', k, v, true)).join('');
   const pct = get > 0 ? Math.min(100, Math.round(100 * pay / get)) : (pay > 0 ? 100 : 0); const okd = get > 0 && pay >= get;
-  if (b.levy) return `<div class="lt bt"><div class="ltsec btdeal"><div class="lth">The levy</div><div class="ltg">${deal('y', b.give) || '<span class="dim">Tap what you will give him.</span>'}</div><div class="btbar"><i style="width:${pct}%;background:${okd ? '#6aa05a' : '#c8803a'}"></i></div><div class="btsay">${okd ? (pay > get * 1.3 ? '"Generous. I will remember."' : '"Good." He writes it down.') : pct > 70 ? '"Not quite."' : '"That is not a levy. That is an insult."'}</div></div><div class="ltsec"><div class="lth">You have</div><div class="ltg">${yours}</div></div></div>`;
+  if (b.levy) return `<div class="lt bt"><div class="ltsec btdeal"><div class="lth">The levy</div><div class="ltg">${deal('y', b.give) || `<span class="dim btwide">${CR.tw(true)} what you will give him, from what you have below.</span>`}</div><div class="btbar"><i style="width:${pct}%;background:${okd ? '#6aa05a' : '#c8803a'}"></i></div><div class="btsay">${okd ? (pay > get * 1.3 ? '"Generous. I will remember."' : '"Good." He writes it down.') : !pay ? '<span class="dim">He waits, pen ready.</span>' : pct > 70 ? '"Not quite."' : '"That is not a levy. That is an insult."'}</div></div><div class="ltsec"><div class="lth">You have</div><div class="ltg">${yours}</div></div></div>`;
   return `<div class="lt bt"><div class="ltsec"><div class="lth">They have</div><div class="ltg">${theirs}</div></div>`
-    + `<div class="ltsec btdeal"><div class="lth">The deal</div><div class="btrow"><div class="ltg">${deal('t', b.take) || '<span class="dim">Tap what you want.</span>'}</div><div class="btfor">for</div><div class="ltg">${deal('y', b.give) || '<span class="dim">Tap what you offer.</span>'}</div></div><div class="btbar"><i style="width:${pct}%;background:${okd ? '#6aa05a' : '#c8803a'}"></i></div><div class="btsay">${get === 0 ? '' : okd ? (pay > get * 1.4 ? '"You are generous. Too generous."' : '"Fine. Done."') : pct > 70 ? '"A little more."' : '"No. Look at what you are asking for."'}</div></div>`
+    + `<div class="ltsec btdeal"><div class="lth">The deal</div><div class="btrow"><div class="ltg">${deal('t', b.take) || `<span class="dim">${CR.tw(true)} what you want.</span>`}</div><div class="btfor">for</div><div class="ltg">${deal('y', b.give) || `<span class="dim">${CR.tw(true)} what you offer.</span>`}</div></div><div class="btbar"><i style="width:${pct}%;background:${okd ? '#6aa05a' : '#c8803a'}"></i></div><div class="btsay">${get === 0 ? '' : okd ? (pay > get * 1.4 ? '"You are generous. Too generous."' : '"Fine. Done."') : pct > 70 ? '"A little more."' : '"No. Look at what you are asking for."'}</div></div>`
     + `<div class="ltsec"><div class="lth">You have</div><div class="ltg">${yours}</div></div></div>`;
 }
 function barterDeal() {
@@ -826,7 +853,7 @@ function mkLevy(m) { return Math.round((6 + G.day * 0.6 + (m.gen ? 4 : 0)) * (1 
 function mkRumour(p) { const m = mkState(); const left = MK_RUMOURS.map((_, i) => i).filter((i) => !m.heard.includes(i)); if (!left.length) return null; const i = pick(left); m.heard.push(i); const t = MK_RUMOURS[i]; if (p) remember(p, `About Mai Kudi: ${t}`, { w: 2, bark: pick(['Did you hear what they say about Mai Kudi?', 'I do not believe half of what they say about him. Maybe a quarter.', 'Do not look at his ledger.']) }); return t; }
 function collectorVisit() {
   const m = mkState(); if (!m.alive && m.gen === 0) return; if (G.day < m.next || G.away || G.screen !== 'day') return;
-  m.next = G.day + rnd(3, 4); m.visits++; const levy = mkLevy(m); m.levy = levy; m.want = pick(['loud', 'cigarettes', 'ogogoro', 'bullets', 'meds']);
+  m.next = G.day + rnd(3, 4); m.visits++; G.doorDay = G.day; G.doorFree = G.day + 1; const levy = mkLevy(m); m.levy = levy; m.want = pick(['loud', 'cigarettes', 'ogogoro', 'bullets', 'meds']);
   const sp = mkSprite(m.gen); const boys = [CR.Sprites.gen('bandit_soldier', 4401 + m.visits), CR.Sprites.gen('bandit_scout', 5501 + m.visits)];
   const me0 = person(G.sel) || alive()[0]; const art = { html: sceneHtml(me0, 'idle', [{ sp, kind: 'idle', state: 'ok' }].concat(boys.map((b) => ({ sp: Object.assign({}, b, { item: 'ak' }), kind: 'aim', state: 'ok' })))) };
   const missing = (G.mem2 || []).filter((d) => G.day - d.day <= 6 && d.day >= (m.lastVisit || 0)); m.lastVisit = G.day;
@@ -1027,6 +1054,8 @@ function act(a, d) {
     case 'diplo': { if (canTask(s)) { const before = s.slots; PO.menu(s); flush(() => { if (s.alive && s.slots < before && !s.out) { s.out = { mode: 'diplo', back: G.t + 240, what: 'the other groups' }; SIM.abort(s); s.q = [];  } }); } return; }
     case 'notebook': { showNotebook(+d.id || G.sel); flush(); return; }
     case 'speed': G.speed = ((G.speed || 0) + 1) % 4; chromeSig = ''; chrome(); return;
+    case 'spd': G.speed = +d.v || 0; chromeSig = ''; chrome(); refreshPC(); return;
+    case 'endday': if (KNOCK) { toastWhy('Someone is at the door. Answer it, or wait for them to give up, first.'); return; } ask('End the day?', 'Time runs on to evening, when you plan the night. Anything still being built or made goes on while you wait.', [{ label: 'End the day', fn() { G.ff = 'dusk'; return ''; } }, { label: 'Not yet' }]); flush(); return;
     case 'simjob': { const j = d.k === 'build' ? { k: 'build', id: d.b } : d.k === 'craft' ? { k: 'craft', id: d.b } : { k: 'cook' }; const r = SIM.order(s.id, j, true); if (!r.ok) toastWhy(r.why); break; }
     case 'door': doorSheet(); flush(); return;
     case 'wheel': openWheel(d.w); return;
@@ -1240,7 +1269,7 @@ function goHome(forced) {
   G.screen = alive().length ? 'day' : 'over';
   if (G.screen === 'day' && !e.dead) runClock(travelMin(e.travel || 0));        /* the walk back is on the same clock */
   G.exp = null; s.out = null; G.dayTrip = false; s.f = 0; s.x = 14; s.up = 0; s.at = null; s.act = null; s.q = [];
-  G.away = false; G.awayRaid = false; const homeBag = G.unpack; G.unpack = null; returnParties();
+  G.away = false; G.awayRaid = false; { const tod = G.t % 1440; if (G.screen === 'day' && (tod >= 20 * 60 || tod < 6 * 60)) G.ff = 'night'; } const homeBag = G.unpack; G.unpack = null; returnParties();
   trimQ(4); { const ts = s && s.alive ? tellSheet(s) : null; if (ts) Q.unshift(ts); } if (homeBag && Object.values(homeBag.bag).some((v) => v > 0) && person(homeBag.sid) && person(homeBag.sid).alive) Q.unshift(unpackSheet(person(homeBag.sid), homeBag.bag)); flush(); save(); render();
 }
 /* home first: the person is back, and what to do with what they carried is yours to decide */
@@ -1280,7 +1309,7 @@ function exposeDeeds() {
 /* the people you met come back */
 function strangersReturn() {
   const due = (G.returns || []).filter((r) => r.due <= G.day && !r.done); if (!due.length) return;
-  const r = due[0]; r.done = true; const L = LOCBY[r.loc]; const sp = CR.Sprites.gen(r.arch, r.seed); const who = person(r.sid);
+  const r = due[0]; r.done = true; G.doorDay = G.day; G.doorFree = G.day + 1 + (chance(0.5) ? 1 : 0); const L = LOCBY[r.loc]; const sp = CR.Sprites.gen(r.arch, r.seed); const who = person(r.sid);
   const art = { sp, state: r.how === 'robbed' ? 'hungry' : 'ok' };
   const T = {
     helped: { freshers: [`Two of the first-years from ${L.name} at the door, thinner but alive. "You remember us?" They have brought noodles, three packets.`, () => add('food', 3)],
@@ -1529,39 +1558,42 @@ const safe = (fn, label) => { try { return fn(); } catch (err) { reportError(err
 const btn = (a, label, ok, extra = '') => `<button data-a="${a}" ${extra} ${ok ? '' : dis(whyNot(a, parseData(extra)))}>${label}</button>`;
 const tagsOf = (s, st) => `${/starving/.test(st) ? '<span class="tag bad">starving</span>' : /hungry/.test(st) ? '<span class="tag warn">hungry</span>' : ''}${s.sick ? '<span class="tag warn">sick</span>' : ''}${s.wound ? '<span class="tag bad">hurt</span>' : ''}${/tired/.test(st) ? '<span class="tag">tired</span>' : ''}`;
 
-/* the group as a strip of faces: who is who, how they are, at a glance. Tap a face to become them; tap again for more */
+/* the group as a strip of faces: who is who, how they are, at a glance. Tap a face to give them orders; tap again for more */
 const TIERC = ['#6aa05a', '#b8a050', '#c8803a', '#b85a3a', '#8a2a22'];
 function peopleTab() {
   const s = person(G.sel) || alive()[0];
   const faces = alive().map((p) => { const st = stateOf(p); const t = tier(p.mood); return `<button class="face${p.id === G.sel ? ' sel' : ''}${p.out ? ' away' : ''}" data-a="${p.id === G.sel ? 'me' : 'sel'}" data-id="${p.id}" aria-label="${p.name}"><span class="fpic">${portrait(p, st, 2)}</span><span class="fnm">${p.name.replace(/^(Dr\.|Mr\.|Mrs\.|Mama|Papa) /, '')}</span><i class="fmood" style="background:${TIERC[t]}"></i><span class="fbd">${p.out ? '<i class="bd gry">🚪</i>' : badges(p)}</span></button>`; }).join('');
   const line = s ? `<div class="fline"><b>${s.name}</b> <span style="color:${TIERC[tier(s.mood)]}">${TIERN[tier(s.mood)]}</span> · <span class="dim">${s.out ? 'Away' : s.act ? s.act.label : 'Waiting'}</span><span class="dim"> · ${needWords(s)}</span></div>` : '';
   const dl = s ? (s.mem || []).slice(-1)[0] : null;
+  const tod0 = G.t % 1440; const endBtn = !G.ff && tod0 >= 6 * 60 && tod0 < 19 * 60 + 50 ? `<button class="endday" data-a="endday" aria-label="End the day">${CR.Icons ? CR.Icons.html('moon') : ''}<span>End day</span></button>` : G.ff ? `<span class="endday on">${G.ff === 'dusk' ? 'The day goes by…' : 'The night passes…'}</span>` : '';
   const more = s && !s.out ? `<div class="fmore"><div class="mini">${mini('Hunger', s.hunger)}${mini('Thirst', s.thirst)}${mini('Tired', s.fatigue)}${mini('Health', s.hp, false)}${mini('Mood', s.mood, false)}</div>${dl ? `<div class="fdiary">"${dl.t}"</div>` : ''}</div>` : '';
-  return `<div class="faces">${faces}</div>${line}${more}`;
+  return `<div class="faces">${faces}</div><div class="flinewrap">${line}${endBtn}</div>${more}`;
 }
 function storesPanel() {
   const n = Math.max(1, alive().length); const rows = [
-    ['🍚', 'Food', inv('food'), `${Math.floor(inv('food') * 3 / n)} days if cooked · ${Math.floor(inv('food') * 0.9 / n)} raw`],
-    ['🍲', 'Cooked meals', inv('meal'), 'eat them today'],
-    ['💧', 'Water', inv('water'), `${Math.floor(inv('water') * 2.5 / n)} days`],
-    ['🪵', 'Wood', inv('wood'), 'fires, building, clubs'], ['⚙️', 'Scrap', inv('parts'), 'building, weapons, radio'], ['🧵', 'Cloth', inv('cloth'), 'bandages, beds, a rain bucket'],
-    ['💊', 'Medicine', inv('meds'), 'cures a fever'], ['🩹', 'Bandages', inv('bandage'), 'closes a wound'], ['🍶', 'Ogogoro', inv('ogogoro'), 'lifts a mood, trades well']
-  ].filter((r) => r[2] > 0 || ['Food', 'Water', 'Medicine'].includes(r[1]));
-  return `<div class="panel"><h3>Cupboard <span class="dim" style="font-size:13px">${stashCount()}/${stashCap()} · feeds ${n} ${n === 1 ? 'person' : 'people'}</span></h3>${rows.map((r) => `<div class="srow2"><span>${r[0]} ${r[1]}</span><b>${r[2]}</b><span class="dim">${r[3]}</span></div>`).join('')}</div>`;
+    ['food', 'Food', inv('food'), `${Math.floor(inv('food') * 3 / n)} days cooked`],
+    ['meal', 'Meals', inv('meal'), 'eat today'],
+    ['water', 'Water', inv('water'), `${Math.floor(inv('water') * 2.5 / n)} days`],
+    ['wood', 'Wood', inv('wood'), 'fire, build'], ['gear', 'Scrap', inv('parts'), 'building'], ['cloth', 'Cloth', inv('cloth'), 'bandages'],
+    ['meds', 'Medicine', inv('meds'), 'fever'], ['bandage', 'Bandages', inv('bandage'), 'wounds'], ['ogogoro', 'Ogogoro', inv('ogogoro'), 'trade']
+  ].filter((r) => r[2] > 0 || ['Food', 'Water', 'Medicine', 'Meals'].includes(r[1]));
+  return `<div class="panel stash"><h3>Cupboard <span class="dim" style="font-size:13px">${stashCount()}/${stashCap()} · feeds ${n} ${n === 1 ? 'person' : 'people'}</span></h3><div class="ctiles">${rows.map((r) => `<div class="ctile${r[2] ? '' : ' zero'}" title="${r[1]}: ${r[3]}">${icn(r[0])}<b>${r[2]}</b><span class="cn">${r[1]}</span><small>${r[3]}</small></div>`).join('')}</div></div>`;
 }
 function jbtn(label, job, s) { const w = SIM.why(job, s); const d = job.k === 'cook' ? '' : ` data-b="${job.id}"`; return `<button data-a="simjob" data-k="${job.k}"${d} ${w ? dis(w) : ''}>${label}</button>`; }
 const costS = (c) => costText(c);
 function workTab(s) {
-  const uses = ['food', 'meal', 'water', 'meds', 'bandage', 'ogogoro'].map((k) => btn('use', `${ITEMS[k][0]} ${k === 'meds' ? 'Treat sickness' : k === 'bandage' ? 'Treat wound' : k === 'food' ? 'Eat raw (weak, risky)' : k === 'meal' ? 'Eat a cooked meal' : ITEMS[k][1]}`, (inv(k) > 0 || (s.pack && s.pack[k] > 0)) && !(k === 'meds' && !s.sick) && !(k === 'bandage' && !s.wound), `data-i="${k}"`)).join('');
+  const uses = ['meal', 'food', 'water', 'meds', 'bandage', 'ogogoro'].map((k) => btn('use', `${icn(k === 'ogogoro' ? 'ogogoro' : k)}<span>${k === 'meds' ? 'Treat sickness' : k === 'bandage' ? 'Dress a wound' : k === 'food' ? 'Eat raw' : k === 'meal' ? 'Eat a meal' : k === 'water' ? 'Drink' : 'Drink ogogoro'}</span>${k === 'food' ? '<small>weak, risky</small>' : ''}`, (inv(k) > 0 || (s.pack && s.pack[k] > 0)) && !(k === 'meds' && !s.sick) && !(k === 'bandage' && !s.wound), `data-i="${k}" class="utile"`)).join('');
   const tasks = [jbtn(`Cook a pot (${ITEMS.food[0]}×4 + ${ITEMS.wood[0]}) · 40 min`, { k: 'cook' }, s)].concat(Object.entries(SIM.CRAFTS).map(([id, c]) => jbtn(`${c.name} (${costS(c.cost)}) · ${c.min} min`, { k: 'craft', id }, s))).join('');
   const builds = Object.entries(SIM.BUILDS).filter(([, d]) => d.can(G.build)).map(([id, d]) => jbtn(`${d.name} ${costS(d.cost)} · ${Math.round(d.min / 6) / 10} h`, { k: 'build', id }, s)).join('');
-  const bq = SIM.activeTasks().map((t) => `<div class="trow"><div><b>${t.name}</b> <span class="dim">${t.pct}%${t.who ? ' · ' + t.who : ''}</span><i class="tbar"><b style="width:${t.pct}%"></b></i></div>${t.kind === 'build' ? `<button data-a="cancelbq" data-b="${t.id}">Cancel</button>` : `<button data-a="cancelact" data-id="${t.pid}">Cancel</button>`}</div>`).join('');
+  const bq = SIM.activeTasks().map((t) => `<div class="jtile"><b>${t.name}</b><small>${t.who || 'nobody on it'} · ${t.pct}%</small><i class="tbar"><b style="width:${t.pct}%"></b></i>${t.kind === 'build' ? `<button data-a="cancelbq" data-b="${t.id}">Stop</button>` : `<button data-a="cancelact" data-id="${t.pid}">Stop</button>`}</div>`).join('');
   const wb = (w, ic, label) => `<button class="wbtn" data-a="wheel" data-w="${w}"><span class="wbi">${ic}</span>${label}</button>`;
   return `${storesPanel()}<div class="wrow">${wb('stock', '🎒', 'Cupboard')}${wb('craft', '🛠', 'Make')}${wb('cook', '🍲', 'Cook')}${wb('build', '🏠', 'Build')}</div><div class="sub">${s.name} · ${s.out ? 'away' : s.act ? s.act.label : 'free'} · carries ${packCount(s)}/${packCap(s)}</div>
-    <div class="sub">Use now</div><div class="row">${uses}</div>${bq ? '<div class="sub">In progress</div>' + bq : ''}`;
+    <div class="sub">Use now</div><div class="utiles">${uses}</div>${bq ? '<div class="sub">In progress</div><div class="jtiles">' + bq + '</div>' : ''}`;
 }
 function facRows() {
-  return (G.fac || []).map((f) => `<div class="frow ${f.status === 'active' ? '' : 'gone'}"><span>${f.met ? f.name : 'Unknown group'}<br><small>${LOCBY[f.loc].name}</small></span><span style="text-align:right">${f.status !== 'active' ? 'gone' : f.met ? PO.stance(f) : 'unknown'}<br><small>${f.met && f.status === 'active' ? '~' + PO.size(f) + ' people' : ''}</small></span></div>`).join('');
+  const met = (G.fac || []).filter((f) => f.met);   /* only the people you have actually met: strangers stay strangers */
+  if (!met.length) return '<div class="dim" style="margin:4px 2px 10px">You have not met anyone out there yet. Runs and the door are how you will.</div>';
+  return `<div class="gtiles">${met.map((f) => `<div class="gtile ${f.status === 'active' ? '' : 'gone'}">${icn('people')}<b>${f.met ? f.name : 'Unknown group'}</b><small>${LOCBY[f.loc].name}</small><span class="gst">${f.status !== 'active' ? 'gone' : f.met ? PO.stance(f) : 'unknown'}${f.met && f.status === 'active' ? ' · about ' + PO.size(f) : ''}</span></div>`).join('')}</div>`;
 }
 function newsPanel() {
   const n = (G.newsLog || [])[0]; if (!n) return '';
@@ -1571,12 +1603,12 @@ function rescueLine() { const w = G.rescueWin; if (!w) return rumourPanel(); ret
 function mkPanel() { const m = G.mk; if (!m || !m.visits) return ''; const h = (m.heard || []).map((i) => `<div class="story" style="font-size:14px;margin:6px 0"><i>${MK_RUMOURS[i]}</i></div>`).join(''); return `<div class="panel"><h3>${m.gen ? 'Garba, the new collector' : 'Mai Kudi'}</h3>${h || '<div class="dim">Nobody is saying anything about him yet. Not out loud.</div>'}${m.gen && m.alive !== false ? '' : ''}</div>`; }
 function worldTab(s) {
   const dip = `<div class="row" style="margin:0 0 8px"><button class="primary" style="flex:1" data-a="diplo" ${canTask(s) ? '' : dis(whyNot('diplo', {}))}>🏛 Send ${s.name} to the other groups</button></div>`;
-  if (!G.build.radio) return `${rescueLine()}${mkPanel()}<div class="panel"><h3>Beyond your walls</h3><div class="dim">Static.</div></div>${dip}`;
-  return `${rescueLine()}${mkPanel()}${newsPanel()}${dip}${zonePanel()}<div class="sub">The groups</div>${facRows()}`;
+  if (!G.build.radio) return `${rescueLine()}${mkPanel()}<div class="panel"><h3>Beyond your walls</h3><div class="dim">Static. Build a radio to hear what is happening out there.</div></div><div class="sub">People out there</div>${facRows()}`;
+  return `${rescueLine()}${mkPanel()}${newsPanel()}<div class="sub">People out there</div>${facRows()}`;
 }
 function notesTab(s) {
   const rows = alive().filter((o) => o.id !== s.id).map((o) => { const r = ST.rel(s, o); const w = r.love >= 2 ? '❤ together' : r.love >= 1 ? '❤ something between them' : r.fond > 60 ? 'very close' : r.fond > 30 ? 'friends' : r.fond > 10 ? 'friendly' : r.fond < -10 ? 'cold' : 'acquaintances'; return `<div class="dim">${o.name}: ${w}${r.tension > 50 ? ' · strained' : ''}</div>`; }).join('');
-  return `${rescueLine()}<div class="panel"><h3>${s.name}</h3><div class="dim">${ST.describe(s)}</div><div class="dim" style="margin-top:4px">Trust in you ${Math.round(s.trust || 0)}/100 · ${TRAITS[s.trait][0]}: ${TRAITS[s.trait][1]}</div>
+  return `<div class="panel"><h3>${s.name}</h3><div class="dim">${ST.describe(s)}</div><div class="dim" style="margin-top:4px">Trust in you ${Math.round(s.trust || 0)}/100 · ${TRAITS[s.trait][0]}: ${TRAITS[s.trait][1]}</div>
     ${(s.known || []).length ? '<div class="sub">What you know</div>' + s.known.map((k) => `<div class="dim">• ${k}</div>`).join('') : '<div class="dim" style="margin-top:6px">You do not know them well yet. Talk to them.</div>'}${rows ? '<div class="sub">With the others</div>' + rows : ''}</div>
     ${CR.Life ? CR.Life.notes() : ''}${CR.Lore ? CR.Lore.panel(G.day) : ''}<div class="sub">Lately</div><div class="log">${G.log.slice(0, 10).map((l) => `<div class="${l.c}">${l.t}</div>`).join('')}</div>`;
 }
@@ -1586,13 +1618,13 @@ function bagStrip() {
   const e = G.exp; const cap = bagCap(); const cells = [];
   Object.entries(e.bag).forEach(([k, v]) => { for (let i = 0; i < v; i++) cells.push(k); });
   const shown = cells.slice(0, cap).map((k) => `<i class="rs full" data-a="baginfo" data-i="${k}">${ITEMS[k][0]}</i>`).join('') + '<i class="rs"></i>'.repeat(Math.max(0, cap - cells.length));
-  return `<div class="rbag" aria-label="Bag ${cells.length} of ${cap}">${shown}</div>`;
+  return `<div class="rbag" style="--n:${cap}" aria-label="Bag ${cells.length} of ${cap}">${shown}</div>`;
 }
 function renderExp() {
   const e = G.exp, L = LOCBY[e.loc];
   const hudH = `<header class="hud rhud"><button class="menubtn" data-a="menu" aria-label="Menu">☰</button><div class="hudt"><b>${L.name}</b><span class="phase" id="rsub">${runSub(e)}</span></div><b class="rclk${e.hours < 1 ? ' late' : ''}" id="rclk">${SIM.clock(G.t)}</b></header>`;
   const sneakOn = !!(CR.Expedition && CR.Expedition.st && CR.Expedition.st.p && CR.Expedition.st.p.sneak);
-  const nav = `<div class="rbar">${bagStrip()}<button class="rbtn rsneak${sneakOn ? ' on' : ''}" data-a="sneak" aria-pressed="${sneakOn}" aria-label="Sneak"><i>🤫</i></button><button class="rbtn rhome" data-a="gohome" aria-label="Head home"><i>🏠</i><span>${e.hours < 1 ? 'Run' : 'Home'}</span></button></div>`;
+  const nav = `<div class="rbar">${bagStrip()}<button class="rbtn rsneak${sneakOn ? ' on' : ''}" data-a="sneak" aria-pressed="${sneakOn}" aria-label="Sneak" title="Sneak (S)"><i>🤫</i><kbd class="pck">S</kbd></button><button class="rbtn rhome" data-a="gohome" aria-label="Head home" title="Head home (H)"><i>🏠</i><span>${e.hours < 1 ? 'Run' : 'Home'}</span><kbd class="pck">H</kbd></button></div>`;
   return shell(hudH, '<div id="xstage"></div>', nav, '', 'exp', 'run');
 }
 
@@ -1680,6 +1712,14 @@ function renderTitle() {
 /* the sheet opens exactly over the panel area, so the scene stays in view */
 function placeModal() {
   const el = $('#modal'); if (!el || !el.style) return;
+  /* PC: a sheet is a tall panel docked on the right of the house, never over the group or the clock; working sheets (barter, a pile, the night plan, a person) get more room */
+  if (isPC() && document.querySelector('.pcshell .stage')) {
+    const r = document.querySelector('.pcshell .stage').getBoundingClientRect(); const big = el.querySelector && el.querySelector('.bt,.lt,.rlroles,.mkv,.ppage');
+    const w = Math.round(Math.min(big ? 560 : 480, Math.max(big ? 480 : 420, r.width * (big ? 0.42 : 0.34))));
+    [...el.querySelectorAll('[data-m]')].filter((b) => !b.classList.contains('mback')).forEach((b, i) => { if (i < 9 && !b.querySelector('kbd')) b.insertAdjacentHTML('beforeend', `<kbd>${i + 1}</kbd>`); });   /* Close is Esc, not a number */
+    el.classList.remove('full'); el.classList.add('dock'); el.style.left = Math.round(r.right - w) + 'px'; el.style.top = Math.round(r.top) + 'px'; el.style.width = w + 'px'; el.style.height = Math.round(r.height) + 'px'; return;
+  }
+  el.classList.remove('dock');
   const app = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('#app') : null;
   const pw = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('.panelwrap') : null;
   const run = document.querySelector && document.querySelector('.shell.run .stage');
@@ -1689,7 +1729,7 @@ function placeModal() {
     else { const top = Math.round(r.top + r.height * 0.36); el.style.left = '0px'; el.style.top = top + 'px'; el.style.width = W + 'px'; el.style.height = (Hh - top) + 'px'; }
     return; }
   if (pw && pw.getBoundingClientRect && el.querySelector && el.querySelector('.bt,.lt,.rlroles,.mkv,.ppage') && innerHeight > innerWidth) { /* a sheet you work in (barter, a pile, the night roles) gets most of the screen */
-    const hud = document.querySelector('.hud'); const top = Math.max(hud ? hud.getBoundingClientRect().bottom : 0, Math.round(innerHeight * 0.2)); el.classList.remove('full'); el.style.left = '0px'; el.style.top = top + 'px'; el.style.width = innerWidth + 'px'; el.style.height = (innerHeight - top) + 'px'; return; }
+    const hud = document.querySelector('.hud'); const hb = hud ? hud.getBoundingClientRect().bottom : 0; const need = +el.dataset.need || 0; const top = Math.max(hb, Math.min(Math.round(innerHeight * 0.2), need ? innerHeight - need : innerHeight));   /* rises as far as its content needs, up to the top bar */ el.classList.remove('full'); el.style.left = '0px'; el.style.top = top + 'px'; el.style.width = innerWidth + 'px'; el.style.height = (innerHeight - top) + 'px'; return; }
   if (pw && pw.getBoundingClientRect && innerWidth > innerHeight && el.querySelector && (el.dataset.tall === '1' || el.querySelector('.bt,.lt,.rlroles,.mkv,.ppage'))) { /* landscape: a big sheet takes the whole right side, top to bottom */
     const L = Math.round(innerWidth * 0.42); el.classList.remove('full'); el.style.left = L + 'px'; el.style.top = '0px'; el.style.width = (innerWidth - L) + 'px'; el.style.height = innerHeight + 'px'; return; }
   if (pw && pw.getBoundingClientRect && innerHeight > innerWidth && el.dataset.tall === '1') { const hud = document.querySelector('.hud'); const need = +el.dataset.need || innerHeight; const top = Math.max(hud ? hud.getBoundingClientRect().bottom : 0, Math.round(innerHeight * 0.12), Math.round(innerHeight - need - 10)); el.classList.remove('full'); el.style.left = '0px'; el.style.top = top + 'px'; el.style.width = innerWidth + 'px'; el.style.height = (innerHeight - top) + 'px'; return; }
@@ -1714,7 +1754,7 @@ function render0() {
   if (G.screen === 'exp') mountExp(); else if (CR.Expedition) CR.Expedition.stop();
   if (CR.Tutorial) CR.Tutorial.place();
   const cur = app.querySelector ? app.querySelector('.panel-area') : null; if (cur && cur.dataset && cur.dataset.tab === prevKey) cur.scrollTop = prevTop;
-  placeModal(); if (CR.UI) CR.UI.soon();
+  placeModal(); if (CR.UI) CR.UI.soon(); if (isMob()) { fitMore(); requestAnimationFrame(fitMore); }
   try { if (CR.Audio) CR.Audio.mood(G.screen); } catch (e) {}
 }
 document.addEventListener('click', (e) => {
@@ -1808,6 +1848,7 @@ const host = {
   get G() { return G; }, alive, person, log, add, inv, mood, moodAll, hurt, kill, say, ask, flush, stateOf, stealSome, joinNamed
 };
 host.knock = knockRun;
+if (CR.Wheel) CR.Wheel.after = () => { if (CR.Wheel.isOpen && CR.Wheel.isOpen()) return; if (G && G.exp) { if (!modalOpen) finishStep(); } else if (Q.length && !modalOpen) flush(); };   /* on a run, a wheel choice ends like any other step: results, then home if the runner is dead */
 try { visitorsInit(); } catch (e) { /* the story engine may not be ready in the headless bot */ }
 CR.Story.host = host;
 if (CR.Expedition) CR.Expedition.hooks = { slow: () => { const s = G.exp && person(G.exp.sid); return s && s.hp < 35 ? 0.6 : 1; }, stairs: (dir) => { const e = G.exp; if (!e) return; const nf = (e.floor || 0) + dir; if (nf < 0 || nf >= (e.floors || 1)) return; e.floor = nf; e.arrive = dir > 0 ? 'left' : 'right'; runClock(8); e.noise += 1; render(); }, modalOpen: () => modalOpen || !!(CR.Wheel && CR.Wheel.isOpen()), read: (i) => readTrace(i), search: (i) => openPile(i), barrier: (i, k) => barrierAt(i, k), pickLock: (i) => pickLockAt(i), breakUp: (i) => breakUpAt(i), canBreak: () => hasTool('crowbar'), attack: (i, info) => attackAt(i, info), spotted: () => forceEnc('patrol'), meet: (k) => forceEnc(k), stateNow: () => (G.exp ? stateOf(person(G.exp.sid)) : 'ok'),
@@ -1862,15 +1903,122 @@ if (typeof document !== 'undefined' && document.addEventListener) { document.add
 function dayPanel() {
   const s = person(G.sel) || alive()[0]; if (!s) return ['people', ''];
   const tab = ['people', 'work', 'world', 'notes'].includes(ui.day) ? ui.day : 'people';
-  return [tab, safe({ people: peopleTab, work: () => workTab(s), world: () => worldTab(s), notes: () => notesTab(s) }[tab], tab)];
+  return [tab, safe({ people: isMob() ? peopleTabMob : peopleTab, work: () => workTab(s), world: () => worldTab(s), notes: () => notesTab(s) }[tab], tab)];
 }
 function refreshPanel() {
   if (typeof document === 'undefined' || !G || G.screen !== 'day' || modalOpen || pointerDown) return;
   const pa = document.querySelector('.panel-area'); if (!pa) return; const [tab, html] = dayPanel(); if (pa.dataset.tab !== 'day:' + tab) return;
-  if (pa._h !== html) { const top = pa.scrollTop; pa.innerHTML = html; pa._h = html; pa.scrollTop = top; if (CR.UI) CR.UI.soon(); }
+  if (pa._h !== html) { const top = pa.scrollTop; pa.innerHTML = html; pa._h = html; pa.scrollTop = top; if (isMob()) fitMore(); if (CR.UI) CR.UI.soon(); }
+}
+/* ---------- PC: the whole house is the screen. The group down the left, the clock and speed along the top,
+   Items / World / Journal as a drawer over the right of the house, news as a quiet feed in the corner ---------- */
+const isPC = () => typeof document !== 'undefined' && document.documentElement.classList.contains('pc');
+CR.relayout = () => { try { if (G) render(); } catch (e) { reportError(e); } };
+const PCTABS = [['work', 'bag', 'Items', 'I'], ['world', 'world', 'World', 'W'], ['notes', 'journal', 'Journal', 'J']];
+function pcEndBtn() { const tod0 = G.t % 1440; return !G.ff && tod0 >= 6 * 60 && tod0 < 19 * 60 + 50 ? `<button class="endday" data-a="endday" aria-label="End the day">${CR.Icons ? CR.Icons.html('moon') : ''}<span>End day</span><kbd>E</kbd></button>` : G.ff ? `<span class="endday on">${G.ff === 'dusk' ? 'The day goes by…' : 'The night passes…'}</span>` : ''; }
+const SPN = ['Pause', 'Normal speed', 'Fast', 'Fastest'];
+function pcHud() {
+  const sp = [0, 1, 2, 3].map((v) => `<button class="${(G.speed || 0) === v ? 'on' : ''}" data-a="spd" data-v="${v}" aria-label="${SPN[v]}" title="${SPN[v]} (${v === 0 ? 'Space' : 'F'})">${SPEEDH[v]}</button>`).join('');
+  return `<header class="hud pchud"><button class="menubtn" data-a="menu" aria-label="Menu" title="Menu (Esc)">☰</button><div class="hudt"><b id="clk">Day ${G.day} · ${SIM.clock(G.t)}</b><span class="phase" id="phz">${PHASEN[SIM.phaseOf(G.t)]}${G.speed === 0 ? ' · paused' : ''}</span></div>${chipsHtml()}<div class="spdg" role="group" aria-label="Speed">${sp}</div><div class="pcend" id="pcend">${pcEndBtn()}</div></header>`;
+}
+function workOf(p) {
+  const a = p.act; if (!(a && /^(build|craft|cook)$/.test(a.k) && a.walkLeft <= 0)) return null;
+  if (a.k === 'build' && a.job && a.job.k === 'build') { const q = (G.bq || []).find((z) => z.id === a.job.id); return q ? q.prog / Math.max(1, q.need) : 0; }
+  return 1 - a.left / Math.max(1, a.total);
+}
+function pcCard(p, i) {
+  const st = stateOf(p); const t = tier(p.mood); const a = p.act; const sel = p.id === G.sel; const nw = needWords(p);
+  const doing = p.out ? `Away. Back about ${SIM.clock(p.out.back || G.t)}.` : a ? a.label : 'Waiting for orders';
+  const w = workOf(p); const ring = w !== null ? `<svg class="rring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="16" pathLength="100" class="rb"/><circle cx="18" cy="18" r="16" pathLength="100" class="rf" style="stroke-dashoffset:${100 - Math.round(w * 100)}"/></svg>` : '';
+  const tip = sel ? `Open ${ST.first(p)}'s page` : `Give ${ST.first(p)} orders`;
+  return `<button class="rcard${sel ? ' sel' : ''}${p.out ? ' away' : ''}" data-a="${sel ? 'me' : 'sel'}" data-id="${p.id}" aria-label="${p.name}" title="${tip} (${i + 1})"><span class="rpic">${portrait(p, st, 2)}${ring}</span><span class="rtx"><b>${p.name}</b><span class="rmood"><i style="background:${TIERC[t]}"></i>${TIERN[t]}${nw !== 'managing' ? ' · ' + nw : ''}</span><span class="rdo">${doing}</span></span><kbd>${i + 1}</kbd></button>`;
+}
+function pcRoster() {
+  const s = person(G.sel);
+  const cards = alive().map(pcCard).join('');
+  const dl = s ? (s.mem || []).slice(-1)[0] : null;
+  const more = s && !s.out ? `<div class="rsel"><div class="rselh">${s.name}</div><div class="mini">${mini('Hunger', s.hunger)}${mini('Thirst', s.thirst)}${mini('Tired', s.fatigue)}${mini('Health', s.hp, false)}${mini('Mood', s.mood, false)}</div>${dl ? `<div class="fdiary">"${dl.t}"</div>` : ''}</div>` : '';
+  const tab = ui.day; const tabs = PCTABS.map(([id, ic, label, k]) => `<button class="${tab === id ? 'on' : ''}" data-a="tab" data-k="day" data-t="${tab === id ? 'people' : id}" title="${label} (${k})">${CR.Icons ? CR.Icons.html(ic) : ''}<span>${label}</span><kbd>${k}</kbd></button>`).join('');
+  return `<div class="rcards">${cards}</div>${more}<nav class="rtabs">${tabs}</nav>`;
+}
+function renderDayPC() {
+  const [tab, panel] = dayPanel();
+  const name = (PCTABS.find((x) => x[0] === tab) || [])[2];
+  const drawer = tab !== 'people' ? `<div class="drawer"><div class="dhead"><b>${name}</b><button data-a="tab" data-k="day" data-t="people" aria-label="Close" title="Close (Esc)">✕</button></div><div class="panel-area" data-tab="day:${tab}">${panel}</div></div>` : '';
+  rosterH = '';
+  return `<div class="shell pcshell${drawer ? ' drawn' : ''}">${pcHud()}<aside class="roster" id="roster">${pcRoster()}</aside><div class="stage"><div id="hstage"></div>${drawer}<div class="feed" id="feed" aria-live="polite"></div></div></div>`;
+}
+let rosterH = '';
+function refreshPC() {
+  if (!isPC() || !G || G.screen !== 'day') return;
+  const r = document.getElementById('roster'); if (r && !pointerDown) { const h = pcRoster(); if (h !== rosterH) { rosterH = h; r.innerHTML = h; } }
+  const e = document.getElementById('pcend'); if (e) { const h = pcEndBtn(); if (e._h !== h) { e._h = h; e.innerHTML = h; } }
+  document.querySelectorAll('.spdg button').forEach((b) => b.classList.toggle('on', +b.dataset.v === (G.speed || 0)));
+}
+if (typeof setInterval !== 'undefined' && typeof document !== 'undefined') setInterval(() => { try { refreshPC(); } catch (e) { reportError(e); } }, 400);
+
+/* ---------- a phone held upright: the house fills the top of the screen, edge to edge, as tall as the building and no taller.
+   The clock and the stores float over the roof line. Everything else lives in one sheet at the bottom: at rest it shows the
+   faces, the person you picked and a row of buttons under the thumb; pulled up it holds Items, World or the Journal,
+   with the house still running above it. ---------- */
+const isMob = () => typeof document !== 'undefined' && document.documentElement.classList.contains('mob');
+const MTABS = [['work', 'bag', 'Items'], ['world', 'world', 'World'], ['notes', 'journal', 'Journal']];
+let mobLast = 'work';
+function endBtnMob() {
+  const tod0 = G.t % 1440;
+  if (G.ff) return `<span class="mend on">${G.ff === 'dusk' ? 'The day goes by…' : 'The night passes…'}</span>`;
+  if (tod0 >= 6 * 60 && tod0 < 19 * 60 + 50) return `<button class="mend endday" data-a="endday" aria-label="End the day">${CR.Icons ? CR.Icons.html('moon') : ''}<span>End day</span></button>`;
+  return '';
+}
+function peopleTabMob() {
+  const s = person(G.sel) || alive()[0]; if (!s) return '';
+  const faces = alive().map((p) => { const st = stateOf(p); const t = tier(p.mood); return `<button class="face${p.id === G.sel ? ' sel' : ''}${p.out ? ' away' : ''}" data-a="${p.id === G.sel ? 'me' : 'sel'}" data-id="${p.id}" aria-label="${p.name}"><span class="fpic">${portrait(p, st, 2)}</span><i class="fmood" style="background:${TIERC[t]}"></i><span class="fbd">${p.out ? '<i class="bd gry">🚪</i>' : badges(p)}</span></button>`; }).join('');
+  const doing = s.out ? 'away from the house' : s.act ? s.act.label.toLowerCase() : 'waiting for your order';
+  const nw = needWords(s);
+  const line = `<div class="mline"><b>${s.name}</b> <span style="color:${TIERC[tier(s.mood)]}">${TIERN[tier(s.mood)]}</span><span class="dim"> · ${doing}</span></div>`;
+  const needs = s.out ? `<div class="mneed dim">Back about ${SIM.clock((s.out && s.out.back) || G.t)}.</div>` : `<div class="mini">${mini('Hunger', s.hunger)}${mini('Thirst', s.thirst)}${mini('Tired', s.fatigue)}${mini('Health', s.hp, false)}${mini('Mood', s.mood, false)}</div>${nw !== 'managing' ? `<div class="mneed">${nw[0].toUpperCase() + nw.slice(1)}.</div>` : ''}`;
+  const tb = ([t, ic, label]) => `<button class="mtb" data-a="tab" data-k="day" data-t="${t}" aria-label="${label}">${CR.Icons ? CR.Icons.html(ic) : ''}<span>${label}</span>${t === 'world' && (G.envoys || []).length ? '<em class="dot"></em>' : ''}</button>`;
+  /* what fills the rest of the sheet: things worth a glance, newest first, never a scrolling list */
+  const dl = !s.out && (s.mem || []).slice(-1)[0];
+  const work = SIM.activeTasks().slice(0, 4).map((t) => `<div class="mjob"><b>${t.name}</b><small>${t.who || 'nobody on it'}</small><i><em style="width:${t.pct}%"></em></i></div>`).join('');
+  const lately = (G.log || []).filter((l) => l.t && !/^Day \d+\.$/.test(l.t)).slice(0, 3).map((l) => `<div class="mlog ${l.c || ''}">${stripT(l.t)}</div>`).join('');
+  const more = `<div class="mmore">${dl ? `<div class="mdiary">"${dl.t}"</div>` : ''}${work ? `<div class="mjobs">${work}</div>` : ''}${lately ? `<div class="mlogs">${lately}</div>` : ''}</div>`;
+  return `<div class="mfaces">${faces}</div>${line}${needs}${more}<div class="mthumb">${MTABS.map(tb).join('')}${endBtnMob()}</div>`;
+}
+function renderDayMob() {
+  const [tab, panel] = dayPanel(); const up = tab !== 'people'; if (up) mobLast = tab;
+  const seg = up ? `<div class="mseg" role="tablist">${MTABS.map(([t, ic, label]) => `<button class="${t === tab ? 'on' : ''}" role="tab" aria-selected="${t === tab}" data-a="tab" data-k="day" data-t="${t}">${CR.Icons ? CR.Icons.html(ic) : ''}<span>${label}</span></button>`).join('')}<button class="mclose" data-a="tab" data-k="day" data-t="people" aria-label="Close">${CR.Icons ? CR.Icons.html('check') : '✓'}</button></div>` : '';
+  const chips = `<header class="hud mhud"><button class="menubtn" data-a="menu" aria-label="Menu">☰</button><div class="hudt mclk"><b id="clk">Day ${G.day} · ${SIM.clock(G.t)}</b><span class="phase" id="phz">${PHASEN[SIM.phaseOf(G.t)]}${G.speed === 0 ? ' · paused' : ''}</span></div>${chipsHtml()}<button id="spdb" class="spd" data-a="speed" aria-label="Speed">${SPEEDH[G.speed || 0]}</button></header>`;
+  return `<div class="shell mshell${up ? ' sup' : ''}"><div class="stage mstage"><div id="hstage"></div>${chips}</div><section class="msheet${up ? ' up' : ''}" id="msheet" aria-label="${up ? 'Items, World and Journal' : 'Your group'}"><div class="mgrab" data-drag="1" role="button" aria-label="${up ? 'Pull down to close' : 'Pull up for Items, World and the Journal'}"><i></i></div>${seg}<div class="panel-area" data-tab="day:${tab}">${panel}</div></section></div>`;
+}
+/* the extra things in the resting sheet show whole or not at all: never a card cut in half at the bottom */
+function fitMore() { const m = document.querySelector('.mmore'); if (!m) return; const kids = [...m.querySelectorAll('.mdiary,.mjob,.mlog')]; kids.forEach((k) => { k.style.display = ''; }); const lim = m.getBoundingClientRect().bottom + 0.5; kids.forEach((k) => { if (k.getBoundingClientRect().bottom > lim) k.style.display = 'none'; }); m.querySelectorAll('.mjobs,.mlogs').forEach((g) => { g.style.display = [...g.children].some((k) => k.style.display !== 'none') ? '' : 'none'; }); }
+/* the house is exactly as tall as the building (plus the roof line the chips sit on). Whatever is left is the sheet's.
+   A short hostel is shown a little closer; a tall block gets the most room the sheet allows and the camera follows the floor */
+let mobSig = '';
+function fitMob() {
+  const sh = document.querySelector('.shell.mshell'); if (!sh || !HOUSE || !HOUSE.contentH) return false;
+  const W = sh.clientWidth || innerWidth, Hh = sh.clientHeight || innerHeight; const VHs = HOUSE.contentH();
+  const minSheet = Math.max(262, Math.round(Hh * 0.33)); const avail = Hh - minSheet + 18;
+  let vw = clamp(VHs * W / avail, 136, 176); let px = Math.round(VHs * W / vw);
+  if (px > avail) px = avail; else vw = VHs * W / px;
+  const sig = px + '|' + vw.toFixed(2) + '|' + W + 'x' + Hh; if (sig === mobSig && sh.style.getPropertyValue('--hst')) return true;
+  mobSig = sig; HOUSE.zoomW = vw; sh.style.setProperty('--hst', px + 'px'); return true;
+}
+/* pull the sheet up or down: drag the handle, or tap it */
+if (typeof document !== 'undefined' && document.addEventListener) {
+  let drag = null;
+  document.addEventListener('pointerdown', (e) => { const g = e.target && e.target.closest && e.target.closest('[data-drag]'); if (!g || !isMob() || modalOpen) return; const sh = document.getElementById('msheet'); if (!sh) return; drag = { y: e.clientY, dy: 0, sh, up: sh.classList.contains('up'), id: e.pointerId }; try { g.setPointerCapture(e.pointerId); } catch (x) {} sh.style.transition = 'none'; });
+  document.addEventListener('pointermove', (e) => { if (!drag || e.pointerId !== drag.id) return; drag.dy = e.clientY - drag.y; const d = drag.up ? Math.max(0, drag.dy) : Math.min(0, drag.dy); drag.sh.style.transform = `translateY(${d}px)`; });
+  const end = (e) => { if (!drag || (e && e.pointerId !== drag.id)) return; const d = drag; drag = null; d.sh.style.transition = ''; d.sh.style.transform = '';
+    const open = Math.abs(d.dy) < 8 ? !d.up : d.dy < -36 ? true : d.dy > 36 ? false : d.up;
+    if (open !== d.up && G) { ui.day = open ? mobLast : 'people'; sfx('tap'); if (CR.Tutorial && open) CR.Tutorial.act('tab', { t: ui.day }); render(); } };
+  document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
 }
 function renderDay() {
   const s = person(G.sel) || alive()[0]; if (s && G.sel !== s.id) G.sel = s.id; chromeSig = '';
+  if (isPC()) return renderDayPC();
+  if (isMob()) return renderDayMob();
   const [tab, panel] = dayPanel();
   const t = (id, icon, label, dot) => navBtn(tab === id ? 'on' : '', icon, label, `data-a="tab" data-k="day" data-t="${id}"`, dot);
   const nav = t('people', '👥', 'Group') + t('work', '🎒', 'Items') + t('world', '🌍', 'World', (G.envoys || []).length) + t('notes', '📓', 'Journal');
@@ -1880,6 +2028,7 @@ function renderDay() {
 /* portrait: the house area is as tall as the building plus a thin band of sky, zoomed in a little for shorter ones; the rest goes to the panel */
 let fitSig = '';
 function fitHouse() {
+  if (isMob()) { if (fitMob()) return; }
   const sh = document.querySelector('.shell.v2old.tab-people'); if (!sh || !HOUSE || !HOUSE.contentH) return;
   const W = innerWidth, Hh = innerHeight; if (W >= Hh) { if (sh.style.getPropertyValue('--hst')) sh.style.removeProperty('--hst'); HOUSE.zoomW = 0; return; }
   const hud = document.querySelector('.hud'), nav = document.querySelector('.nav'); const avail = Hh - (hud ? hud.offsetHeight : 50) - (nav ? nav.offsetHeight : 56) - 196;
@@ -1900,7 +2049,7 @@ function mountHouse() { const el = $('#hstage'); if (el && typeof el.appendChild
 /* ---------- one clock ----------
    The house clock never stops while someone is out. The run plays at RUN_SPEED game-minutes per real second;
    searching, travel and resting jump the clock forward. Night runs end at 05:00, day trips at 18:00. */
-const RUN_SPEED = 1.5, SEARCH_MIN = 40;
+const RUN_SPEED = 1.33, SEARCH_MIN = 40;   /* TWoM: the night (21:00-05:00) is about 6 real minutes */
 const travelMin = (trv) => 15 + (trv || 0) * 20;
 function deadlineFrom(t) { const day0 = Math.floor(t / 1440) * 1440, h = (t % 1440) / 60; if (h >= 18) return day0 + 1440 + 300; if (h < 5) return day0 + 300; return day0 + 1080; }
 function runClock(mins) { const was = G.away; G.away = true; try { SIM.advance(Math.round(mins)); } catch (err) { reportError(err); } G.away = was; }
@@ -1911,9 +2060,38 @@ function deadlineCheck() {
   if (G.t >= e.deadline + 40 && !modalOpen && !Q.length) { Q.length = 0; goHome(); }
 }
 
+
+/* ---------- the game clock ----------
+   One loop drives time on every screen. (It used to ride on the house's drawing loop, which stops while the house is off
+   screen, so on a night run the clock froze: no 05:00 deadline, and the people at home stood still.)
+   G.ff: fast-forward. 'dusk' = End the day (runs to the night plan); 'night' = nobody out, or the runner is home (runs to dawn). */
+const FF_SPEED = 45;
+let loopLast = 0, dayCardOpen = false;
+function mainLoop(ts) {
+  requestAnimationFrame(mainLoop);
+  if (typeof document !== 'undefined' && document.hidden) { loopLast = ts; return; }
+  const dt = Math.min(0.25, (ts - (loopLast || ts)) / 1000); loopLast = ts;
+  if (dayCardOpen) return;
+  try { stepV2(dt); } catch (e) { reportError(e); }
+}
+if (typeof requestAnimationFrame === 'function' && typeof window !== 'undefined') requestAnimationFrame(mainLoop);
+/* a new day, the way This War of Mine marks it: the screen goes dark, the day number, then the morning */
+function dayCard(day, then) {
+  if (typeof document === 'undefined' || !document.body) { then(); return; }
+  dayCardOpen = true; const old = document.querySelector('.daycard'); if (old) old.remove();
+  const el = document.createElement('div'); el.className = 'daycard';
+  const cold = G.lastCold && G.lastCold.c >= 2 ? (G.lastCold.c >= 3 ? 'A bitter night.' : 'A cold night.') : '';
+  el.innerHTML = `<div class="dcin"><div class="dcn">Day ${day}</div><div class="dcd">${dateStr(day)}</div>${cold ? `<div class="dcw">${cold}</div>` : ''}<div class="dct">${isPC() ? 'Click or press any key' : 'Tap to continue'}</div></div>`;
+  document.body.appendChild(el); sfx('tap');
+  let done = false; const go = () => { if (done) return; done = true; el.classList.add('out'); setTimeout(() => { el.remove(); dayCardOpen = false; then(); }, 350); };
+  const key = (e) => { if (!document.body.contains(el)) { document.removeEventListener('keydown', key, true); return; } e.preventDefault(); e.stopImmediatePropagation(); document.removeEventListener('keydown', key, true); go(); };   /* on a PC, any key turns the page */
+  setTimeout(() => { el.addEventListener('pointerdown', go); document.addEventListener('keydown', key, true); }, 500); setTimeout(go, 9000);
+}
+
 /* ---------- the clock loop ---------- */
 function stepV2(dt) {
   if (!G) return;
+  try { knockTick(); } catch (err) { reportError(err); }
   if (G.screen === 'exp' && G.exp) {
     if (!modalOpen && !Q.length && !CR.paused && !(CR.Wheel && CR.Wheel.isOpen())) { try { SIM.drive(dt, RUN_SPEED); } catch (err) { reportError(err); } }
     expHours(); deadlineCheck();
@@ -1921,7 +2099,8 @@ function stepV2(dt) {
   }
   if (G.screen === 'day') {
     if (Q.length && !modalOpen) flush();
-    else if (!modalOpen && !CR.paused && !(CR.Wheel && CR.Wheel.isOpen())) { try { SIM.drive(dt); } catch (err) { reportError(err); G.speed = 0; chromeSig = ''; } if (Q.length && !modalOpen) flush(); }
+    else if (!modalOpen && !CR.paused && !(CR.Wheel && CR.Wheel.isOpen())) { const tod = G.t % 1440; if (!G.ff && G.warned !== G.day && tod >= 18 * 60 + 50 && tod < 20 * 60) { G.warned = G.day; notice('Night is coming. Decide who sleeps, who watches, who goes out.'); }
+      if (G.ff === 'night' && tod >= 6 * 60 && tod < 20 * 60) G.ff = null; try { SIM.drive(dt, G.ff ? FF_SPEED : undefined); } catch (err) { reportError(err); G.speed = 0; chromeSig = ''; } if (Q.length && !modalOpen) flush(); }
   }
   try { fitHouse(); } catch (e) {} chrome(); panelT += dt; if (panelT > 2.5) { panelT = 0; refreshPanel(); try { const hs = document.getElementById('hstage'); if (hs) { hs.classList.toggle('fever', alive().some((p) => p.sick && !p.out)); hs.classList.toggle('grief', (G.mem2 || []).some((m) => G.day - m.day < 2)); } } catch (e) {} }
 }
@@ -1935,21 +2114,69 @@ function roleWhy(p, r, roles) {
   if (r === 'go' || r === 'send') { if (p.hp < 25 || p.mood < 15 || p.fatigue > 92) return `${p.name} is in no state to go out.`; const other = Object.entries(roles).find(([id, v]) => v === r && +id !== p.id); return other ? `${person(+other[0]).name} is already ${r === 'go' ? 'going out' : 'being sent'}.` : ''; }
   return '';
 }
+const ROLE_BOX = [['bed', 'bed', 'Bunks'], ['floor', 'bed', 'Floor'], ['guard', 'eye', 'Keep watch'], ['go', 'feet', 'Go out'], ['send', 'map', 'Send out alone']];
+const icn = (n) => (CR.Icons ? CR.Icons.html(n) : '');
+/* a building as a tile: its name, how far, and loot and danger as pips you can compare at a glance */
+const pips = (n, of, cls) => `<span class="dpips" aria-hidden="true">${Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('')}</span>`;
+function destTile(l, d) {
+  const i = intelOf(l); const rich = (G.locs[l.id] || {}).rich || 0; const lootN = rich >= 5 ? 3 : rich >= 3 ? 2 : rich >= 1 ? 1 : 0; const riskN = clamp(Math.round(l.risk || 1), 1, 4);
+  const flag = /overrun/.test(i.risk) ? 'overrun' : /drop/.test(i.loot) ? 'supply drop' : i.hot ? 'patrols tonight' : /group|\(about/.test(i.people) ? 'people inside' : '';
+  return `<span class="dtile${i.hot ? ' hot' : ''}"><b>${l.name}</b><span class="drow">${icn('feet')}<span>${d ? d + ' hr' : 'close'}</span></span><span class="drow" title="Loot: ${i.loot}">${icn('bag')}${pips(lootN, 3, 'f')}</span><span class="drow" title="Danger: ${i.risk}">${icn('warn')}${pips(riskN, 4, 'r')}</span>${flag ? `<span class="dflag">${flag}</span>` : ''}</span>`;
+}
+const DLEGEND = () => `<div class="dlegend"><span>${icn('feet')}distance</span><span>${icn('bag')}loot</span><span>${icn('warn')}danger</span></div>`;
 function rolesHtml() {
   const roles = G.roles; const home = alive().filter((p) => !p.out); const goer = home.find((p) => roles[p.id] === 'go'), sender = home.find((p) => roles[p.id] === 'send');
+  if (G.rolesSel && !home.some((p) => p.id === G.rolesSel)) G.rolesSel = 0;
+  const pickId = G.rolesSel || 0; const picked = pickId ? person(pickId) : null;
   const dests = (who, key) => { if (!who) return ''; const all = LOCS.filter((l) => l.id !== G.shelter).map((l) => ({ l, d: CAMPUS.travel(G.shelter, l.id) })).sort((a, b) => a.d - b.d).slice(0, 8); const cur = G.rolesDest && G.rolesDest[key];
-    return `<div class="rldest"><div class="lth">${key === 'go' ? 'Where ' + who.name + ' goes' : 'Where ' + who.name + ' is sent'}</div><div class="rldlist">${all.map(({ l, d }) => { const i = intelOf(l); return `<button class="rld${cur === l.id ? ' on' : ''}" data-nd="${key}:${l.id}"><b>${l.name}</b><small>${d ? d + ' hr' : 'close'} · ${i.loot} · ${i.risk}${i.hot ? ' · patrols' : ''}</small></button>`; }).join('')}</div></div>`; };
+    if (cur && G.rolesPick !== key) return '';
+    return `<div class="ndests"><div class="lth">${key === 'go' ? 'Where ' + who.name + ' goes' : 'Where ' + who.name + ' is sent'}</div><div class="dgrid">${all.map(({ l, d }) => `<button class="rld dbtn${cur === l.id ? ' on' : ''}" data-nd="${key}:${l.id}">${destTile(l, d)}</button>`).join('')}</div>${DLEGEND()}</div>`; };
   const cold = G.cold || 0; const fc = cold ? `<div class="rlcold c${cold}">${['', 'A cool night.', 'A cold night.', 'A bitter night. The harmattan is in the walls.'][cold]} ${G.build.brazier ? (inv('wood') >= (cold >= 3 ? 2 : 1) ? 'The brazier has wood for it.' : 'Not enough wood for the brazier.') : 'No fire.'} ${inv('blanket') ? inv('blanket') + ' blanket' + (inv('blanket') > 1 ? 's.' : '.') : 'No blankets.'}${cold >= 2 ? ' Whoever sleeps on the floor or keeps watch will feel it.' : ''}</div>` : '';
-  return fc + `<div class="rlroles">${home.map((p) => `<div class="rlrow"><span class="rlwho">${portrait(p, stateOf(p), 2)}<b>${p.name}</b><small>${needWords(p)}</small></span><span class="rlopts">${Object.keys(ROLE_N).map((r) => { const why = roleWhy(p, r, roles); return `<button class="rlopt${roles[p.id] === r ? ' on' : ''}" data-nr="${p.id}:${r}" ${why ? dis(why) : ''}>${ROLE_N[r]}</button>`; }).join('')}</span></div>`).join('')}${dests(goer, 'go')}${dests(sender, 'send')}</div>`;
+  const picking = (goer && (!(G.rolesDest || {}).go || G.rolesPick === 'go')) ? 'go' : (sender && (!(G.rolesDest || {}).send || G.rolesPick === 'send')) ? 'send' : '';
+  const tok = (p) => `<button class="ntok${p.id === pickId ? ' on' : ''}" data-ntok="${p.id}" aria-label="${p.name}" aria-pressed="${p.id === pickId}"><span class="ntp">${portrait(p, stateOf(p), 2)}</span><span class="ntn">${ST.first(p)}</span></button>`;
+  const boxes = ROLE_BOX.map(([r, ic, label]) => {
+    const inside = home.filter((p) => roles[p.id] === r); const why = picked ? roleWhy(picked, r, roles) : '';
+    const sub = r === 'bed' ? `${inside.length} of ${SIM.bunkCount()}` : r === 'floor' && cold >= 2 ? 'cold' : r === 'send' ? 'back by dawn' : r === 'guard' && !inside.length ? 'nobody' : '';
+    let dest = ''; if ((r === 'go' || r === 'send') && inside[0]) { const cur = G.rolesDest && G.rolesDest[r]; dest = cur && G.rolesPick !== r ? `<button class="ndest" data-ndc="${r}"><span>${LOCBY[cur].name}</span><small>Change</small></button>` : `<span class="ndest none">Pick where, below</span>`; }
+    const can = picked && !why && roles[pickId] !== r;
+    return `<div class="nbox nb-${r}${why ? ' no' : ''}${can ? ' can' : ''}" data-nbox="${r}"${why ? ` data-why="${why.replace(/"/g, '&quot;')}"` : ''}><h5>${icn(ic)}<span>${label}</span>${sub ? `<small>${sub}</small>` : ''}</h5><div class="ntoks">${inside.map(tok).join('')}</div>${dest}</div>`;
+  }).join('');
+  const hint = picked ? `<div class="nhint"><b>${picked.name}</b>: tap a box to move them.</div>` : `<div class="nhint">Tap a face, then a box. Or drag it there.</div>`;
+  return (picking ? '' : fc) + `<div class="rlroles nplan${picking ? ' picking' : ''}">${picking ? '' : hint}<div class="nboxes">${boxes}</div>${dests(goer, 'go')}${dests(sender, 'send')}</div>`;
+}
+/* moving someone between boxes, by a tap on a box or a drop */
+function nightMove(id, r) {
+  if (!G || !G.roles) return; const p = person(id); if (!p) return; const why = roleWhy(p, r, G.roles); if (why) { toastWhy(why); return; }
+  G.roles[id] = r; G.rolesSel = 0; sfx('tap');
+  if (G.rolesDest) { if (r !== 'go' && !Object.values(G.roles).includes('go')) G.rolesDest.go = null; if (r !== 'send' && !Object.values(G.roles).includes('send')) G.rolesDest.send = null; }
+  if (r === 'go' || r === 'send') G.rolesPick = null;
+  nightRedraw();
+}
+function nightRedraw() { const box = document.querySelector('#modal .rlroles'); if (box) { const f = document.querySelector('#modal .rlcold'); const h = rolesHtml(); const tmp = document.createElement('div'); tmp.innerHTML = h; if (f) f.remove(); box.replaceWith(...tmp.childNodes); } }
+if (typeof document !== 'undefined' && document.addEventListener) {
+  /* drag a face from one box to another */
+  let nd = null, ndJust = 0;
+  document.addEventListener('pointerdown', (e) => { const t = e.target && e.target.closest && e.target.closest('[data-ntok]'); if (!t || !G || !G.roles) return; nd = { id: +t.dataset.ntok, x: e.clientX, y: e.clientY, el: t, ghost: null, pid: e.pointerId }; }, true);
+  document.addEventListener('pointermove', (e) => { if (!nd || e.pointerId !== nd.pid) return; if (!nd.ghost) { if (Math.hypot(e.clientX - nd.x, e.clientY - nd.y) < 10) return; nd.ghost = nd.el.cloneNode(true); nd.ghost.className = 'ntok nghost'; document.body.appendChild(nd.ghost); nd.el.classList.add('ndrag'); G.rolesSel = nd.id; }
+    nd.ghost.style.left = (e.clientX - 30) + 'px'; nd.ghost.style.top = (e.clientY - 34) + 'px';
+    document.querySelectorAll('#modal .nbox.over').forEach((b) => b.classList.remove('over')); nd.ghost.style.display = 'none'; const under = document.elementFromPoint(e.clientX, e.clientY); nd.ghost.style.display = ''; const bx = under && under.closest && under.closest('[data-nbox]'); if (bx) bx.classList.add('over'); e.preventDefault(); }, { passive: false });
+  const ndEnd = (e) => { if (!nd || (e && e.pointerId !== nd.pid)) return; const d = nd; nd = null; if (!d.ghost) return; d.ghost.remove(); d.el.classList.remove('ndrag'); ndJust = Date.now();
+    const under = e && document.elementFromPoint(e.clientX, e.clientY); const bx = under && under.closest && under.closest('[data-nbox]'); if (bx && G && G.roles && G.roles[d.id] !== bx.dataset.nbox) nightMove(d.id, bx.dataset.nbox); else { G.rolesSel = 0; nightRedraw(); } };
+  document.addEventListener('pointerup', ndEnd, true); document.addEventListener('pointercancel', ndEnd, true);
+  document.addEventListener('click', (ev) => {
+    if (!G || !G.roles || !ev.target || !ev.target.closest) return; if (Date.now() - ndJust < 350) { ev.stopPropagation(); return; }
+    const t = ev.target.closest('[data-ntok]'); if (t) { const id = +t.dataset.ntok; G.rolesSel = G.rolesSel === id ? 0 : id; sfx('tap'); nightRedraw(); ev.stopPropagation(); return; }
+    const b = ev.target.closest('[data-nbox]'); if (b && !ev.target.closest('[data-ndc]')) { if (!G.rolesSel) { toastWhy('Tap a face first, then the box to move them to.'); return; } if (G.roles[G.rolesSel] === b.dataset.nbox) { G.rolesSel = 0; nightRedraw(); return; } nightMove(G.rolesSel, b.dataset.nbox); ev.stopPropagation(); }
+  }, true);
 }
 function nightRoles() {
-  if (!G || G.screen !== 'day') return;
+  if (!G || G.screen !== 'day') return; G.ff = null; G.rolesPick = null;
   const home = alive().filter((p) => !p.out); if (!home.length) return;
   G.nrep = { lines: [] };
   const roles = {}; let beds = SIM.bunkCount();
   home.forEach((p) => { if (p.shift) roles[p.id] = 'guard'; else if (beds > 0) { roles[p.id] = 'bed'; beds--; } else roles[p.id] = 'floor'; });
   G.roles = roles;
-  ask('Tonight', rolesHtml(), [{ label: 'Begin the night', fn() { applyRoles(); return ''; } }], { icon: '🌙' });
+  G.rolesSel = 0; ask('Tonight', rolesHtml(), [{ label: 'Begin the night', fn() { applyRoles(); return ''; } }], { icon: '🌙' });
   flush();
 }
 function applyRoles() {
@@ -1961,10 +2188,12 @@ function applyRoles() {
   const send = home.find((p) => roles[p.id] === 'send'), go = home.find((p) => roles[p.id] === 'go'); const dd = G.rolesDest || {}; G.rolesDest = null;
   if (send) { if (dd.send) sendOut(send, dd.send); else pickDest(send, 'auto'); }
   if (go) { if (dd.go) setTimeout(() => startControlled(go, dd.go), 0); else pickDest(go, 'ctrl'); }
-  G.roles = null;
+  else if (KNOCK) KNOCK.ff = 'night'; else G.ff = 'night';   /* nobody walking out: the night passes, as in TWoM (after the door, if someone is knocking) */
+  G.roles = null; G.rolesSel = 0;
 }
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', (ev) => {
-  const nd = ev.target && ev.target.closest && ev.target.closest('[data-nd]'); if (nd && G && G.roles) { const [k, id] = nd.dataset.nd.split(':'); G.rolesDest = G.rolesDest || {}; G.rolesDest[k] = id; sfx('tap'); const box0 = document.querySelector('#modal .rlroles'); if (box0) box0.outerHTML = rolesHtml(); return; }
+  const nd = ev.target && ev.target.closest && ev.target.closest('[data-nd]'); if (nd && G && G.roles) { const [k, id] = nd.dataset.nd.split(':'); G.rolesDest = G.rolesDest || {}; G.rolesDest[k] = id; G.rolesPick = null; sfx('tap'); nightRedraw(); return; }
+  const ch = ev.target && ev.target.closest && ev.target.closest('[data-ndc]'); if (ch && G && G.roles) { G.rolesPick = ch.dataset.ndc; sfx('tap'); nightRedraw(); return; }
   const b = ev.target && ev.target.closest && ev.target.closest('[data-nr]'); if (!b || !G || !G.roles) return;
   if (b.getAttribute('aria-disabled')) { toastWhy(b.dataset.why); return; }
   const [id, r] = b.dataset.nr.split(':'); G.roles[+id] = r; sfx('tap'); if (G.rolesDest) { if (r !== 'go' && !Object.values(G.roles).includes('go')) G.rolesDest.go = null; if (r !== 'send' && !Object.values(G.roles).includes('send')) G.rolesDest.send = null; }
@@ -1980,14 +2209,15 @@ const simHost = {
   halt: () => !G.away && (modalOpen || Q.length > 0 || (CR.Wheel && CR.Wheel.isOpen())),
   chatLine,
   controlled: () => G.sel,
-  onBuilt: (id, p) => { sfx('open'); if (CR.Tutorial && CR.Tutorial.notify) CR.Tutorial.notify('built'); },
+  onCleared: (p, st, dig, got) => { const where = ((SIM.stations()[st] || {}).label || 'site').replace(/ site$/i, '').toLowerCase(); const found = Object.entries(got || {}).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${ITEMS[k] ? ITEMS[k][1].toLowerCase() : k}`).join(', '); setTimeout(() => notice(`${p.name} has cleared the ${where} site${found ? ' and found ' + found : ''}. A ${where} can be built there now.`), 60); },
+  onBuilt: (id, p) => { sfx('open'); { const d = SIM.BUILDS[id]; if (d && p) notice(id === 'board' ? `${p.name} boarded up the window.` : `${p.name} finished the ${d.name.toLowerCase().replace(/ i+$/, '')}.`); } if (CR.Tutorial && CR.Tutorial.notify) CR.Tutorial.notify('built'); },
   onLook: (p, f) => lookSheet(p, f),
   onUse: (p, what) => useStation(p, what),
   relOf: (a, b) => relS(a, b),
   habitLine: (p, k) => { toReport(k === 'alc' ? `${p.name}'s hands would not stop shaking this morning.` : k === 'tob' ? `${p.name} was up before dawn, going through pockets for a cigarette.` : `${p.name} paced half the night.`); },
   onHabit: (p, it, stole) => { if (stole) others0(p).forEach((o) => { if (chance(0.5)) mood(o, -1); }); },
   coldBase: () => { const d = dateOf(G.day + 1); const doy = Math.floor((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000); /* the harmattan is fiercest in January and gone by April */ return clamp(1.9 - Math.max(0, doy - 20) * 0.026, 0, 1.9) - (G.season === 'rains' ? 0.4 : 0); },
-  coldNight: (p, e) => { if (e >= 1.5) remember(p, pick(['The cold got into my bones last night. I could not stop shaking.', 'I lay awake listening to my own teeth. The wind came through the window all night.', 'So cold last night I thought about burning the bunk.']), { w: 3 }); if (G.nrep && !G.nrep.coldSaid) { G.nrep.coldSaid = 1; toReport(e >= 2 ? 'Nobody really slept. The cold came up through the floor.' : 'A cold night. Some of them shivered until dawn.'); } },
+  coldNight: (p, e) => { if (e >= 1.5) remember(p, pick(['The cold got into my bones last night. I could not stop shaking.', 'I lay awake listening to my own teeth. The wind came through the window all night.', 'So cold last night I thought about burning the bunk.']), { w: 3 }); if (G.nrep && !G.nrep.coldSaid && e >= 2) { G.nrep.coldSaid = 1; toReport('Nobody really slept. The cold came up through the floor.'); }   /* a mild cold night is told once, by name, in the line that lists who shivered */ },
   raidMul: () => (arcPhase() >= 2 ? 1.6 : 1) * (wevOn('sweep') ? 0.35 : 1), raidSize: () => (arcPhase() >= 2 ? 1 : 0), sickMul: () => (arcPhase() >= 3 ? 2.2 : 1) * (wevOn('cholera') && !G.build.filter ? 1.6 : 1),
   forceRaid: () => { const d = G.day - 1; if (!((G.mkRaid === d || G.mkRaid2 === d) && G.mkRaidDone !== G.day)) return false; G.mkRaidDone = G.day; return chance(0.85); },
   raidCalm: () => (G.mkSafe && G.day <= G.mkSafe ? 0.35 : 1),
@@ -2023,11 +2253,10 @@ function dawnV2(day) {
   if (!alive().length) { G.screen = 'over'; save(); flush(); render(); return; }
   if (day >= G.rescueDay) { G.screen = 'end'; save(); render(); return; }
   rollTonight();
-  const n = 2 + (chance(0.55) ? 1 : 0) + (day % 6 === 0 ? 1 : 0); const hrs = []; while (hrs.length < n) { const h = rnd(8, 23); if (!hrs.includes(h)) hrs.push(h); } G.sched = hrs.sort((a, b) => a - b);
+  const n = 1 + (chance(0.45) ? 1 : 0); const hrs = [];   /* about 1.5 a day: TWoM's scarcity makes each one land */ while (hrs.length < n) { const h = rnd(8, 23); if (h !== 20 && !hrs.includes(h)) hrs.push(h); }   /* 20:00 belongs to the night plan */ G.sched = hrs.sort((a, b) => a - b);
   if (!person(G.sel) || !person(G.sel).alive) G.sel = alive()[0].id;
-  log(`Day ${day}.`);
-  morningReport(day, all);
-  flush();
+  log(`Day ${day}.`); G.ff = null;
+  dayCard(day, () => { morningReport(day, all); flush(); render(); });
 }
 function morningReport(day, lines) {
   const low = alive().filter((x) => !x.out && tier(x.mood) >= 2); const d = low.length ? pick(low) : null;
@@ -2037,14 +2266,14 @@ function morningReport(day, lines) {
 }
 function hourV2(h, day) {
   if (G.away) return;                                         /* while you are out, the house's small stories and the returns wait for you */                       /* while you are out, the house's small stories wait for you instead of piling up */
-  if (h === 11 || h === 16) { try { strangersReturn(); flush(); } catch (e) { reportError(e); } }
+  if (h === 11 && G.doorDay !== G.day && G.day >= (G.doorFree || 0)) { try { strangersReturn(); flush(); } catch (e) { reportError(e); } }
   if (h === 12) { try { collectorVisit(); } catch (e) { reportError(e); } }
   if (h === 18 && G.mk && G.mk.likes >= 8 && !G.mk.warned && G.day >= 6 && chance(0.25)) { G.mk.warned = G.day; G.mkSafe = G.day + 1; say('A note under the door', '<i>Green ink, small, careful handwriting: "Tonight, lights off. Do not answer the door. — K."</i>'); flush(); }
-  if (h === 20 && G.build.radio && G.radioDay !== G.day && chance(0.55)) { G.radioDay = G.day; const b = radioNews(null); if (b.ev || chance(0.3)) notice(`On the radio: ${b.t.split('. ')[0]}.`); }
+  if (h === 21 && G.build.radio && G.radioDay !== G.day && chance(0.55)) { G.radioDay = G.day; const b = radioNews(null); if (b.ev || chance(0.3)) notice(`On the radio: ${b.t.split('. ')[0]}.`); }
   if (h === 6) { try { dropDawn(); guestDawn(); } catch (e) { reportError(e); } }
   if (h === 11 && G.forceTrader === G.day) { G.forceTrader = 0; try { evTrade(); flush(); } catch (e) { reportError(e); } }
   if (h === 19 && G.day >= 2 && chance(0.25)) { try { const p = pick(alive().filter((x) => !x.out)); if (p) mkRumour(p); } catch (e) {} }
-  if (G.sched && G.sched.length && h >= G.sched[0]) { G.sched.shift(); try { ST.morning({ n: 1, mixed: true }); } catch (e) { reportError(e); } flush(); }
+  if (G.sched && G.sched.length && h >= G.sched[0] && !G.roles && !modalOpen) { G.sched.shift(); try { ST.morning({ n: 1, mixed: true }); } catch (e) { reportError(e); } flush(); }
   returnParties();
   if (h % 3 === 0) save();
 }
@@ -2103,7 +2332,7 @@ function lookSheet(p, f) {
   say(f === 0 ? 'From the ground-floor window' : `From the window, floor ${f + 1}`, seen.map((t) => '• ' + t).join('\n'), { sp: p.sp, state: stateOf(p) });
 }
 function useStation(p, what) {
-  if (what === 'door') { doorSheet(p); return; }
+  if (what === 'door') { answerDoor(p); return; }
   if (what === 'radio') {
     sfx('radio'); if (G.radioDay === G.day) { say('On the radio', `<i>${ST.first(p)} turns the dial. The same voices as before, saying the same things.</i>`, { sp: p.sp, state: stateOf(p) }); return; } G.radioDay = G.day; const b = radioNews(p);
     say('On the radio', `<i>${ST.first(p)} turns the dial through the static.</i>\n\n“${b.t}”`, { sp: p.sp, state: stateOf(p) });
@@ -2143,28 +2372,31 @@ function stateWords(p) {
   return w.length ? w.join('. ') + '.' : 'Holding up, for now.';
 }
 function personPage(t) {
-  const me = person(G.sel); const self = me && me.id === t.id; const c = t.cid && KS.by[t.cid];
+  const c = t.cid && KS.by[t.cid];
+  /* who would go and sit with them: someone free, the one closest to them first */
+  const free = alive().filter((o) => o.id !== t.id && !o.out && !isWorking(o) && !(o.act && /^(sleep|watch|rest)$/.test(o.act.k)));
+  const close = (o) => { const r = relS(o, t) || {}; return (r.fond || 0) - (r.tension || 0); };
+  const helper = free.sort((a, b) => close(b) - close(a))[0];
+  const sitWhy = !helper ? `Nobody is free to sit with ${ST.first(t)}.` : SIM.sitWithWhy(helper, t);
+  const inBed = SIM.lyingDown(t);
   const dl = (t.mem || []).slice(-1)[0]; const quote = dl ? `“${dl.t}”` : (c && c.barks && c.barks.idle && c.barks.idle.length ? `“${String(ST.voiced(t, c.barks.idle[0])).replace(/<[^>]+>/g, '')}”` : '');
   const watch = { null: 'none', early: 'early (8 pm to 1 am)', late: 'late (1 am to 5:30 am)', all: 'all night' };
   const doing = t.out ? `Away. Back about ${SIM.clock(t.out.back || G.t)}.` : t.act ? t.act.label + '.' : 'Doing nothing.';
-  const ch = self ? [
-    ...(t.act && /^(build|craft|cook)$/.test(t.act.k) ? [{ label: `Stop ${t.act.label.replace(/^(Building|Making): /, '').toLowerCase()}`, fn() { noticeBack(SIM.cancelTask(t.id)); return ''; } }] : []),
-    { label: 'Their things', fn() { invMenu(t); return ''; } },
-    { label: 'Notebook', fn() { showNotebook(t.id); return ''; } },
-    { label: `Night watch: ${watch[t.shift || null]}`, fn() { t.shift = t.shift === null || !t.shift ? 'early' : t.shift === 'early' ? 'late' : null; G.watchSet = true; notice(`${t.name}: night watch ${watch[t.shift || null]}.`); return ''; } },
-    { label: 'Close' }
-  ] : [
-    { label: `Talk to ${ST.first(t)}`, off: t.out, why: `${t.name} is away.`, fn() { ST.talk(t); return ''; } },
-    { label: `Sit with ${ST.first(t)}`, show: t.mood < 55 && !t.out, fn() { const r = SIM.order(me.id, { k: 'comfort', with: t.id }, true); if (!r.ok) toastWhy(r.why); return ''; } },
-    { label: `Become ${ST.first(t)}`, fn() { takeControl(t.id); return ''; } },
-    { label: `Send ${ST.first(t)} out`, off: t.out || t.hp < 25 || t.mood < 15, why: t.out ? `${t.name} is already away.` : `${t.name} is in no state to go.`, fn() { pickDest(t, 'auto'); return ''; } },
-    { label: 'Notebook', fn() { showNotebook(t.id); return ''; } },
-    { label: t.auto === false ? 'Let them find their own work' : 'Have them wait for orders', fn() { t.auto = t.auto === false; return ''; } },
-    ...(SIM.hooked && SIM.hooked(t).length ? [{ label: t.cutoff ? `Let ${ST.first(t)} have the ${SIM.HAB_NAME[SIM.hooked(t)[0]]} again` : `Keep the ${SIM.HAB_NAME[SIM.hooked(t)[0]]} from ${ST.first(t)}`, sub: t.cutoff ? '' : 'harder now, easier later', fn() { t.cutoff = !t.cutoff; remember(t, t.cutoff ? 'They are hiding it from me now. Like I am a child.' : 'They gave it back. I hate how grateful I was.', { w: 3 }); notice(t.cutoff ? `${t.name} will not get any. They will not thank you this week.` : `${t.name} can have it again.`); return ''; } }] : []),
+  /* you direct everyone: one page for anybody, whoever is selected */
+  const ch = [
+    ...(isWorking(t) ? [{ label: 'Stop', icon: 'pause', sub: t.act.label.replace(/^(Building|Making): /, '').toLowerCase(), fn() { noticeBack(SIM.cancelTask(t.id)); return ''; } }] : []),
+    { label: 'Talk', icon: 'talk', off: t.out, why: `${t.name} is away.`, fn() { ST.talk(t); return ''; } },
+    { label: inBed ? 'Sit by the bed' : 'Sit with them', icon: 'heart', sub: helper && !sitWhy ? `${ST.first(helper)} goes, half an hour` : '', show: t.mood < 55 && !t.out, off: !!sitWhy, why: sitWhy, fn() { const r = SIM.order(helper.id, { k: 'comfort', with: t.id }, true); if (!r.ok) toastWhy(r.why); else notice(`${helper.name} goes to sit with ${t.name}.`); return ''; } },
+    { label: 'Send out', icon: 'feet', sub: 'alone', off: t.out || t.hp < 25 || t.mood < 15, why: t.out ? `${t.name} is already away.` : `${t.name} is in no state to go.`, fn() { pickDest(t, 'auto'); return ''; } },
+    { label: 'Their things', icon: 'bag', fn() { invMenu(t); return ''; } },
+    { label: 'Notebook', icon: 'journal', fn() { showNotebook(t.id); return ''; } },
+    { label: 'Night watch', icon: 'eye', sub: watch[t.shift || null].replace(/ \(.*\)$/, ''), fn() { t.shift = t.shift === null || !t.shift ? 'early' : t.shift === 'early' ? 'late' : null; G.watchSet = true; notice(`${t.name}: night watch ${watch[t.shift || null]}.`); return ''; } },
+    { label: t.auto === false ? 'Find own work' : 'Wait for orders', icon: t.auto === false ? 'tools' : 'clock', sub: t.auto === false ? 'now: waits for you' : 'now: finds work', fn() { t.auto = t.auto === false; return ''; } },
+    ...(SIM.hooked && SIM.hooked(t).length ? [{ label: t.cutoff ? `Give the ${SIM.HAB_NAME[SIM.hooked(t)[0]]} back` : `Hide the ${SIM.HAB_NAME[SIM.hooked(t)[0]]}`, icon: 'lock', sub: t.cutoff ? '' : 'harder now, easier later', fn() { t.cutoff = !t.cutoff; remember(t, t.cutoff ? 'They are hiding it from me now. Like I am a child.' : 'They gave it back. I hate how grateful I was.', { w: 3 }); notice(t.cutoff ? `${t.name} will not get any. They will not thank you this week.` : `${t.name} can have it again.`); return ''; } }] : []),
     { label: 'Close' }
   ];
   const big = CR.Side ? CR.Side.render(t.sp, t.out ? 'idle' : (t.act && t.act.k === 'sleep' ? 'sleep' : 'idle'), { scale: 5, state: stateOf(t) }) : '';
-  ask(`${t.name}${self ? ' (you)' : ''}`, `<div class="ppage"><div class="ppic">${big}</div><div class="pst">${stateWords(t)}</div><div class="pdo">${doing}</div>${quote ? `<div class="pq">${quote}</div>` : ''}${c && c.role ? `<div class="pbio">${c.role}${c.home ? ', from ' + c.home : ''}.</div>` : ''}</div>`, ch, null);
+  ask(t.name, `<div class="ppage"><div class="ppic">${big}</div><div class="pst">${stateWords(t)}</div><div class="pdo">${doing}</div>${quote ? `<div class="pq">${quote}</div>` : ''}${c && c.role ? `<div class="pbio">${c.role}${c.home ? ', from ' + c.home : ''}.</div>` : ''}</div>`, ch, null);
 }
 function selfMenu(s) { personPage(s); }
 function selfMenu0(s) {
@@ -2213,10 +2445,10 @@ function destLabel(l, d) {
 function pickDest(s, mode, page) {
   page = page || 0; const per = 6;
   const all = LOCS.filter((l) => l.id !== G.shelter).map((l) => ({ l, d: CAMPUS.travel(G.shelter, l.id) })).sort((a, b) => a.d - b.d || a.l.name.localeCompare(b.l.name));
-  const ch = all.slice(page * per, page * per + per).map(({ l, d }) => ({ label: destLabel(l, d), fn() { if (mode === 'ctrl') startControlled(s, l.id); else sendOut(s, l.id); return ''; } }));
+  const ch = all.slice(page * per, page * per + per).map(({ l, d }) => ({ label: destTile(l, d), tile: true, fn() { if (mode === 'ctrl') startControlled(s, l.id); else sendOut(s, l.id); return ''; } }));
   if ((page + 1) * per < all.length) ch.push({ label: 'Farther places…', fn() { pickDest(s, mode, page + 1); return ''; } });
   if (page > 0) ch.push({ label: 'Closer places…', fn() { pickDest(s, mode, page - 1); return ''; } });
-  ch.push({ label: 'Never mind' }); ch.prompt = 'Where?';
+  ch.push({ label: 'Never mind' }); ch.prompt = 'Where?'; ch.tiles = true;
   ask(mode === 'ctrl' ? 'Where to?' : `Where should ${s.name} go?`, '', ch, { sp: s.sp, state: stateOf(s) });
 }
 function doorSheet(who) {
@@ -2224,8 +2456,8 @@ function doorSheet(who) {
   const bad = s.out || s.hp < 25 || s.mood < 15 || s.fatigue > 92;
   const others = alive().filter((x) => x.id !== s.id && !x.out && x.hp >= 25 && x.mood >= 15);
   const ch = [
-    { label: `Go yourself`, off: bad, why: `${s.name} is in no state to go out.`, fn() { pickDest(s, 'ctrl'); return ''; } },
-    { label: 'Send someone else', off: !others.length, why: 'Nobody else is fit to go.', fn() { pickWho(others); return ''; } },
+    { label: `Take ${ST.first(s)} out on a run`, off: bad, why: `${s.name} is in no state to go out.`, fn() { pickDest(s, 'ctrl'); return ''; } },
+    { label: 'Send someone out alone', off: !others.length, why: 'Nobody else is fit to go.', fn() { pickWho(others); return ''; } },
     { label: 'Stay inside' }
   ];
   ask('The door', `<i>${pick(['Voices outside, then none.', 'A boot on gravel, slow.', 'Somewhere nearby a door slams, and nobody answers it.'])}</i>`, ch, { sp: s.sp, state: stateOf(s) });
@@ -2285,7 +2517,7 @@ function tallyKnock() {
   const n = groups.length; if (n >= 3 && groups[n - 3] === 3 && groups[n - 2] === 2 && groups[n - 1] === 1) { tallyKnocks = []; setTimeout(() => { if (CR.Life && CR.Life.egg) { CR.Life.egg(); flush(); } }, 700); return true; }
   return false;
 }
-function giveOrder(s, j) { const r = SIM.order(s.id, j.job, true); if (!r.ok) toastWhy(r.why); }
+function giveOrder(s, j) { const r = SIM.order(s.id, j.job, true); if (!r.ok) { toastWhy(r.why); return; } if (j.job && /^(build|craft|cook|board)$/.test(j.job.k)) setTimeout(() => { if (isWorking(s)) handOff(s); }, 400); }
 /* the cupboard: your things on top, the person's own pack below. Tap to move one. */
 function cupHtml(s) {
   const cap = packCap(s), used = packCount(s); const cell = (src, k, n, full) => `<button class="ltc${full ? ' full' : ''}" data-cu="${src}:${k}" ${full ? dis(`${s.name}'s pack is full.`) : ''}><span class="lti">${ITEMS[k][0]}</span><b>${n}</b><small>${ITEMS[k][1]}</small></button>`;
@@ -2303,9 +2535,15 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
   sfx('tap'); const box = document.querySelector('#modal .cu'); if (box) box.outerHTML = cupHtml(s);
 });
 function tapStation(id) {
-  const s = person(G.sel); if (!s || !s.alive || s.out) return;
-  if (id === 'yard' || id === 'door') { const r = SIM.order(s.id, { k: 'use', st: 'door', what: 'door', min: 2, label: 'At the door' }, true); if (!r.ok) toastWhy(r.why); return; }
-  { const J = G.build.junk && G.build.junk[id]; if (J) { const r = SIM.order(s.id, { k: J === 'rubble' ? 'dig' : 'sort', st: id }, true); if (!r.ok) toastWhy(r.why); return; } }
+  const s = person(G.sel); if (!s || !s.alive || s.out) return; if (isWorking(s)) { toastWhy(`${s.name} is busy: ${s.act.label.toLowerCase()}. ${isPC() ? 'Right-click to stop.' : `Tap ${s.name}'s face to stop.`}`); return; }
+  if (id === 'yard' || id === 'door') {
+    const was = s.act && s.act.k; const r = SIM.order(s.id, { k: 'use', st: 'door', what: 'door', min: 2, label: KNOCK ? 'Going to answer the door' : 'At the door' }, true); if (!r.ok) { toastWhy(r.why); return; }
+    if (KNOCK) notice(was === 'sleep' ? `${s.name} is woken and goes down to the door.` : was === 'rest' ? `${s.name} gets up and goes to the door.` : was === 'watch' ? `${s.name} leaves the look-out to answer. Nobody is watching now.` : `${s.name} goes to the door.`);
+    return;
+  }
+  { const J = G.build.junk && G.build.junk[id]; if (J) { const where = ((SIM.stations()[id] || {}).label || 'site').replace(/ site$/i, '').toLowerCase(); const job = { k: J === 'rubble' ? 'dig' : 'sort', st: id }; const why = SIM.why(job, s);
+      WHEEL.open({ title: J === 'rubble' ? 'Rubble' : 'Junk', hub: J === 'rubble' ? 'shovel' : 'broom', items: [{ id: 'go', label: J === 'rubble' ? 'Dig out the rubble' : 'Clear the junk', icon: J === 'rubble' ? 'shovel' : 'broom', time: J === 'rubble' ? '40 min' : '20 min', off: !!why, lock: !!why, why, sub: `then a ${where} can go here` }],
+        onPick: () => { const r = SIM.order(s.id, job, true); if (!r.ok) toastWhy(r.why); else setTimeout(() => { if (isWorking(s)) handOff(s); }, 400), notice(`${s.name} goes to ${J === 'rubble' ? 'dig out the rubble' : 'clear the junk'} by the ${(SIM.stations()[id] || {}).label ? SIM.stations()[id].label.replace(/ site$/i, '').toLowerCase() : 'wall'}. It takes a while.`); } }); return; } }
   if (id === 'cupboard') { cupboardSheet(s); return; }
   if (id === 'bench') { openWheel('craft'); return; }
   if (id === 'stove') { openWheel('cook'); return; }
@@ -2314,9 +2552,18 @@ function tapStation(id) {
   const jobs = SIM.jobsAt(id, s);
   if (jobs.length === 1) { giveOrder(s, jobs[0]); return; }
   const ch = jobs.map((j) => ({ label: j.label, off: !!j.why, why: j.why, fn() { giveOrder(s, j); return ''; } })); ch.push({ label: 'Close' });
-  ask(st.label, `<i>${s.name} (you): ${s.act ? s.act.label.toLowerCase() : 'free'}.</i>`, ch, { sp: s.sp, state: stateOf(s) }); flush();
+  ask(st.label, `<i>${s.name}: ${s.act ? s.act.label.toLowerCase() : 'free'}.</i>`, ch, { sp: s.sp, state: stateOf(s) }); flush();
 }
-function tapFloor(f, x) { const s = person(G.sel); if (!s || !s.alive || s.out) return; SIM.order(s.id, { k: 'walk', pt: { f, x } }, true); }
+/* work that holds a person: they are locked into it until it is done or you stop it */
+const WORKK = /^(build|craft|cook)$/;
+const isWorking = (p) => !!(p && p.act && WORKK.test(p.act.k));
+/* after giving a long job, control moves to someone who is free, so you can carry on playing */
+function handOff(s) {
+  const free = alive().filter((o) => o.id !== s.id && !o.out && !isWorking(o) && !(o.act && o.act.k === 'sleep'));
+  const next = free.sort((a, b) => (a.act ? 1 : 0) - (b.act ? 1 : 0))[0];
+  if (next) { takeControl(next.id); notice(`${s.name} gets to work. ${next.name} is free.`); }
+}
+function tapFloor(f, x) { const s = person(G.sel); if (!s || !s.alive || s.out) return; if (isWorking(s)) { toastWhy(`${s.name} is busy: ${s.act.label.toLowerCase()}. ${isPC() ? 'Right-click to stop.' : `Tap ${s.name}'s face to stop.`}`); return; } SIM.order(s.id, { k: 'walk', pt: { f, x } }, true); }
 function tapPerson(id) {
   const t = person(id); if (!t || !t.alive) return;
   if (id === G.sel) { selfMenu(t); flush(); } else { takeControl(id); render(); }
@@ -2449,9 +2696,9 @@ function fightWith(cfg, w) {
     if (cfg.onWin) cfg.onWin(w);
     showScene('It is done', WINTXT[w] + extra, s, w === 'pistol' ? 'aim' : 'idle', cfg.foes(down));
   } else {
+    showScene('It goes badly', LOSETXT[w], s, 'sitfloor', cfg.foes('aim'));   /* the fight first, then what it cost */
     hurt(s, Math.round(rnd(14, 34) * (1 + cfg.F * 0.15)), cfg.killer || 'Killed in a fight.', { lethal: s.hp <= 35 || chance(0.04) });
     if (cfg.onLose) cfg.onLose(w);
-    showScene('It goes badly', LOSETXT[w], s, 'sitfloor', cfg.foes('aim'));
   }
 }
 /* they want something. If you cannot give it, they decide: pity, punishment, or violence */
@@ -2513,7 +2760,7 @@ function encHostile(g, L, s, e) {
 const WHEEL = CR.Wheel;
 const plainCost = (c) => Object.entries(c).map(([k, v]) => v + ' ' + (k === 'parts' ? 'scrap' : k)).join(', ');
 const BICON = { doorfix: 'house', brazier: 'fire', weed: 'weed', rack: 'loud', stove: 'wood', bench: 'tools', barr1: 'wood', barr2: 'wood', barr3: 'wood', bunk: 'bed', bucket: 'water', filter: 'water', garden: 'bread', radio: 'radio', alarm: 'bolt', curtains: 'cloth', infirm: 'meds', cupboard: 'bag', still: 'ogogoro' };
-function wheelOrder(s, job) { const r = SIM.order(s.id, job, true); if (!r.ok) toastWhy(r.why); }
+function wheelOrder(s, job) { const r = SIM.order(s.id, job, true); if (!r.ok) { toastWhy(r.why); return; } if (job && /^(build|craft|cook)$/.test(job.k)) setTimeout(() => { if (isWorking(s)) handOff(s); }, 400); }
 const lackOf = (cost) => { const o = {}; Object.entries(cost).forEach(([k, v]) => { if (inv(k) < v) o[k] = true; }); return o; };
 function stopItems(kind) { return SIM.activeTasks().filter((t) => t.kind === kind).map((t) => ({ id: 'stop', stop: t, label: 'Stop', sub: `${t.name} ${t.pct}%`, icon: 'warn', danger: true })); }
 function onStop(it) { const t = it.stop; const back = t.kind === 'build' ? SIM.cancelBuild(t.id) : SIM.cancelTask(t.pid); noticeBack(back); render(); }
@@ -2578,9 +2825,100 @@ function badgeNames(s) {
   if (s.act && s.act.k === 'watch') b.push('eye');
   return b.slice(0, 2);
 }
-if (HOUSE) HOUSE.hooks = { knock: () => tallyKnock(), badges: badgeNames, G: () => G, person, selected: () => G.sel, stateOf, modalOpen: () => modalOpen, step: stepV2, tapPerson, tapStation, tapFloor, yard: yardList };
+if (HOUSE) HOUSE.hooks = { knock: () => tallyKnock(), badges: badgeNames, G: () => G, person, selected: () => G.sel, stateOf, modalOpen: () => modalOpen, step: () => {}, tapPerson, tapStation, tapFloor, yard: yardList };
 
 /* test hook (used by the smoke test; harmless in the browser) */
-if (typeof window !== 'undefined') window.__crisis = { save, radioNews, dropDawn, intelOf, priceMul, guestDawn, useStation, hurt, wearTool, wearWord, sitePiles, POOL, LOCS, personPage, cupboardSheet, rescueRumour, calendarDawn, arcDawn, arcPhase, dateStr, priceMul, epilogue, renderEnd, collectorVisit, mkState, evTrade, barter, tapStation, strangersReturn, exposeDeeds, othersScavenge, readTrace, tellSheet, kill, raidWarn, forceEnc, nightRoles, openWheel, goHome, get G() { return G; }, newGame, act, Q, dawn: dawnV2, nextModal, host, Sim: CR.Sim, stepV2, tapStation, tapFloor, tapPerson, doorSheet, pickDest, sendOut, startControlled, returnParties, lookSheet, homeMenu, get modalOpen() { return modalOpen; } };
+
+/* ---------- PC input: the mouse points, the keyboard acts ----------
+   Hover anything in the house and it says what it is and what a click will do, for whoever you have selected.
+   Right-click stops the selected person. Keys: Space pause, F speed, 1-9 / Tab pick people, E end the day,
+   I / W / J drawers, Esc closes whatever is open (or opens the menu). With a sheet open, 1-9 pick its choices. */
+let tipEl = null, tipFor = null;
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('pointerdown', (e) => { CR.lastPt = { x: e.clientX, y: e.clientY }; if (tipEl) tipEl.style.display = 'none'; }, true);
+function pcTipHtml(el) {
+  const s = person(G.sel); const busy = s && isWorking(s);
+  if (el.dataset.p) {
+    const p = person(+el.dataset.p); if (!p) return '';
+    const nw = needWords(p);
+    return `<b>${p.name}</b>${p.out ? 'Away' : p.act ? p.act.label : 'Waiting for orders'}<br><i>${TIERN[tier(p.mood)]}${nw !== 'managing' ? ' · ' + nw : ''}</i><br><span class="go">${p.id === G.sel ? 'Click: open their page' : 'Click: give ' + ST.first(p) + ' orders'}</span>`;
+  }
+  const id = el.dataset.st; const st = SIM.stations()[id]; if (!st) return '';
+  const head = `<b>${st.label}</b>`;
+  if (!s || s.out) return head + '<i>Pick someone first.</i>';
+  if (busy) return head + `<span class="no">${s.name} is busy: ${s.act.label.toLowerCase()}. Right-click to stop.</span>`;
+  const J = G.build.junk && G.build.junk[id];
+  let what = '';
+  if (J) what = `${s.name} ${J === 'rubble' ? 'digs out the rubble · 40 min' : 'clears the junk · 20 min'}`;
+  else if (id === 'door' || id === 'yard') what = KNOCK ? `${s.name} answers the door` : `${s.name} goes to the door`;
+  else if (st.built === false) what = `Choose something to build here`;
+  else if (id === 'cupboard') what = `${s.name} opens the cupboard`;
+  else if (id === 'bench') what = `Choose something to make`;
+  else if (id === 'stove') what = `Cook a pot`;
+  else { const jobs = SIM.jobsAt(id, s) || []; what = jobs.length === 1 ? `${s.name}: ${jobs[0].label.toLowerCase()}` : jobs.length ? 'Choose what to do' : ''; }
+  return head + (what ? `<span class="go">Click: ${what}</span>` : '');
+}
+function runTip(e) {
+  const X = CR.Expedition; const over = e.target && e.target.closest && e.target.closest('#xstage');
+  const t = over && X && X.hoverText ? X.hoverText(e) : '';
+  if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'hover-tip'; document.body.appendChild(tipEl); }
+  tipEl.innerHTML = t; tipEl.style.display = t ? 'block' : 'none'; const xs = document.getElementById('xstage'); if (xs) xs.style.cursor = t ? 'pointer' : '';
+  if (!t) return; const w = tipEl.offsetWidth, h = tipEl.offsetHeight; let x = e.clientX + 16, y = e.clientY + 18;
+  if (x + w > innerWidth - 8) x = e.clientX - w - 12; if (y + h > innerHeight - 8) y = e.clientY - h - 12; tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+}
+function pcTip(e) {
+  if (isPC() && G && G.screen === 'exp' && !modalOpen && !(CR.Menu && CR.Menu.screen)) { runTip(e); return; }
+  if (!isPC() || !G || G.screen !== 'day' || modalOpen || (CR.Wheel && CR.Wheel.isOpen()) || (CR.Menu && CR.Menu.screen)) { if (tipEl) tipEl.style.display = 'none'; tipFor = null; return; }
+  const el = (document.elementsFromPoint ? document.elementsFromPoint(e.clientX, e.clientY) : [e.target]).find((x) => x && x.closest && x.closest('#hstage') && x.matches && x.matches('[data-st],[data-p]'));   /* look through art drawn on top */
+  if (!el) { if (tipEl) tipEl.style.display = 'none'; tipFor = null; return; }
+  if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'hover-tip'; document.body.appendChild(tipEl); }
+  if (tipFor !== el) { tipFor = el; tipEl.innerHTML = pcTipHtml(el); }
+  tipEl.style.display = tipEl.innerHTML ? 'block' : 'none';
+  const w = tipEl.offsetWidth, h = tipEl.offsetHeight; let x = e.clientX + 16, y = e.clientY + 18;
+  if (x + w > innerWidth - 8) x = e.clientX - w - 12; if (y + h > innerHeight - 8) y = e.clientY - h - 12;
+  tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+}
+function pcStop() {
+  const s = person(G.sel); if (!s || s.out) return;
+  if (isWorking(s)) { noticeBack(SIM.cancelTask(s.id)); return; }
+  if (s.act && s.q) { SIM.abort(s); s.q.length = 0; notice(`${s.name} stops.`); }
+}
+function pcChoose(n) {
+  const bs = [...document.querySelectorAll('#modal:not(.hidden) [data-m]')].filter((x) => !x.classList.contains('mback')); const b = bs[n]; if (b) b.click();
+}
+function pcKey(e) {
+  if (!isPC()) return;
+  if (e.target && e.target.closest && e.target.closest('input,textarea,select')) return;
+  const k = e.key; const menuOpen = CR.Menu && CR.Menu.screen;
+  const eat = () => { e.preventDefault(); e.stopImmediatePropagation(); };   /* Esc we used here must not also reach the menu's own Esc */
+  if (menuOpen) return;                                                         // the menu handles its own keys
+  if (CR.Wheel && CR.Wheel.isOpen()) { if (k === 'Escape') { eat(); CR.Wheel.close(); } return; }
+  if (!G) return;
+  if (modalOpen) {
+    if (/^[1-9]$/.test(k)) { e.preventDefault(); pcChoose(+k - 1); return; }
+    if (k === 'Enter') { const bs = document.querySelectorAll('#modal:not(.hidden) [data-m]'); if (bs.length === 1) { e.preventDefault(); bs[0].click(); } return; }
+    if (k === 'Escape') { const c = document.querySelector('#modal:not(.hidden) .mback'); if (c) { eat(); c.click(); } }
+    return;
+  }
+  const lower = k.length === 1 ? k.toLowerCase() : k;
+  if (G.screen === 'exp') {   /* on a run: S sneak, H head home */
+    const b = lower === 's' ? document.querySelector('[data-a="sneak"]') : lower === 'h' ? document.querySelector('[data-a="gohome"]') : null; if (b) { e.preventDefault(); b.click(); }
+    return;
+  }
+  if (G.screen !== 'day') return;
+  if (k === ' ') { e.preventDefault(); if (G.speed) { G.lastSpeed = G.speed; G.speed = 0; } else G.speed = G.lastSpeed || 1; chromeSig = ''; chrome(); refreshPC(); return; }
+  if (lower === 'f') { e.preventDefault(); G.speed = (G.speed || 0) >= 3 ? 1 : (G.speed || 0) + 1; chromeSig = ''; chrome(); refreshPC(); return; }
+  if (/^[1-9]$/.test(k)) { const p = alive()[+k - 1]; if (p) { e.preventDefault(); act(p.id === G.sel ? 'me' : 'sel', { id: String(p.id) }); render(); } return; }
+  if (k === 'Tab') { e.preventDefault(); const al = alive(); if (!al.length) return; const i = al.findIndex((p) => p.id === G.sel); const p = al[(i + (e.shiftKey ? -1 : 1) + al.length) % al.length]; act('sel', { id: String(p.id) }); render(); return; }
+  if (lower === 'e') { const b = document.querySelector('.pcend [data-a="endday"]'); if (b) { e.preventDefault(); b.click(); } return; }
+  const tab = { i: 'work', w: 'world', j: 'notes' }[lower];
+  if (tab) { e.preventDefault(); ui.day = ui.day === tab ? 'people' : tab; render(); return; }
+  if (k === 'Escape' && ui.day !== 'people') { eat(); ui.day = 'people'; render(); }   /* otherwise the menu opens, as everywhere */
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('mousemove', (e) => { try { pcTip(e); } catch (err) { reportError(err); } }, { passive: true });
+  document.addEventListener('keydown', (e) => { try { pcKey(e); } catch (err) { reportError(err); } }, true);
+  document.addEventListener('contextmenu', (e) => { if (isPC() && CR.Wheel && CR.Wheel.isOpen()) { e.preventDefault(); CR.Wheel.close(); return; } if (!isPC() || !G || G.screen !== 'day' || modalOpen) return; if (!(e.target.closest && e.target.closest('.pcshell .stage'))) return; e.preventDefault(); try { pcStop(); } catch (err) { reportError(err); } });
+}
+if (typeof window !== 'undefined') window.__crisis = { dayCard, save, radioNews, dropDawn, intelOf, priceMul, guestDawn, useStation, hurt, wearTool, wearWord, sitePiles, POOL, LOCS, personPage, cupboardSheet, rescueRumour, calendarDawn, arcDawn, arcPhase, dateStr, priceMul, epilogue, renderEnd, collectorVisit, mkState, evTrade, barter, tapStation, strangersReturn, exposeDeeds, othersScavenge, readTrace, tellSheet, kill, raidWarn, forceEnc, nightRoles, openWheel, goHome, get G() { return G; }, get KNOCK() { return KNOCK; }, get modalOpen() { return modalOpen; }, newGame, act, Q, dawn: dawnV2, nextModal, host, Sim: CR.Sim, stepV2, tapStation, tapFloor, tapPerson, doorSheet, pickDest, sendOut, startControlled, returnParties, lookSheet, homeMenu, get modalOpen() { return modalOpen; } };
 render();
 })();

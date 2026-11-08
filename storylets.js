@@ -187,7 +187,7 @@ S.add({ id: 'ghost', kind: 'grief', w: 2, cd: 4, when: (x) => x.G.dead && x.G.de
 /* =====================  HORROR  ===================== */
 S.add({ id: 'knock_3am', kind: 'horror', w: 2.2, tension: 6, cast: { A: (s) => s.mood > 20 },
   run(x, { A }) {
-    ask('Knocking at three', `Three soft knocks on the barricade. Then nothing. Then three more.\n\n${speak(A, `Do not open it. Please do not open it.`)}\n\n<i>Whoever it is, they know how many of you are inside. They keep the rhythm perfect.</i>`, [
+    ask('Knocking in the dark', `Three soft knocks on the barricade. Then nothing. Then three more.\n\n${speak(A, `Do not open it. Please do not open it.`)}\n\n<i>Whoever it is, they know how many of you are inside. They keep the rhythm perfect.</i>`, [
       { label: 'Ask who it is', fn() { const r = Math.random(); if (r < 0.34) { H().add('water', 2); return `<i>A thin voice, a woman's, begs for water. You pass two sachets through a gap. She whispers thank you in a language you do not know and is gone.</i>`; } if (r < 0.67) { H().stealSome(0.25); return `<i>A man's voice, friendly, very friendly. By the time you realise it is a distraction, the water store has been emptied from the other side.</i>`; } mood(A, -4); all(-2); return `<i>No answer. Only breathing, very close to the wood. Then slow footsteps, going down. Nobody sleeps again.</i>`; } },
       { label: 'Stay silent', fn() { all(-3); return `<i>It lasts eleven minutes. In the morning there is a handprint on the barricade, low, at the height of a child.</i>`; } },
       { label: 'Open the door a crack', fn() { if (chance(0.5)) { H().hurt(A, rnd(8, 20), 'Ambushed at the barricade.'); all(-3); return `<i>A hand around ${first(A)}'s collar. A blade. A struggle. They get free, but not unmarked.</i>`; } all(-1); return `<i>Nobody. Only a rat, and a sachet of water left on the step, as if as a present.</i>`; } }
@@ -201,7 +201,7 @@ S.add({ id: 'dragging', kind: 'horror', w: 1.6, tension: 5, cast: { A: (s) => cd
       { label: 'Tell everyone to stay put', fn() { all(-2); return `<i>It stops after an hour. The hour feels like a week.</i>`; } }
     ], portrait(A));
   } });
-S.add({ id: 'smell_road', kind: 'horror', w: 1.4, tension: 4,
+S.add({ id: 'smell_road', kind: 'horror', w: 1.4, tension: 4, when: (x) => x.G.day >= 4,
   run(x) {
     ask('The smell', `The wind turns. For the first time in days it blows from the road. It brings something sweet and heavy, a smell you recognise in the body before the mind. Flies gather at the window.\n\n<i>Someone is already gagging. Nobody says what it is.</i>`, [
       { label: 'Seal the windows with cloth', fn() { H().add('cloth', -1); all(-1); return `<i>It helps. It does not help enough.</i>`; } },
