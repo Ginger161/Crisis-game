@@ -2170,7 +2170,9 @@ function fitMob() {
   const sh = document.querySelector('.shell.mshell'); if (!sh || !HOUSE || !HOUSE.contentH) return false;
   const W = sh.clientWidth || innerWidth, Hh = sh.clientHeight || innerHeight; const VHs = HOUSE.contentH();
   /* the sheet must fit what is in it: a long name or status wraps to a second line, and the toolbar must never fall off the bottom */
-  let need = 0; try { const ms = document.getElementById('msheet'); const pa = ms && !ms.classList.contains('up') && ms.querySelector('.panel-area'); if (pa) need = Math.ceil(pa.scrollHeight + (pa.getBoundingClientRect().top - ms.getBoundingClientRect().top)) + 6; } catch (e) {}
+  /* measured from the parts that cannot shrink: .mmore stretches to fill whatever is left (and hides what does not fit), so counting it
+     would make the sheet ask for its own height plus a little, every second, and the house would creep and jump */
+  let need = 0; try { const ms = document.getElementById('msheet'); const pa = ms && !ms.classList.contains('up') && ms.querySelector('.panel-area'); if (pa) { const cs = getComputedStyle(pa); const kids = [...pa.children].filter((k) => !k.classList.contains('mmore') && k.offsetParent !== null); const gap = parseFloat(cs.rowGap) || 0; const fixed = kids.reduce((t, k) => t + k.getBoundingClientRect().height, 0) + gap * Math.max(0, pa.children.length - 1) + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0); need = Math.ceil(fixed + (pa.getBoundingClientRect().top - ms.getBoundingClientRect().top)) + 6; } } catch (e) {}
   const minSheet = Math.max(262, Math.round(Hh * 0.33), need); const avail = Hh - minSheet + 18;
   let vw = clamp(VHs * W / avail, 136, 176); let px = Math.round(VHs * W / vw);
   if (px > avail) px = avail; else vw = VHs * W / px;

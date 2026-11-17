@@ -29,12 +29,14 @@ function driveCurve(k) { const n = 1024, c = new Float32Array(n); for (let i = 0
 
 A.start = safe(function () {
   if (A.started || typeof window === 'undefined') return; const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-  const ctx = A.ctx = new AC(); const n = A.nodes;
+  /* phones: bigger audio buffers and a lighter chain. With the default small buffers, Android drops samples whenever the page is busy, and it crackles */
+  const phone = A.phone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  let ctx; try { ctx = new AC(phone ? { latencyHint: 'playback' } : undefined); } catch (e) { ctx = new AC(); } A.ctx = ctx; const n = A.nodes;
   /* the desk: buses -> muffle -> drive -> limiter -> master. The interface bus skips the body effects so buttons stay clear */
   n.master = ctx.createGain(); n.master.connect(ctx.destination);
   n.limit = ctx.createDynamicsCompressor(); n.limit.threshold.value = -10; n.limit.ratio.value = 6; n.limit.attack.value = 0.005; n.limit.release.value = 0.25; n.limit.connect(n.master);
   n.dry = ctx.createGain(); n.dry.connect(n.limit);
-  n.shaper = ctx.createWaveShaper(); n.shaper.curve = driveCurve(6); n.shaper.oversample = '2x'; n.wet = ctx.createGain(); n.wet.gain.value = 0; n.shaper.connect(n.wet); n.wet.connect(n.limit);
+  n.shaper = ctx.createWaveShaper(); n.shaper.curve = driveCurve(6); n.shaper.oversample = phone ? 'none' : '2x'; n.wet = ctx.createGain(); n.wet.gain.value = 0; n.shaper.connect(n.wet); n.wet.connect(n.limit);
   n.muffle = ctx.createBiquadFilter(); n.muffle.type = 'lowpass'; n.muffle.frequency.value = 18000; n.muffle.Q.value = 0.5; n.muffle.connect(n.dry); n.muffle.connect(n.shaper);
   n.mix = ctx.createGain(); n.mix.connect(n.muffle);
   n.music = ctx.createGain(); n.music.connect(n.mix);   /* music */
@@ -46,7 +48,7 @@ A.start = safe(function () {
   /* reverb: a send from the room and the things in it */
   n.verb = ctx.createConvolver(); n.verbOut = ctx.createGain(); n.verbOut.gain.value = 0.5; n.verb.connect(n.verbOut); n.verbOut.connect(n.mix);
   n.send = ctx.createGain(); n.send.gain.value = 0.18; n.send.connect(n.verb);
-  A.irHouse = roomIR(ctx, 0.9, 3.2, false); A.irHall = roomIR(ctx, 3.2, 2.2, true); n.verb.buffer = A.irHouse;
+  A.irHouse = roomIR(ctx, phone ? 0.6 : 0.9, 3.2, false); A.irHall = roomIR(ctx, phone ? 1.6 : 3.2, 2.2, true); n.verb.buffer = A.irHouse;
   /* echo for gunfire across the campus */
   n.echoIn = ctx.createGain(); const dl = ctx.createDelay(1); dl.delayTime.value = 0.22; const fb = ctx.createGain(); fb.gain.value = 0.38; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
   n.echoIn.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(n.amb);
