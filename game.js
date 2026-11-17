@@ -331,11 +331,22 @@ if (typeof window !== 'undefined') {
     if (t.closest('#wheel,#menu,[data-a="menu"]')) return;
     const box = el.querySelector('.box'); const inBox = !!(box && box.contains(t)); const folded = el.classList.contains('folded');
     if (folded) { e.stopPropagation(); e.preventDefault(); return; }   /* folded: look, but the house waits for your answer */
-    if (performance.now() - MODAL_AT < 350) return;                        /* the tap that opened the card does not close it */
+    if (performance.now() - MODAL_AT < 350) { e.stopPropagation(); e.preventDefault(); return; }   /* the tap that opened the card neither closes it nor picks a choice under the finger */
     if (el.dataset.mode === 'single') { if (!t.closest('[data-m],a,button,input,select,textarea,[data-a],[data-nd],[data-ntok],[data-nbox]')) { const b = el.querySelector('[data-m]'); if (b) { e.stopPropagation(); b.click(); } } return; }
     if (inBox) return;
     e.stopPropagation(); e.preventDefault(); modalBack();
   }, true);
+}
+/* One rule for every pop-up, now and later. The house, the cutaway and the run open things as the finger touches down. The tap that ends
+   that same touch must not act on what just opened (close it, or pick whatever choice landed under the finger). So: if nothing was open
+   when the finger went down and something is open by the time the tap arrives, that tap is swallowed. A pop-up opened by a tap (a button)
+   opens after this check, so it is never affected. */
+const popupOpen = () => !!(modalOpen || (CR.Wheel && CR.Wheel.isOpen && CR.Wheel.isOpen()) || (typeof document !== 'undefined' && document.querySelector && document.querySelector('#menu:not(.hidden), .idopen')));
+let downAt = 0, downOpen = true;
+if (typeof document !== 'undefined' && document.addEventListener) {
+  /* on the window, capturing: this runs before every other handler in the game */
+  window.addEventListener('pointerdown', () => { downAt = performance.now(); downOpen = popupOpen(); }, true);
+  window.addEventListener('click', (e) => { const swallow = !downOpen && e.detail !== 0 && popupOpen() && performance.now() - downAt < 1500; downOpen = true; if (swallow) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);   /* e.detail 0: a click from the keyboard, no finger involved */
 }
 function reportError(err) { try { console.error(err); (window.__errors = window.__errors || []).push(String(err && err.stack || err)); } catch (e) {} }
 

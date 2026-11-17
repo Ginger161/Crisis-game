@@ -1,4 +1,4 @@
-const CACHE = 'crisis-v132';
+const CACHE = 'crisis-v134';
 const FILES = ['./', 'index.html', 'style.css', 'pc.css', 'mob.css', 'game.js', 'settings.js', 'perf.js', 'ui.js', 'audio.js', 'menu.js', 'manual.js', 'campus.js', 'sprites.js', 'side.js', 'scenes.js', 'icons.js', 'wheel.js', 'world.js', 'visits.js', 'ids.js', 'sim.js', 'house.js', 'sites.js', 'expedition.js', 'voice.js', 'cast.js', 'groups.js', 'lore.js', 'story.js', 'storylets.js', 'politics.js', 'polylets.js', 'procedural.js', 'life.js', 'manifest.json', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));

@@ -18,6 +18,8 @@ function ensure() {
   if (el || typeof document === 'undefined' || !document.body) return;
   el = document.createElement('div'); el.id = 'wheel'; el.className = 'wheel hidden'; document.body.appendChild(el);
   el.addEventListener('click', (e) => {
+    /* on a phone the house opens the wheel as the finger touches down; the tap that finishes when it lifts must not close it (or pick whatever opened under the finger) */
+    if (now() - openedAt < 350) return;
     const w = e.target.closest('[data-w]'); const cur = stack[stack.length - 1];
     if (e.target.closest('[data-wclose]') || (!w && e.target === el)) { cancel(); return; }
     if (e.target.closest('[data-wmore]')) { { let pp = perPage(); if ((short() || narrow()) && cur.items.length > pp) pp = Math.max(1, pp - 1); cur.page = (cur.page + 1) % Math.ceil(cur.items.length / pp); }  draw(); return; }
@@ -75,7 +77,8 @@ function draw() {
   el.innerHTML = `<div class="wring" style="--rx:${Rx}px;--ry:${Ry}px">${o}</div>`; el.classList.remove('hidden');
   if (IC()) IC().skin(el);
 }
-function open(opts) { ensure(); if (!el) return; stack.push({ title: opts.title, hub: opts.hub, items: opts.items || [], onPick: opts.onPick, onCancel: opts.onCancel, page: 0 }); draw(); }
+let openedAt = 0; const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+function open(opts) { ensure(); if (!el) return; openedAt = now(); stack.push({ title: opts.title, hub: opts.hub, items: opts.items || [], onPick: opts.onPick, onCancel: opts.onCancel, page: 0 }); draw(); }
 function close() { if (!el) return; stack = []; el.classList.add('hidden'); el.innerHTML = ''; }
 /* the player backed out (Back, the backdrop, Esc, right-click): the caller decides what that means */
 function cancel() { const cur = stack[stack.length - 1]; close(); if (cur && cur.onCancel) { cur.onCancel(); if (C.Wheel.after) { try { C.Wheel.after(); } catch (e2) {} } } }
