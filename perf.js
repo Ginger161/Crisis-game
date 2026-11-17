@@ -46,7 +46,7 @@ P.gate = function (state, ts) {
 /* auto: every drawn frame reports its spacing; after enough of them, decide */
 P.frame = function (ts) {
   if (P.settled || document.hidden) { P.lastTs = ts; return; }
-  if (P.lastTs && ts - P.lastTs < 400) P.samples.push(ts - P.lastTs); P.lastTs = ts;
+  if (P.lastTs && ts - P.lastTs < 5000) P.samples.push(Math.min(400, ts - P.lastTs)); P.lastTs = ts;   /* a very slow frame counts as slow (it used to be thrown away, so the slowest phones never stepped down) */
   if (P.samples.length < 150) return;
   const s = P.samples.slice().sort((a, b) => a - b); const med = s[Math.floor(s.length * 0.5)], p90 = s[Math.floor(s.length * 0.9)]; P.samples = [];
   const want = 1000 / P.fps();

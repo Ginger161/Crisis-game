@@ -192,13 +192,13 @@ function zonePanel() {
   return `<div class="panel"><h3>The standoff zones</h3>${Object.values(z).map((q) => { const h = q.holder ? PO.fac(q.holder) : null; return `<div class="dim">${q.name}: <b style="color:var(--cream)">${h ? (h.met ? h.name : 'someone you have not met') : 'nobody'}</b> · ${q.tension > 60 ? 'on the brink' : q.tension > 35 ? 'tense' : 'quiet'}</div>`; }).join('')}</div>`;
 }
 function showNotebook(id) {
-  const s = person(id); if (!s) return;
+  const s = person(id); if (!s) return; sfx('page');
   const rows = alive().filter((o) => o.id !== s.id).map((o) => { const r = ST.rel(s, o); const w = r.love >= 2 ? '❤ together' : r.love >= 1 ? '❤ something between them' : r.fond > 60 ? 'very close' : r.fond > 30 ? 'friends' : r.fond > 10 ? 'friendly' : r.fond < -10 ? 'cold' : 'acquaintances'; return `${o.name}: ${w}${r.tension > 50 ? ' · strained' : ''}`; });
   const di = (s.mem || []).slice(-6).reverse().map((m) => `<i>Day ${m.d}: "${m.t}"</i>`).join('\n');
   ask(`${s.name}'s notebook`, `<i>${ST.describe(s)}</i>${di ? '\n\n' + di : ''}\n\nTrust in you: ${Math.round(s.trust || 0)}/100\n\n${(s.known || []).length ? 'What you know:\n' + s.known.map((k) => '• ' + k).join('\n') : 'You do not know them well yet.'}\n\n${rows.join('\n')}`, [{ label: 'Close' }], { sp: s.sp, state: stateOf(s) });
 }
 function newGame() {
-  if (CR.House) CR.House.reset(); if (CR.Tutorial) CR.Tutorial.stop();
+  if (CR.House) CR.House.reset();
   G = {
     t: 480, speed: 1, seed: Math.floor(Math.random() * 1e9), yard: [], sched: [], pend: null, away: false, day: 1, screen: 'day', S: [], nextId: 0, sel: null,
     inv: { food: rnd(7, 10), water: rnd(7, 10), wood: rnd(4, 6), parts: rnd(2, 3), cloth: rnd(1, 3), meds: rnd(0, 2), bandage: rnd(0, 2) },
@@ -224,7 +224,6 @@ function newGame() {
     'The bandits came out of the bush the way they always do, but this time they did not leave. The roads closed. The FCT locked down. The radio said "stay indoors," then stopped saying anything.',
     'First the checkpoints fell. Then the police stations. By the time anyone said the word lockdown, there was no one left to enforce it and no one left to call.'
   ]);
-  try { if (!isPC() && !localStorage.getItem('crisis_rotate')) {   /* turning the phone means nothing on a PC */ localStorage.setItem('crisis_rotate', '1'); Q.push({ title: 'Hold it how you like', text: '<div class="rotcard"><div class="rotphone"><i></i></div><b>Upright, you see the whole house.<br>Turn it sideways for a wider view.</b><div class="dim" style="margin-top:8px">Same game either way. Turn it whenever you want.</div></div>', choices: [{ label: 'Got it' }], art: null }); } } catch (e) {}
   say('Day 1', `${intro}\n\nFour of you are holed up in ${LOCBY[G.shelter].name} on the Veritas campus. No power. No signal. Little food. Others are out there too, in the other blocks, behind their own doors, deciding what they will do to survive. ${missingLine}\n\nYou are the one the others look to. The last word on the radio, before it died: <i>"Remain where you are. Help is coming."</i> It did not say when.`);
   log('Day 1. The siege begins.');
   flush();
@@ -257,19 +256,24 @@ function load() {
 /* ---------- modal queue ---------- */
 /* a death is always the last thing you read: anything that happens in the same moment (the fight, the fall) comes first */
 function qPush(item) { if (item.death) { Q.push(item); return; } let i = Q.length; while (i > 0 && Q[i - 1].death) i--; Q.splice(i, 0, item); }
-function ask(title, text, choices, art) { qPush({ title, text, choices, art: expandArt(art || curArt), cur: ST.cur }); }
+/* a decision is a card the world put in front of you (a story, a knock, trouble on a run). It can fold away while you look, never be thrown away by a stray tap */
+const deciding = () => !!(ST && ST.host && ST.host.deciding) || !!(G && G.screen === 'exp' && G.exp);
+function ask(title, text, choices, art) { qPush({ title, text, choices, art: expandArt(art || curArt), cur: ST.cur, decision: deciding() }); }
 function say(title, text, art) { if (Q.length >= 6 && !/dead|killed|gone/i.test(String(title))) { try { log(`${title}: ${String(text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140)}`, 'warn'); } catch (e) {} return; } qPush({ title, text, choices: [{ label: 'Continue' }], art: expandArt(art || curArt), cur: ST.cur }); }
 let HOLD = 0;   /* while a knock is being set up nothing opens: the visitor's sheets wait until someone answers */
 function flush(cb) { if (cb) after = cb; if (!modalOpen && !HOLD) nextModal(); }
 function nextModal() {
+  if (HOUSE) HOUSE.boxDirty = true;
   const m = Q.shift(); const el = $('#modal');
   if (!m) { modalOpen = false; if (el) el.classList.add('hidden'); try { const hs = document.querySelector('.house .hsvg'); if (hs) { hs.style.height = ''; hs.style.bottom = ''; } } catch (e0) {} const a = after; after = null; save(); render(); if (a) a(); return; }
   try {
     modalOpen = true; render();
-    const ch = m.choices.filter((c) => c.show === undefined || c.show); const prompt = ch.length > 1 ? `<div class="prompt">${m.choices.prompt || 'What do you do?'}</div>` : '';
+    const ch = m.choices.filter((c) => c.show === undefined || c.show); const prompt = ch.filter((c) => !c.hide).length > 1 ? `<div class="prompt">${m.choices.prompt || 'What do you do?'}</div>` : '';
     const BACKRE = /^(leave it|never mind|nevermind|close|back|cancel|stay inside|wait inside|not now|that's all|enough|leave)\b/i; const bi = ch.length > 1 ? ch.findIndex((c) => BACKRE.test(String(c.label).replace(/<[^>]+>/g, '').trim())) : -1; const backBtn = bi >= 0 ? `<button class="mback" data-m="${bi}">← ${String(ch[bi].label).replace(/<[^>]+>/g, '').replace(/[.!…]+$/, '')}</button>` : '';
-    const acts = ch.filter((c, i) => i !== bi).length >= 3 && ch.every((c, i) => i === bi || c.icon);   /* a sheet of actions, every one with an icon: tiles, not a list */
-    el.innerHTML = `<div class="box">${backBtn}<div class="mhead">${artHtml(m.art)}<h3>${m.title}</h3></div><div class="story">${m.text.replace(/\n/g, '<br>')}</div>${acts ? '' : prompt}<div class="btns${m.choices.tiles ? ' tiles' : ''}${acts ? ' acts' : ''}">${ch.map((c, i) => (i === bi ? '' : acts ? `<button data-m="${i}" class="atile" ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${icn(c.icon)}<span class="al">${c.label}</span>${c.sub ? `<small>${c.sub}</small>` : ''}</button>` : `<button data-m="${i}"${c.tile ? ' class="tb"' : ''} ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${c.label}${c.sub ? `<small class="csub">${c.sub}</small>` : ''}</button>`)).join('')}</div>${m.choices.tiles ? DLEGEND() : ''}</div>`;
+    const acts = ch.filter((c, i) => i !== bi && !c.hide).length >= 3 && ch.every((c, i) => i === bi || c.hide || c.icon);   /* hide: a choice reached from a button inside the text (a face on a group's page), not listed */   /* a sheet of actions, every one with an icon: tiles, not a list */
+    el.innerHTML = `<div class="box">${backBtn}<div class="mhead">${artHtml(m.art)}<h3>${m.title}</h3></div><div class="story">${m.text.replace(/\n/g, '<br>')}</div>${acts ? '' : prompt}<div class="btns${m.choices.tiles ? ' tiles' : ''}${acts ? ' acts' : ''}">${ch.map((c, i) => (i === bi || c.hide ? '' : acts ? `<button data-m="${i}" class="atile" ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${icn(c.icon)}<span class="al">${c.label}</span>${c.sub ? `<small>${c.sub}</small>` : ''}</button>` : `<button data-m="${i}"${c.tile ? ' class="tb"' : ''} ${c.off ? dis(c.why || autoWhy(c.label)) : ''}>${c.label}${c.sub ? `<small class="csub">${c.sub}</small>` : ''}</button>`)).join('')}</div>${m.choices.tiles ? DLEGEND() : ''}</div>`;
+    /* how this card can be put away: locked (night plan, a death), single (tap anywhere), back (its own ← choice), fold (a decision) */
+    el.dataset.mode = (m.death || (G && G.roles)) ? 'locked' : ch.length === 1 ? 'single' : (bi >= 0 && !m.decision) ? 'back' : 'fold'; foldModal(false); MODAL_AT = performance.now();
     el.classList.remove('hidden'); el.dataset.tall = '0'; placeModal(); sfx('open');
     requestAnimationFrame(() => { try { const bx = el.querySelector('.box'); if (!bx) return; const st = bx.querySelector('.story'), bt = bx.querySelector('.btns'); const over = (st && st.scrollHeight > st.clientHeight + 2) || (bt && bt.scrollHeight > bt.clientHeight + 2) || bx.scrollHeight > el.clientHeight + 4; if (over) { const extra = (st ? st.scrollHeight - st.clientHeight : 0) + (bt ? Math.max(0, bt.scrollHeight - bt.clientHeight) : 0); el.dataset.need = String(Math.max(el.clientHeight + extra + 72, bx.scrollHeight + 28));   /* the whole sheet's real height, so every choice is on screen */ el.dataset.tall = '1'; placeModal(); } } catch (e) {} }); if (CR.UI) CR.UI.soon();
     el.querySelectorAll('[data-m]').forEach((b) => {
@@ -284,6 +288,51 @@ function nextModal() {
       };
     });
   } catch (err) { reportError(err); modalOpen = false; Q.length = 0; if (el) el.classList.add('hidden'); }
+}
+/* ---------- putting things away: tap outside, Android back, Esc ----------
+   Anything that loses nothing when closed closes. A decision folds into a bar at the bottom (tap it to come back). */
+let MODAL_AT = 0;
+function foldModal(on) {
+  const el = $('#modal'); if (!el) return; el.classList.toggle('folded', !!on);
+  let bar = document.getElementById('mfold');
+  if (on) { if (!bar) { bar = document.createElement('button'); bar.id = 'mfold'; bar.type = 'button'; document.body.appendChild(bar); } const t = el.querySelector('h3'); bar.innerHTML = `<b>${t ? t.textContent : 'Waiting for you'}</b><span>Tap to decide</span>`; bar.classList.remove('hidden'); sfx('back'); }
+  else if (bar) bar.classList.add('hidden');
+}
+function modalBack() {
+  const el = $('#modal'); if (!el || !modalOpen || el.classList.contains('hidden')) return false;
+  if (el.classList.contains('folded')) return true;
+  const mode = el.dataset.mode;
+  if (mode === 'single') { const b = el.querySelector('[data-m]'); if (b) b.click(); }
+  else if (mode === 'back') { const b = el.querySelector('.mback'); if (b) b.click(); }
+  else if (mode === 'fold') foldModal(true);
+  return true;
+}
+/* the one back: picker, then menu, then card, then the raised sheet, and on the bare house the pause menu */
+function universalBack() {
+  if (CR.Wheel && CR.Wheel.isOpen()) { CR.Wheel.cancel(); return; }
+  if (CR.Menu && CR.Menu.screen) { CR.Menu.back(); return; }
+  if (!G) return;
+  if (modalOpen) { modalBack(); return; }
+  if (isMob() && G.screen === 'day' && ui.day && ui.day !== 'people') { ui.day = 'people'; render(); return; }
+  if ((G.screen === 'day' || G.screen === 'exp') && CR.Menu) CR.Menu.open('pause');
+}
+const inGame = () => !!(G && G.screen !== 'over' && G.screen !== 'end');
+/* Android's back gesture (and the browser's back) lands here instead of leaving the game; on the title screen it leaves as usual */
+function armBack() { try { if ((inGame() || (CR.Menu && CR.Menu.screen)) && !(history.state && history.state.crisis)) history.pushState({ crisis: 1 }, ''); } catch (e) {} }
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => { if (!inGame() && !(CR.Menu && CR.Menu.screen)) return; try { universalBack(); } catch (e) { reportError(e); } armBack(); });
+  document.addEventListener('click', (e) => {
+    if (!modalOpen || !G) return; const el = $('#modal'); if (!el || el.classList.contains('hidden')) return;
+    const t = e.target; if (!t || !t.closest) return;
+    if (t.closest('#mfold')) { e.stopPropagation(); foldModal(false); sfx('open'); return; }
+    if (t.closest('#wheel,#menu,[data-a="menu"]')) return;
+    const box = el.querySelector('.box'); const inBox = !!(box && box.contains(t)); const folded = el.classList.contains('folded');
+    if (folded) { e.stopPropagation(); e.preventDefault(); return; }   /* folded: look, but the house waits for your answer */
+    if (performance.now() - MODAL_AT < 350) return;                        /* the tap that opened the card does not close it */
+    if (el.dataset.mode === 'single') { if (!t.closest('[data-m],a,button,input,select,textarea,[data-a],[data-nd],[data-ntok],[data-nbox]')) { const b = el.querySelector('[data-m]'); if (b) { e.stopPropagation(); b.click(); } } return; }
+    if (inBox) return;
+    e.stopPropagation(); e.preventDefault(); modalBack();
+  }, true);
 }
 function reportError(err) { try { console.error(err); (window.__errors = window.__errors || []).push(String(err && err.stack || err)); } catch (e) {} }
 
@@ -310,7 +359,7 @@ function knockModal(d, got) {
   /* a knock stops any fast-forward, so you get the same real time to react at night as by day; it resumes once the door is dealt with */
   KNOCK.ff = G.ff || null; G.ff = null;
   if (a0 && a0.sp) G.yard = [{ sp: a0.sp, kind: armed ? 'aim' : needy ? 'sitfloor' : 'idle', state: a0.state || 'ok', until: G.knockUntil, text: armed ? 'An armed figure stands at the door.' : needy ? 'Someone thin is waiting at the door.' : 'Someone is waiting at the door.' }];
-  sfx('hit'); setTimeout(() => sfx('hit'), 330); setTimeout(() => sfx('hit'), 660); buzz([40, 70, 40, 70, 40]);
+  if (CR.Audio && CR.Audio.duck) CR.Audio.duck(0.2, 1.6); setTimeout(() => { try { CR.Audio.sfx(armed ? 'bang' : 'knock', placeOf('door')); } catch (e) {} }, 650); buzz([40, 70, 40, 70, 40]);
   const awake = alive().filter((s) => !s.out && !(s.act && s.act.k === 'sleep'));
   notice(pick(['Three slow knocks on the barricade.', 'Knocking at the door: quick, soft, desperate.', 'Two polite knocks, a pause, then two more.', 'A fist on the wood, patient and heavy.']) + (awake.length ? ` Pick someone and ${CR.tw()} the door to answer.` : ' Everyone is asleep. Wake someone and send them, or let it go.'));
   log('Someone is knocking at the door.', 'warn');
@@ -329,7 +378,7 @@ function answerDoor(p) {
   KNOCK = null; G.knockUntil = 0; if (k.ff && !G.ff) G.ff = k.ff;
   const ignore = () => { G.yard = []; log(`${p.name} stood behind the door and said nothing. Whoever knocked went away.`, 'warn'); if (k.d && k.d.onIgnore) k.d.onIgnore(); return `<i>The knocking goes on a while. Then it stops, and the quiet afterwards is worse.</i>`; };
   ask(`${p.name} at the door`, `<i>${p.name} slides the bolt back a hand's width and looks through the gap.</i>\n\n${k.peek}`, [
-    { label: 'Open up and talk', fn() { p.trust = clamp((p.trust || 0) + 1, 0, 100); G.yard = []; Q.unshift(...k.got); return ''; } },
+    { label: 'Open up and talk', fn() { p.trust = clamp((p.trust || 0) + 1, 0, 100); G.yard = []; if (k.d && k.d.onOpen) k.d.onOpen(); Q.unshift(...k.got); return ''; } },
     { label: 'Say nothing. Step back.', fn: ignore }
   ], { sp: p.sp, state: stateOf(p) });
   flush();
@@ -395,7 +444,20 @@ function whyNot(a, d) {
   }
   return 'Not available right now.';
 }
-function autoWhy(label) { const m = String(label).match(/\(([^)]*\d[^)]*)\)/); if (m && /^\s*\d/.test(m[1])) return `Needs ${m[1].trim()}.`; if (/^Send /i.test(label)) return 'They need a free task for this.'; return 'You cannot do this right now.'; }
+/* a greyed-out choice with no reason written for it: work the reason out from what the choice says */
+const WHY_ITEM = [['cups? of rice|rice|food', 'food'], ['water', 'water'], ['medicine|meds', 'meds'], ['bandages?', 'bandage'], ['cloth', 'cloth'], ['scrap', 'parts'], ['wood', 'wood'], ['ogogoro|bottle', 'ogogoro'], ['cigarettes?', 'cigarettes'], ['bullets?', 'bullets'], ['loud', 'loud'], ['weed', 'weed'], ['blankets?', 'blanket']];
+function autoWhy(label) {
+  const L = String(label).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const [re, k] of WHY_ITEM) {
+    const m = L.match(new RegExp('(\d+)\s+(?:' + re + ')\b', 'i'));
+    if (m) { const need = +m[1], have = typeof inv === 'function' ? inv(k) : 0; return `Needs ${need} ${ITEMS[k] ? ITEMS[k][1].toLowerCase() : k}. You have ${have}.`; }
+  }
+  const sendM = L.match(/^(?:Send|Let)\s+(.+?)(?:\s+(?:out|visit|to)\b|$)/i);
+  if (sendM && G) { const who = alive().find((p) => L.indexOf(ST.first(p)) >= 0); if (who) return who.out ? `${ST.first(who)} is away.` : `${ST.first(who)} has no time left today. Tomorrow.`; return 'Nobody has the time left today.'; }
+  for (const [re, k] of WHY_ITEM) if (new RegExp('\b(?:' + re + ')\b', 'i').test(L) && typeof inv === 'function' && inv(k) < 1) return `You have no ${ITEMS[k] ? ITEMS[k][1].toLowerCase() : k}.`;
+  if (/radio|haggle/i.test(L) && G && !G.build.radio) return 'You need a radio for this.';
+  return 'Not possible right now.';
+}
 const dis = (why2) => `aria-disabled="true" data-why="${escA(why2)}"`;
 function toastWhy(t) { try { if (CR.UI) CR.UI.toast(t || 'Not available right now.'); } catch (e) {} }
 
@@ -431,14 +493,15 @@ function deed(s, what, w, o) {
 }
 const goodDeed = (s, what, o) => { if (G.exp && G.exp.sid === s.id) deed(s, what, 0, Object.assign({ good: true }, o || {})); };
 function kill(s, why) {
-  if (!s.alive) return; s.alive = false; s.hp = 0; G.stats.deaths++; G.mem2 = G.mem2 || []; G.mem2.push({ id: s.id, name: s.name, day: G.day, bunk: s.bunk || null, home: !(s.out || (G.exp && G.exp.sid === s.id)), sp: s.sp });
+  if (!s.alive) return; GRIEF_UNTIL = Date.now() + 90000; try { SIM.abort(s); } catch (e) {} s.alive = false; s.hp = 0; G.stats.deaths++;   /* whoever was with them is let go at once, even with the clock paused */
+  if (G.sel === s.id) { const nx = alive().find((o) => !o.out) || alive()[0]; if (nx) G.sel = nx.id; }   /* orders never go to the dead: whoever is left is picked at once */ G.mem2 = G.mem2 || []; G.mem2.push({ id: s.id, name: s.name, day: G.day, bunk: s.bunk || null, home: !(s.out || (G.exp && G.exp.sid === s.id)), sp: s.sp });
   log(`${s.name} is dead. ${why || ''}`, 'bad');
   moodAll(-12);
   if (G.exp && G.exp.sid === s.id) G.exp.dead = true;
   others0(s).forEach((o) => { const r = relS(o, s); const close = r.fond > 30 || r.love >= 1; remember(o, close ? pick([`${s.name} is gone. I keep reaching for my phone to tell ${ST.first(s)} something.`, `I sat with ${ST.first(s)}'s things for an hour. I did not touch them.`, `${s.name}. I cannot write the rest.`]) : r.tension > 30 ? pick([`${s.name} is dead. We fought about nothing last week. I would take it back.`, `I was angry at ${ST.first(s)}. Now there is nobody to be angry at.`]) : pick([`${s.name} died today. ${(why || '').replace(/\.$/, '')}.`, `One less of us. ${s.name}. I did not know them well enough.`]), { w: close ? 14 : 8, who: s.id, bark: close ? `I miss ${ST.first(s)}.` : `I keep thinking about ${ST.first(s)}.` }); });
   if (s.cid) ST.onDeath(s, why);
   Object.entries(s.pack || {}).forEach(([k, v]) => add(k, v)); s.pack = {};
-  sfx('death'); buzz([90, 60, 220]);
+  sfx('death'); buzz([90, 60, 220]);   /* the sound engine holds its breath, rings, and the grief music follows */
   if (G.exp && G.exp.sid === s.id && /patrol|bandit|bursary|gate boys|collector|mai kudi/i.test(why || '')) { capturedDeath(s, why); return; }   /* the slow death is the bandits' signature: not a scavenger's knife or a fall */
   Q.push({ death: true, title: `${s.name} is dead`, text: deathText(s, why), choices: [{ label: 'Continue' }], art: { side: true, sp: s.sp, kind: 'dead', state: 'dead' } });
 }
@@ -493,6 +556,7 @@ function hurt(s, amt, why, o) {
   const spared = !(o && o.lethal) && before > 35 && before - dmg <= 0;
   if (spared) dmg = before - rnd(4, 9);
   s.hp = Math.max(0, before - dmg); if (dmg >= 18 || s.hp < 35) SIM.injure(s, dmg >= 30 ? 3 : dmg >= 18 ? 2 : 1);
+  try { if (CR.Audio && CR.Audio.shock && (s.id === G.sel || (G.exp && G.exp.sid === s.id))) CR.Audio.shock(Math.min(1, dmg / 40)); } catch (e0) {}
   if (s.hp <= 0) { kill(s, why); return true; }
   if (spared) { log(`${s.name} was left for dead.`, 'bad'); try { notice(`${s.name} is barely alive.`); } catch (e) {} }
   else if (before >= 35 && s.hp < 35) log(`${s.name} is seriously wounded.`, 'bad');
@@ -853,7 +917,8 @@ function mkLevy(m) { return Math.round((6 + G.day * 0.6 + (m.gen ? 4 : 0)) * (1 
 function mkRumour(p) { const m = mkState(); const left = MK_RUMOURS.map((_, i) => i).filter((i) => !m.heard.includes(i)); if (!left.length) return null; const i = pick(left); m.heard.push(i); const t = MK_RUMOURS[i]; if (p) remember(p, `About Mai Kudi: ${t}`, { w: 2, bark: pick(['Did you hear what they say about Mai Kudi?', 'I do not believe half of what they say about him. Maybe a quarter.', 'Do not look at his ledger.']) }); return t; }
 function collectorVisit() {
   const m = mkState(); if (!m.alive && m.gen === 0) return; if (G.day < m.next || G.away || G.screen !== 'day') return;
-  m.next = G.day + rnd(3, 4); m.visits++; G.doorDay = G.day; G.doorFree = G.day + 1; const levy = mkLevy(m); m.levy = levy; m.want = pick(['loud', 'cigarettes', 'ogogoro', 'bullets', 'meds']);
+  if (G.doorDay === G.day || ((G.doorHist || []).includes(G.day - 1) && (G.doorHist || []).includes(G.day - 2))) { m.next = G.day + 1; return; }   /* the door has had its knock today, or two days running: he comes tomorrow */
+  m.next = G.day + rnd(3, 4); m.visits++; ST.markDoor('kudi', 1); const levy = mkLevy(m); m.levy = levy; m.want = pick(['loud', 'cigarettes', 'ogogoro', 'bullets', 'meds']);
   const sp = mkSprite(m.gen); const boys = [CR.Sprites.gen('bandit_soldier', 4401 + m.visits), CR.Sprites.gen('bandit_scout', 5501 + m.visits)];
   const me0 = person(G.sel) || alive()[0]; const art = { html: sceneHtml(me0, 'idle', [{ sp, kind: 'idle', state: 'ok' }].concat(boys.map((b) => ({ sp: Object.assign({}, b, { item: 'ak' }), kind: 'aim', state: 'ok' })))) };
   const missing = (G.mem2 || []).filter((d) => G.day - d.day <= 6 && d.day >= (m.lastVisit || 0)); m.lastVisit = G.day;
@@ -918,7 +983,7 @@ function evBody() {
   const who = pick(alive()); curArt = { side: true, sp: CR.Sprites.gen(pick(['refugee', 'boy_hoodie', 'girl_braids', 'father']), rnd(1, 1e6)), kind: 'dead', state: 'dead' };
   ask('A body at the door', `A student you half-recognise lies near the barricade. Still warm. A bag under them.`, [
     { label: 'Search the bag', fn() { G.stats.thefts++; moral(who, 3); const k = pick(['food', 'water', 'cloth', 'meds', 'parts']); const q = rnd(1, 2); add(k, q); return `${q} ${ITEMS[k][0]}. You tell yourself they would not have minded.`; } },
-    { label: 'Bury them', off: !alive().some((s) => s.slots > 0), fn() { const w = alive().find((s) => s.slots > 0); w.slots--; w.fatigue += 12; alive().forEach((s) => mood(s, hasTrait(s, 'devout') ? 8 : 3)); return 'You dig with whatever you have. Someone says a prayer.'; } },
+    { label: 'Bury them', off: !alive().some((s) => s.slots > 0), fn() { const w = alive().find((s) => s.slots > 0); w.slots--; w.fatigue = Math.min(100, w.fatigue + 12); alive().forEach((s) => mood(s, hasTrait(s, 'devout') ? 8 : 3)); return 'You dig with whatever you have. Someone says a prayer.'; } },
     { label: 'Leave it', fn() { moodAll(-1); return 'Nobody mentions it again. Nobody forgets it either.'; } }
   ]);
 }
@@ -1022,7 +1087,7 @@ const BUILDS = {
   cupboard: { n: 'Bigger cupboard', cost: () => ({ wood: 4, parts: 1 }), max: 1, desc: '+25 storage.' }
 };
 function canTask(s) { return s && s.alive && !s.out && s.mood >= 15 && s.fatigue < 95; }
-function spend(s) { s.fatigue += 8; }
+function spend(s) { s.fatigue = Math.min(100, s.fatigue + 8); }
 function useItem(s, k) {
   const own = ((s.pack || {})[k] || 0) > 0;
   if (!own && inv(k) < 1) return;
@@ -1037,8 +1102,8 @@ function useItem(s, k) {
 function act(a, d) {
   if (a === 'new') { newGame(); return; }          // there is no game yet on the title screen
   if (!G) return;
-  if (CR.Tutorial) CR.Tutorial.act(a, d);
   const s = person(G.sel);
+  if ((a === 'wsheet' || a === 'wgrp') && CR.WorldUI) { CR.WorldUI.act(a, d, ui); render(); return; }
   switch (a) {
     case 'sel': takeControl(+d.id); break;
     case 'me': { const p = person(+d.id); if (p) selfMenu(p); flush(); return; }
@@ -1090,7 +1155,7 @@ function spotSearch(idx) {
   else { loot(L); if (chance(0.12 + L.risk * 0.02)) { e.noise += 3; if (CR.Expedition) CR.Expedition.hint('Something clatters. The sound carries.'); } }
   finishStep(); save(); render(); return true;
 }
-function forceEnc(k) { const e = G.exp; if (!e || modalOpen || Q.length) return; e.encN = (e.encN || 0) + 1; encounter(LOCBY[e.loc], person(e.sid), k); e.noise = Math.max(0, e.noise - 2); finishStep(); save(); render(); }
+function forceEnc(k) { const e = G.exp; if (!e || e.fled || modalOpen || Q.length) return; e.encN = (e.encN || 0) + 1; encounter(LOCBY[e.loc], person(e.sid), k); e.noise = Math.max(0, e.noise - 2); finishStep(); save(); render(); }
 function mountExp() {
   const el = $('#xstage'); const e = G.exp; if (!el || typeof el.appendChild !== 'function' || !e || !CR.Expedition) return;
   const L = LOCBY[e.loc], s = person(e.sid), gp = groupAt(L.id);
@@ -1098,7 +1163,11 @@ function mountExp() {
   if (!e.toldFlavor) { e.toldFlavor = true; const st0 = G.locs[L.id]; const fresh = st0 && st0.stripDay && G.day - st0.stripDay < 4; setTimeout(() => CR.Expedition.hint(fresh ? pick(['Someone has been here. Recently.', 'Drawers hanging open. Fresh mud on the floor.', 'Somebody got here first.']) : L.flavor), 400); }
   if (gp && gp.alive && (e.floors || 1) > 1 && !e.campHint) { const gf = hashS(L.id) % e.floors, fl0 = e.floor || 0; if (gf !== fl0) { e.campHint = 1; setTimeout(() => CR.Expedition.hint(gf > fl0 ? 'Smoke, and voices above.' : 'Voices below.'), 700); } }
 }
-function finishStep() { flush(() => { if (G.exp && G.exp.dead) goHome(true); else if (G.exp && collapsing()) collapse(); }); }
+function finishStep() { flush(() => { if (G.exp && G.exp.dead) goHome(true); else if (G.exp && collapsing()) collapse(); else if (G.exp && G.exp.fled === 1) { G.exp.fled = 2; if (CR.Expedition && CR.Expedition.st) CR.Expedition.runHome(true); else goHome(); } }); }
+/* Run means run: once the scene is read, the runner sprints for home and cannot be stopped or caught again on the way */
+function flee(e) { if (e && !e.fled) e.fled = 1; }
+/* how a blow left them, in words (no numbers on screen) */
+function hurtLine(s, before) { if (!s.alive || s.hp >= before) return ''; const w = s.hp < 20 ? 'barely standing' : s.hp < 45 ? 'badly hurt' : s.hp < 88 ? 'hurt' : 'grazed'; return `<div class="hurtln">${s.name} is <b>${w}</b>.</div>`; }
 const collapsing = () => { const s = G.exp && person(G.exp.sid); return !!(s && s.alive && s.hp < 12); };
 /* too hurt to go on: they crawl home, dropping most of what they carry, and the hours are lost */
 function collapse() {
@@ -1176,11 +1245,11 @@ function toolWheel(kind, onOpen) {
     else { runClock(25); if (chance(0.3)) { add('lockpick', -1); if (CR.Expedition) CR.Expedition.hint('The pick snaps in the lock.'); if (chance(0.5)) return; } onOpen(); }
     save(); } });
 }
-function barrierAt(i, kind) { const e = G.exp; if (!e) return; const L = LOCBY[e.loc], fl = e.floor || 0; toolWheel(kind, () => { setBlockOpen(L, fl, i); if (CR.Expedition) CR.Expedition.openBlock(i); }); }
-function pickLockAt(i) { const e = G.exp; if (!e) return; const L = LOCBY[e.loc], fl = e.floor || 0; const p = sitePiles(L, fl)[i]; if (!p) return; toolWheel('lock', () => { p.locked = false; if (CR.Expedition) CR.Expedition.setPile(i, { locked: false }); setTimeout(() => openPile(i), 0); }); }
+function barrierAt(i, kind) { const e = G.exp; if (!e) return; const L = LOCBY[e.loc], fl = e.floor || 0; toolWheel(kind, () => { sfx(kind === 'lock' ? 'pick' : 'rubble'); setBlockOpen(L, fl, i); if (CR.Expedition) CR.Expedition.openBlock(i); }); }
+function pickLockAt(i) { const e = G.exp; if (!e) return; const L = LOCBY[e.loc], fl = e.floor || 0; const p = sitePiles(L, fl)[i]; if (!p) return; toolWheel('lock', () => { sfx('pick'); p.locked = false; if (CR.Expedition) CR.Expedition.setPile(i, { locked: false }); setTimeout(() => openPile(i), 0); }); }
 /* with a crowbar, an emptied crate, desk or shelf is still worth something: firewood */
 function breakUpAt(i) {
-  const e = G.exp; if (!e || !hasTool('crowbar')) return; const L = LOCBY[e.loc], fl = e.floor || 0; const p = sitePiles(L, fl)[i]; if (!p || p.broken) return;
+  const e = G.exp; if (!e || !hasTool('crowbar')) return; const L = LOCBY[e.loc], fl = e.floor || 0; const p = sitePiles(L, fl)[i]; if (!p || p.broken) return; sfx('pry');
   runClock(20); e.noise += 4; wearTool('crowbar', 14); p.broken = true; p.items.wood = (p.items.wood || 0) + rnd(2, 3); if (['shelf', 'counter', 'wardrobe'].includes(p.k) && chance(0.4)) p.items.parts = (p.items.parts || 0) + 1;
   if (CR.Expedition) CR.Expedition.setPile(i, { broken: true, empty: false, searched: true }); openPile(i);
 }
@@ -1222,7 +1291,7 @@ function othersScavenge() {
 }
 function restockSites() { LOCS.forEach((l) => { const st = G.locs[l.id]; if (!st || !st.piles) return; const fls = Object.keys(st.piles); if (!fls.length) return; const ps = st.piles[pick(fls)]; const p = pick(ps); const it = wpick(l.loot); if (ITEMS[it] && !WEAPON[it]) p.items[it] = (p.items[it] || 0) + 1; }); }
 function openPile(i) {
-  const e = G.exp; if (!e) return; const L = LOCBY[e.loc]; const ps = sitePiles(L, e.floor || 0); const p = ps[i]; if (!p) return;
+  const e = G.exp; if (!e) return; sfx('search'); const L = LOCBY[e.loc]; const ps = sitePiles(L, e.floor || 0); const p = ps[i]; if (!p) return;
   if (!p.searched) { p.searched = true; runClock(PILE_MIN[p.k] || 25); e.noise += p.k === 'locker' || p.k === 'cabinet' ? 1 : 0; if (chance(0.1 + L.risk * 0.02)) { e.noise += 3; if (CR.Expedition) CR.Expedition.hint('Something clatters. The sound carries.'); } }
   e.pile = i; G.lootOpen = true;
   ask((CR.Sites && CR.Sites.PILE_N[p.k]) || 'Searching', lootHtml(), [{ label: 'Done', fn() { closePile(); return ''; } }]);
@@ -1258,6 +1327,7 @@ function takeFound(n) {
   if (e.found.qty <= 0) e.found = null;
 }
 function goHome(forced) {
+  if (!G || !G.exp) return;   /* already home: a second call (the deadline and a choice landing together) does nothing */
   if (CR.Expedition) CR.Expedition.stop();
   const e = G.exp, s = person(e.sid); const L = LOCBY[e.loc];
   const n = Object.values(e.bag).reduce((a, b) => a + b, 0);
@@ -1307,9 +1377,20 @@ function exposeDeeds() {
   });
 }
 /* the people you met come back */
+/* a group's envoy takes the day's knock when the scheduler in politics.js says so (DIPLOMACY.md 1.20) */
+function envoyDoor() {
+  if (G.away || G.screen !== 'day' || !(G.envoys || []).length) return;
+  const m = mkState(); const kudiDue = !!(m && (m.alive || m.gen > 0) && G.day >= m.next);
+  const strangerDue = (G.returns || []).some((r) => r.due <= G.day && !r.done);
+  const e = PO.door({ doorOpen: ST.doorOpen(), kudiDue, strangerDue }); if (!e) return;
+  const d = ST.defs.find((q) => q.id === 'envoy'); if (!d) return;
+  const x = Object.assign(ST.ctx(), { sched: true, envoy: e }); const cs = ST.eligible(d, x); if (!cs) return;
+  if (ST.fire(d, cs, x) && kudiDue) m.next = G.day + 1;          /* an urgent envoy took Mai Kudi's day: he comes tomorrow */
+  flush();
+}
 function strangersReturn() {
   const due = (G.returns || []).filter((r) => r.due <= G.day && !r.done); if (!due.length) return;
-  const r = due[0]; r.done = true; G.doorDay = G.day; G.doorFree = G.day + 1 + (chance(0.5) ? 1 : 0); const L = LOCBY[r.loc]; const sp = CR.Sprites.gen(r.arch, r.seed); const who = person(r.sid);
+  const r = due[0]; r.done = true; ST.markDoor('stranger'); const L = LOCBY[r.loc]; const sp = CR.Sprites.gen(r.arch, r.seed); const who = person(r.sid);
   const art = { sp, state: r.how === 'robbed' ? 'hungry' : 'ok' };
   const T = {
     helped: { freshers: [`Two of the first-years from ${L.name} at the door, thinner but alive. "You remember us?" They have brought noodles, three packets.`, () => add('food', 3)],
@@ -1602,10 +1683,12 @@ function newsPanel() {
 function rescueLine() { const w = G.rescueWin; if (!w) return rumourPanel(); return `<div class="news" style="border-left-color:var(--orange)">⏳ ${G.day >= w[0] ? 'Soldiers could arrive <b>any day now</b>. Hold on.' : `Soldiers expected between <b>Day ${w[0]} and Day ${w[1]}</b>.`}</div>`; }
 function mkPanel() { const m = G.mk; if (!m || !m.visits) return ''; const h = (m.heard || []).map((i) => `<div class="story" style="font-size:14px;margin:6px 0"><i>${MK_RUMOURS[i]}</i></div>`).join(''); return `<div class="panel"><h3>${m.gen ? 'Garba, the new collector' : 'Mai Kudi'}</h3>${h || '<div class="dim">Nobody is saying anything about him yet. Not out loud.</div>'}${m.gen && m.alive !== false ? '' : ''}</div>`; }
 function worldTab(s) {
-  const dip = `<div class="row" style="margin:0 0 8px"><button class="primary" style="flex:1" data-a="diplo" ${canTask(s) ? '' : dis(whyNot('diplo', {}))}>🏛 Send ${s.name} to the other groups</button></div>`;
+  if (CR.WorldUI) return CR.WorldUI.panel(ui);
   if (!G.build.radio) return `${rescueLine()}${mkPanel()}<div class="panel"><h3>Beyond your walls</h3><div class="dim">Static. Build a radio to hear what is happening out there.</div></div><div class="sub">People out there</div>${facRows()}`;
   return `${rescueLine()}${mkPanel()}${newsPanel()}<div class="sub">People out there</div>${facRows()}`;
 }
+/* what the World tab's list holds under the groups: the soldiers, the collector, the radio */
+function worldBeyond() { return `${rescueLine()}${mkPanel()}${G.build.radio ? newsPanel() : '<div class="panel"><h3>The radio</h3><div class="dim">Static. Build a radio to hear what is happening out there.</div></div>'}`; }
 function notesTab(s) {
   const rows = alive().filter((o) => o.id !== s.id).map((o) => { const r = ST.rel(s, o); const w = r.love >= 2 ? '❤ together' : r.love >= 1 ? '❤ something between them' : r.fond > 60 ? 'very close' : r.fond > 30 ? 'friends' : r.fond > 10 ? 'friendly' : r.fond < -10 ? 'cold' : 'acquaintances'; return `<div class="dim">${o.name}: ${w}${r.tension > 50 ? ' · strained' : ''}</div>`; }).join('');
   return `<div class="panel"><h3>${s.name}</h3><div class="dim">${ST.describe(s)}</div><div class="dim" style="margin-top:4px">Trust in you ${Math.round(s.trust || 0)}/100 · ${TRAITS[s.trait][0]}: ${TRAITS[s.trait][1]}</div>
@@ -1706,7 +1789,7 @@ function renderTitle() {
     <circle cx="174" cy="170" r="40" fill="url(#tglow)" class="tlit"/><rect x="0" y="236" width="320" height="24" fill="#100f0d"/>${wire}<rect x="0" y="236" width="320" height="1.2" fill="#2c2924"/>
     <path d="M60 40 l4 -3 l4 3 M80 52 l3 -2 l3 2" stroke="#3a362f" stroke-width="1.2" fill="none" class="tcrow"/></svg>`;
   return `<div class="fullpage titlepage">${art}<div class="title"><h1>CRISIS</h1><div class="tline">They closed the roads. Then they stopped answering.</div>
-  <div class="btns"><button class="primary" data-a="new">New game</button>${has ? '<button data-a="resume">Continue</button>' : ''}<button data-a="howto">How to play</button><button data-a="settings">Settings</button><button data-a="about">About</button></div>${G_LOST ? `<div class="savewarn">${G_LOST === 'old' ? 'Your saved game is from an older version of Crisis and cannot be continued. It has been kept aside, not deleted.' : 'Your saved game could not be read. It has been kept aside, not deleted.'}</div>` : ''}
+  <div class="btns"><button class="primary" data-a="new">New game</button>${has ? '<button data-a="resume">Continue</button>' : ''}<button data-a="manual">Manual</button><button data-a="settings">Settings</button><button data-a="about">About</button></div>${G_LOST ? `<div class="savewarn">${G_LOST === 'old' ? 'Your saved game is from an older version of Crisis and cannot be continued. It has been kept aside, not deleted.' : 'Your saved game could not be read. It has been kept aside, not deleted.'}</div>` : ''}
   <div class="note">A work of fiction. Characters, events and the siege are imagined and are not based on real events at any real institution.</div></div></div>`;
 }
 /* the sheet opens exactly over the panel area, so the scene stays in view */
@@ -1719,7 +1802,7 @@ function placeModal() {
     [...el.querySelectorAll('[data-m]')].filter((b) => !b.classList.contains('mback')).forEach((b, i) => { if (i < 9 && !b.querySelector('kbd')) b.insertAdjacentHTML('beforeend', `<kbd>${i + 1}</kbd>`); });   /* Close is Esc, not a number */
     el.classList.remove('full'); el.classList.add('dock'); el.style.left = Math.round(r.right - w) + 'px'; el.style.top = Math.round(r.top) + 'px'; el.style.width = w + 'px'; el.style.height = Math.round(r.height) + 'px'; return;
   }
-  el.classList.remove('dock');
+  el.classList.remove('dock'); el.classList.remove('mdock');
   const app = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('#app') : null;
   const pw = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('.panelwrap') : null;
   const run = document.querySelector && document.querySelector('.shell.run .stage');
@@ -1728,6 +1811,9 @@ function placeModal() {
     if (W > Hh * 1.1) { el.style.left = Math.round(W * 0.48) + 'px'; el.style.top = r.top + 'px'; el.style.width = Math.round(W * 0.52) + 'px'; el.style.height = (Hh - r.top) + 'px'; }
     else { const top = Math.round(r.top + r.height * 0.36); el.style.left = '0px'; el.style.top = top + 'px'; el.style.width = W + 'px'; el.style.height = (Hh - top) + 'px'; }
     return; }
+  if (isMob() && G && G.screen === 'day') {   /* a phone held upright: the sheet rises from the bottom only as far as it needs, never past the chips; a long story scrolls inside it, the title and the choices stay on screen */
+    const chips = document.querySelector('.mhud'); const lim = Math.max(56, chips ? Math.round(chips.getBoundingClientRect().bottom) + 6 : 0);
+    el.classList.remove('full'); el.classList.add('mdock'); el.style.left = '0px'; el.style.top = lim + 'px'; el.style.width = innerWidth + 'px'; el.style.height = (innerHeight - lim) + 'px'; return; }
   if (pw && pw.getBoundingClientRect && el.querySelector && el.querySelector('.bt,.lt,.rlroles,.mkv,.ppage') && innerHeight > innerWidth) { /* a sheet you work in (barter, a pile, the night roles) gets most of the screen */
     const hud = document.querySelector('.hud'); const hb = hud ? hud.getBoundingClientRect().bottom : 0; const need = +el.dataset.need || 0; const top = Math.max(hb, Math.min(Math.round(innerHeight * 0.2), need ? innerHeight - need : innerHeight));   /* rises as far as its content needs, up to the top bar */ el.classList.remove('full'); el.style.left = '0px'; el.style.top = top + 'px'; el.style.width = innerWidth + 'px'; el.style.height = (innerHeight - top) + 'px'; return; }
   if (pw && pw.getBoundingClientRect && innerWidth > innerHeight && el.querySelector && (el.dataset.tall === '1' || el.querySelector('.bt,.lt,.rlroles,.mkv,.ppage'))) { /* landscape: a big sheet takes the whole right side, top to bottom */
@@ -1738,6 +1824,7 @@ function placeModal() {
 }
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', placeModal);
 function render() {
+  armBack(); fitDirty = true; if (HOUSE) HOUSE.boxDirty = true;
   try { render0(); if (modalOpen) requestAnimationFrame(placeModal); } catch (err) {
     reportError(err); const app = $('#app'); if (!app) return;
     app.innerHTML = `<div class="fullpage"><div class="endwrap"><h2>Something went wrong</h2><div class="story dim" style="font-size:13px">${String(err && err.message || err).replace(/</g, '&lt;')}</div><div class="btns" style="display:flex;gap:8px;margin-top:14px"><button class="primary" style="flex:1" data-a="recover">Go back to the shelter</button></div></div></div>`;
@@ -1752,7 +1839,6 @@ function render0() {
   app.innerHTML = f();
   if (G.screen === 'day') mountHouse();
   if (G.screen === 'exp') mountExp(); else if (CR.Expedition) CR.Expedition.stop();
-  if (CR.Tutorial) CR.Tutorial.place();
   const cur = app.querySelector ? app.querySelector('.panel-area') : null; if (cur && cur.dataset && cur.dataset.tab === prevKey) cur.scrollTop = prevTop;
   placeModal(); if (CR.UI) CR.UI.soon(); if (isMob()) { fitMore(); requestAnimationFrame(fitMore); }
   try { if (CR.Audio) CR.Audio.mood(G.screen); } catch (e) {}
@@ -1761,7 +1847,7 @@ document.addEventListener('click', (e) => {
   const dz = e.target.closest('[aria-disabled="true"]'); if (dz && dz.dataset.a) { toastWhy(dz.dataset.why); return; }
   const b = e.target.closest('[data-a]'); if (!b || b.disabled) return; const a = b.dataset.a;
   try { if (CR.Audio) CR.Audio.start(); } catch (x) {}
-  if (CR.Menu && (a === 'menu' || a === 'howto' || a === 'settings' || a === 'about')) { CR.Menu.open(a === 'menu' ? 'pause' : a, { from: a === 'menu' ? null : (G ? 'pause' : 'close') }); return; }
+  if (CR.Menu && (a === 'menu' || a === 'settings' || a === 'about' || a === 'manual')) { CR.Menu.open(a === 'menu' ? 'pause' : a, { from: a === 'menu' ? null : (G ? 'pause' : 'close') }); return; }
   if (a === 'resume') { sfx('tap'); if (load()) render(); else render(); return; }
   if (!G && a !== 'new') return;
   if (modalOpen) { const me = $('#modal'); if (me && me.classList.contains('hidden') && !Q.length) modalOpen = false; else if (G && G.screen !== 'over') return; }
@@ -1800,7 +1886,7 @@ function lookOut(s) {
   say('From the window', `<i>${pick(MORNING)}</i>\n\nYou watch the dark lines of the campus. Tonight, torchlight moves near <b>${d.name}</b>: patrols, most likely.${z.length ? '\n\n' + z.join('\n') : ''}`, { sp: s.sp, state: stateOf(s) });
 }
 function useObject(obj, sid) {
-  const s = person(sid); if (!s || !s.alive) return; G.sel = sid; if (CR.Tutorial) CR.Tutorial.notify('object');
+  const s = person(sid); if (!s || !s.alive) return; G.sel = sid;
   switch (obj) {
     case 'bed': if (s.slots > 0) { s.slots--; s.fatigue = Math.max(0, s.fatigue - 28); mood(s, 2); log(`${s.name} rested.`); } else say(s.name, `<i>${ST.first(s)} cannot rest; there is too much to do.</i>`); break;
     case 'stove': if (!G.build.stove) say('No stove', '<i>You have not built a stove yet. The work table can make one.</i>'); else act('cook', {}); break;
@@ -1837,9 +1923,9 @@ if (CR.Menu) CR.Menu.hooks = {
   hasSave: () => { try { return !!localStorage.getItem('crisis_save'); } catch (e) { return false; } },
   report: () => { try { copyReport(); } catch (e) { reportError(e); } },
   deleteSave: () => { try { localStorage.removeItem('crisis_save'); } catch (e) {} },
-  onPause: (p) => { try { if (CR.Audio && CR.Audio.ctx) { if (p) CR.Audio.ctx.suspend(); else CR.Audio.ctx.resume(); } } catch (e) {} }
+  onPause: (p) => { if (p) armBack(); try { if (CR.Audio && CR.Audio.ctx) { if (p) CR.Audio.ctx.suspend(); else CR.Audio.ctx.resume(); } } catch (e) {} }
 };
-if (CR.Settings) { CR.Settings.load(); CR.Settings.onChange = (k) => { if (['master', 'music', 'sfx', 'sound', 'haptics', 'tutorialSeen'].includes(k)) return; memoMap.clear(); portraitCache.clear(); if (typeof document !== 'undefined' && document.querySelector && !document.querySelector('#menu.hidden')) { /* menu open: the page redraws behind it */ } render(); }; }
+if (CR.Settings) { CR.Settings.load(); CR.Settings.onChange = (k) => { if (['master', 'music', 'sfx', 'sound', 'haptics'].includes(k)) return; memoMap.clear(); portraitCache.clear(); if (typeof document !== 'undefined' && document.querySelector && !document.querySelector('#menu.hidden')) { /* menu open: the page redraws behind it */ } render(); }; }
 if (typeof window !== 'undefined' && window.addEventListener) { window.addEventListener('pagehide', () => { if (G) save(); }); }
 if (typeof document !== 'undefined' && document.addEventListener) { document.addEventListener('visibilitychange', () => { if (document.hidden && G) save(); }); }
 
@@ -1853,7 +1939,7 @@ try { visitorsInit(); } catch (e) { /* the story engine may not be ready in the 
 CR.Story.host = host;
 if (CR.Expedition) CR.Expedition.hooks = { slow: () => { const s = G.exp && person(G.exp.sid); return s && s.hp < 35 ? 0.6 : 1; }, stairs: (dir) => { const e = G.exp; if (!e) return; const nf = (e.floor || 0) + dir; if (nf < 0 || nf >= (e.floors || 1)) return; e.floor = nf; e.arrive = dir > 0 ? 'left' : 'right'; runClock(8); e.noise += 1; render(); }, modalOpen: () => modalOpen || !!(CR.Wheel && CR.Wheel.isOpen()), read: (i) => readTrace(i), search: (i) => openPile(i), barrier: (i, k) => barrierAt(i, k), pickLock: (i) => pickLockAt(i), breakUp: (i) => breakUpAt(i), canBreak: () => hasTool('crowbar'), attack: (i, info) => attackAt(i, info), spotted: () => forceEnc('patrol'), meet: (k) => forceEnc(k), stateNow: () => (G.exp ? stateOf(person(G.exp.sid)) : 'ok'),
   exit: (auto) => { if (auto) { Q.length = 0; setTimeout(() => goHome(), 0); return; } const s = person(G.exp.sid); ask('Head home?', '<i>Whatever you are carrying goes back to the shelter with you.</i>', [{ label: 'Head home', fn() { Q.length = 0; setTimeout(() => goHome(), 0); return ''; } }, { label: 'Stay a little longer' }], { sp: s.sp, state: stateOf(s) }); flush(); } };
-if (CR.Cutaway) CR.Cutaway.hooks = { G: () => G, person: (id) => person(id), stateOf, poseFor, selected: () => G.sel, select: (id) => { G.sel = id; if (CR.Tutorial) CR.Tutorial.notify('select'); render(); }, use: useObject, talk: (tid, sid) => { G.sel = sid; act('talk', { id: tid }); }, talkMenu: (tid) => { act('talk', { id: tid }); }, bark: barkFor, modalOpen: () => modalOpen, notify: (n) => { if (CR.Tutorial) CR.Tutorial.notify(n); }, egg: () => { if (CR.Life) CR.Life.egg(); } };
+if (CR.Cutaway) CR.Cutaway.hooks = { G: () => G, person: (id) => person(id), stateOf, poseFor, selected: () => G.sel, select: (id) => { G.sel = id; render(); }, use: useObject, talk: (tid, sid) => { G.sel = sid; act('talk', { id: tid }); }, talkMenu: (tid) => { act('talk', { id: tid }); }, bark: barkFor, modalOpen: () => modalOpen, notify: () => {}, egg: () => { if (CR.Life) CR.Life.egg(); } };
 [['beg', 'visitor', 3, evBeg], ['trade', 'visitor', 2, evTrade], ['levy', 'politics', 0, evLevy, () => false], ['gun', 'camp', 1.2, evGunfire], ['rain', 'camp', 1.2, evRain], ['body', 'horror', 1.1, evBody], ['note', 'camp', 0.8, evNote, () => !G.flags.cache], ['grate', 'camp', 5, evGrateful, () => G.grateful.length], ['scream', 'horror', 1.1, evScreams]].forEach(([id, kind, w, fn, when]) => {
   ST.add({ id: 'legacy_' + id, kind, door: ['beg', 'trade', 'levy'].includes(id), w, cd: 4, when: when ? () => when() : undefined, run() { fn(); curArt = null; } });
 });
@@ -1905,10 +1991,94 @@ function dayPanel() {
   const tab = ['people', 'work', 'world', 'notes'].includes(ui.day) ? ui.day : 'people';
   return [tab, safe({ people: isMob() ? peopleTabMob : peopleTab, work: () => workTab(s), world: () => worldTab(s), notes: () => notesTab(s) }[tab], tab)];
 }
+/* the panel is patched, not rebuilt: only the words, bars and pictures that changed are touched, so nothing on screen blinks */
+let fitDirty = true, fitT = 0, ambT = 0;
+/* what the house sounds like right now: the room by day or by night, the weather over it; on a run the rain is muffled by the walls */
+let GRIEF_UNTIL = 0, DANGER_AT = 0;   /* real time: after a death the music mourns; while an encounter is on screen it fights */
+const inDanger = () => modalOpen && Date.now() - DANGER_AT < 180000 && G && G.screen === 'exp';
+/* where a thing is heard from, in the house: left or right of the middle of the view, and through the ceiling if it is
+   on a floor you are not looking at */
+function placeOf(where) {
+  try {
+    const H = CR.House; if (!H || !H.vbx || !G) return {};
+    const S = SIM.stations(); let x, f;
+    if (typeof where === 'string') { const st = S[where]; if (!st) return {}; x = st.x; f = st.f; } else { const ps = SIM.posOf(where, 0); x = ps.x; f = ps.f; }
+    const cx = H.vbx[0] + H.vbx[2] / 2, half = H.vbx[2] / 2; const pan = Math.max(-1, Math.min(1, (x - cx) / Math.max(40, half))) * 0.85;
+    const sel = person(G.sel); const myF = H.strip ? H.stripF : sel ? Math.round(SIM.posOf(sel, 0).f) : f;
+    const floors = Math.abs(Math.round(f) - myF); return { pan, far: Math.min(0.85, floors * 0.45) };
+  } catch (e) { return {}; }
+}
+/* the soundscape for this moment. Layers are chosen, not piled up: the room (day/night/run), the weather over it,
+   what is close (the fire), and music only when the moment calls for it */
+function ambScene() {
+  if (!CR.Audio || !CR.Audio.scene) return;
+  if (!G) { CR.Audio.scene({ mus: 'mus_title' }); return; }
+  if (G.screen === 'end') { CR.Audio.scene({ mus: 'mus_end' }); return; }
+  if (G.screen === 'over') { CR.Audio.scene({ mus: 'mus_grief' }); return; }
+  const wx = String(G.wx || ''); const w = wx === 'storm' ? 'amb_storm' : wx === 'drizzle' ? 'amb_rain' : null; const soft = wx === 'drizzle';
+  const grief = Date.now() < GRIEF_UNTIL; const night = SIM.isNight(G.t);
+  if (G.screen === 'exp') { CR.Audio.scene({ room: 'amb_run', wx: w, wxName: wx, muffle: true, soft, night: true, day: G.day, mus: grief ? 'mus_grief' : inDanger() ? 'mus_danger' : 'mus_run' }); return; }
+  if (G.screen !== 'day') { CR.Audio.scene({}); return; }
+  CR.Audio.scene({ room: night ? 'amb_night' : 'amb_day', wx: w, wxName: wx, soft, night, day: G.day, near: G.fire ? 'amb_fire' : null, mus: grief ? 'mus_grief' : G.pend ? 'mus_danger' : KNOCK ? null : night ? 'mus_night' : 'mus_day' });
+}
+/* the body and the tension, felt through the sound: whoever you are listening through (the runner, or the one you have selected) */
+function feelScene() {
+  if (!CR.Audio || !CR.Audio.feel || !G || (G.screen !== 'day' && G.screen !== 'exp')) { if (CR.Audio && CR.Audio.feel) CR.Audio.feel({ muffle: 0, drive: 0, tension: 0, wobble: 0, sag: 0, space: 'house' }); return; }
+  const run = G.screen === 'exp' && G.exp; const me = run ? person(G.exp.sid) : person(G.sel); if (!me) return;
+  const hurt = me.hp < 40 ? (40 - me.hp) / 40 : 0;
+  const fever = me.ill && me.ill.lvl >= 2 ? (me.ill.lvl - 1) / 2 : 0; const drunk = me.hab && me.hab.alc && me.act && /ogogoro|drink/i.test(me.act.label || '') ? 0.4 : 0;
+  const home = alive().filter((p) => !p.out); const avgMood = home.length ? home.reduce((a, p) => a + (p.mood || 0), 0) / home.length : 50;
+  let tension = 0;
+  if (run) { const hk = CR.Audio.hk || 0; tension = Math.max(hk, Math.min(1, (G.exp.noise || 0) / 8) * 0.6, inDanger() ? 0.85 : 0); }
+  else { tension = G.pend ? 0.8 : KNOCK ? (KNOCK.armed ? 0.6 : 0.3) : 0; }
+  CR.Audio.feel({ muffle: hurt * 0.75, drive: Math.max(hurt > 0.7 ? (hurt - 0.7) : 0, me.mood < 10 ? 0.25 : 0), tension, wobble: Math.max(fever, drunk), sag: avgMood < 30 ? (30 - avgMood) / 30 : 0, space: run ? 'run' : 'house' });
+}
+/* what people are doing makes a sound when they start it (and again now and then for long work); the sick cough; feet on a run */
+const ACT_SEEN = new WeakMap(); let coughT = 0;
+function actSounds() {
+  if (!G || !CR.Audio || !CR.Audio.started || modalOpen) return;
+  const now = Date.now();
+  if (G.screen === 'exp') {
+    const X = CR.Expedition, p = X && X.st && X.st.p; const moving = !!(p && p.target != null && !p.busy && !p.hidden);
+    CR.Audio.loop('steps', moving ? (p.run ? 'sfx_run' : 'sfx_step') : null, moving, p && p.run ? 0.45 : p && p.sneak ? 0.08 : 0.24, 1);
+    return;
+  }
+  CR.Audio.loop('steps', null, false);
+  if (G.screen !== 'day') return;
+  alive().filter((p) => !p.out).forEach((p) => {
+    const a = p.act; if (!a || a.walkLeft > 0 || (a.ph != null && a.ph < 3)) return;
+    const seen = ACT_SEEN.get(p); const fresh = !seen || seen.a !== a; const long = !fresh && /build|craft/.test(a.k) && now - seen.t > 5200;
+    if (!fresh && !long) return; ACT_SEEN.set(p, { a, t: now });
+    const lab = String(a.label || '');
+    const n = a.k === 'eat' ? 'eat' : a.k === 'drink' ? 'drink' : a.k === 'cook' ? 'cook' : a.k === 'build' ? (/clear|rubble|junk/i.test(lab) ? 'rubble' : (Math.random() < 0.5 ? 'hammer' : 'saw')) : a.k === 'craft' ? 'saw' : a.k === 'treat' ? 'bag' : a.k === 'meds' ? 'pour' : (a.k === 'life' && /smok/i.test(lab)) ? 'match' : null;
+    if (n) CR.Audio.sfx(n, placeOf(p));
+  });
+  if (now > coughT) { coughT = now + 15000 + Math.random() * 25000; const sick = alive().filter((p) => !p.out && p.sick); if (sick.length && Math.random() < 0.6) CR.Audio.sfx('cough', placeOf(sick[Math.floor(Math.random() * sick.length)])); }
+}
+if (typeof window !== 'undefined') { setInterval(() => { try { ambScene(); } catch (e) {} }, 1200); setInterval(() => { try { actSounds(); feelScene(); } catch (e) {} }, 300); }
+if (typeof window !== 'undefined') window.addEventListener('resize', () => { fitDirty = true; });
+function morph(el, html) {
+  const tpl = document.createElement('template'); tpl.innerHTML = html; morphKids(el, tpl.content);
+}
+function morphKids(a, b) {
+  const an = [...a.childNodes], bn = [...b.childNodes];
+  for (let i = 0; i < bn.length; i++) {
+    const x = an[i], y = bn[i];
+    if (!x) { a.appendChild(y); continue; }
+    if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) { a.replaceChild(y, x); continue; }
+    if (x.nodeType === 3 || x.nodeType === 8) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; continue; }
+    if (x.nodeType !== 1) continue;
+    if (x.outerHTML === y.outerHTML) continue;
+    for (const at of [...x.attributes]) if (!y.hasAttribute(at.name)) x.removeAttribute(at.name);
+    for (const at of [...y.attributes]) if (x.getAttribute(at.name) !== at.value) x.setAttribute(at.name, at.value);
+    morphKids(x, y);
+  }
+  for (let i = an.length - 1; i >= bn.length; i--) a.removeChild(an[i]);
+}
 function refreshPanel() {
   if (typeof document === 'undefined' || !G || G.screen !== 'day' || modalOpen || pointerDown) return;
   const pa = document.querySelector('.panel-area'); if (!pa) return; const [tab, html] = dayPanel(); if (pa.dataset.tab !== 'day:' + tab) return;
-  if (pa._h !== html) { const top = pa.scrollTop; pa.innerHTML = html; pa._h = html; pa.scrollTop = top; if (isMob()) fitMore(); if (CR.UI) CR.UI.soon(); }
+  if (pa._h !== html) { const top = pa.scrollTop; morph(pa, html); pa._h = html; if (pa.scrollTop !== top) pa.scrollTop = top; if (isMob()) fitMore(); if (CR.UI) CR.UI.soon(); }
 }
 /* ---------- PC: the whole house is the screen. The group down the left, the clock and speed along the top,
    Items / World / Journal as a drawer over the right of the house, news as a quiet feed in the corner ---------- */
@@ -1977,7 +2147,7 @@ function peopleTabMob() {
   const nw = needWords(s);
   const line = `<div class="mline"><b>${s.name}</b> <span style="color:${TIERC[tier(s.mood)]}">${TIERN[tier(s.mood)]}</span><span class="dim"> · ${doing}</span></div>`;
   const needs = s.out ? `<div class="mneed dim">Back about ${SIM.clock((s.out && s.out.back) || G.t)}.</div>` : `<div class="mini">${mini('Hunger', s.hunger)}${mini('Thirst', s.thirst)}${mini('Tired', s.fatigue)}${mini('Health', s.hp, false)}${mini('Mood', s.mood, false)}</div>${nw !== 'managing' ? `<div class="mneed">${nw[0].toUpperCase() + nw.slice(1)}.</div>` : ''}`;
-  const tb = ([t, ic, label]) => `<button class="mtb" data-a="tab" data-k="day" data-t="${t}" aria-label="${label}">${CR.Icons ? CR.Icons.html(ic) : ''}<span>${label}</span>${t === 'world' && (G.envoys || []).length ? '<em class="dot"></em>' : ''}</button>`;
+  const tb = ([t, ic, label]) => `<button class="mtb" data-a="tab" data-k="day" data-t="${t}" aria-label="${label}">${CR.Icons ? CR.Icons.html(ic) : ''}<span>${label}</span>${t === 'world' && CR.WorldUI && CR.WorldUI.needsYou() ? '<em class="dot"></em>' : ''}</button>`;
   /* what fills the rest of the sheet: things worth a glance, newest first, never a scrolling list */
   const dl = !s.out && (s.mem || []).slice(-1)[0];
   const work = SIM.activeTasks().slice(0, 4).map((t) => `<div class="mjob"><b>${t.name}</b><small>${t.who || 'nobody on it'}</small><i><em style="width:${t.pct}%"></em></i></div>`).join('');
@@ -1999,7 +2169,9 @@ let mobSig = '';
 function fitMob() {
   const sh = document.querySelector('.shell.mshell'); if (!sh || !HOUSE || !HOUSE.contentH) return false;
   const W = sh.clientWidth || innerWidth, Hh = sh.clientHeight || innerHeight; const VHs = HOUSE.contentH();
-  const minSheet = Math.max(262, Math.round(Hh * 0.33)); const avail = Hh - minSheet + 18;
+  /* the sheet must fit what is in it: a long name or status wraps to a second line, and the toolbar must never fall off the bottom */
+  let need = 0; try { const ms = document.getElementById('msheet'); const pa = ms && !ms.classList.contains('up') && ms.querySelector('.panel-area'); if (pa) need = Math.ceil(pa.scrollHeight + (pa.getBoundingClientRect().top - ms.getBoundingClientRect().top)) + 6; } catch (e) {}
+  const minSheet = Math.max(262, Math.round(Hh * 0.33), need); const avail = Hh - minSheet + 18;
   let vw = clamp(VHs * W / avail, 136, 176); let px = Math.round(VHs * W / vw);
   if (px > avail) px = avail; else vw = VHs * W / px;
   const sig = px + '|' + vw.toFixed(2) + '|' + W + 'x' + Hh; if (sig === mobSig && sh.style.getPropertyValue('--hst')) return true;
@@ -2012,7 +2184,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('pointermove', (e) => { if (!drag || e.pointerId !== drag.id) return; drag.dy = e.clientY - drag.y; const d = drag.up ? Math.max(0, drag.dy) : Math.min(0, drag.dy); drag.sh.style.transform = `translateY(${d}px)`; });
   const end = (e) => { if (!drag || (e && e.pointerId !== drag.id)) return; const d = drag; drag = null; d.sh.style.transition = ''; d.sh.style.transform = '';
     const open = Math.abs(d.dy) < 8 ? !d.up : d.dy < -36 ? true : d.dy > 36 ? false : d.up;
-    if (open !== d.up && G) { ui.day = open ? mobLast : 'people'; sfx('tap'); if (CR.Tutorial && open) CR.Tutorial.act('tab', { t: ui.day }); render(); } };
+    if (open !== d.up && G) { ui.day = open ? mobLast : 'people'; sfx('tap'); render(); } };
   document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
 }
 function renderDay() {
@@ -2021,7 +2193,7 @@ function renderDay() {
   if (isMob()) return renderDayMob();
   const [tab, panel] = dayPanel();
   const t = (id, icon, label, dot) => navBtn(tab === id ? 'on' : '', icon, label, `data-a="tab" data-k="day" data-t="${id}"`, dot);
-  const nav = t('people', '👥', 'Group') + t('work', '🎒', 'Items') + t('world', '🌍', 'World', (G.envoys || []).length) + t('notes', '📓', 'Journal');
+  const nav = t('people', '👥', 'Group') + t('work', '🎒', 'Items') + t('world', '🌍', 'World', CR.WorldUI && CR.WorldUI.needsYou()) + t('notes', '📓', 'Journal');
   const hudH = `<header class="hud"><button class="menubtn" data-a="menu" aria-label="Menu">☰</button><div class="hudt"><b id="clk">Day ${G.day} · ${SIM.clock(G.t)}</b><span class="phase" id="phz">${PHASEN[SIM.phaseOf(G.t)]}${G.speed === 0 ? ' · paused' : ''}</span></div>${chipsHtml()}<button id="spdb" class="spd" data-a="speed" aria-label="Speed">${SPEEDH[G.speed || 0]}</button></header>`;
   return shell(hudH, '<div id="hstage"></div>', nav, panel, 'day:' + tab, 'v2old' + (tab === 'people' ? ' tab-people' : ''));
 }
@@ -2102,7 +2274,7 @@ function stepV2(dt) {
     else if (!modalOpen && !CR.paused && !(CR.Wheel && CR.Wheel.isOpen())) { const tod = G.t % 1440; if (!G.ff && G.warned !== G.day && tod >= 18 * 60 + 50 && tod < 20 * 60) { G.warned = G.day; notice('Night is coming. Decide who sleeps, who watches, who goes out.'); }
       if (G.ff === 'night' && tod >= 6 * 60 && tod < 20 * 60) G.ff = null; try { SIM.drive(dt, G.ff ? FF_SPEED : undefined); } catch (err) { reportError(err); G.speed = 0; chromeSig = ''; } if (Q.length && !modalOpen) flush(); }
   }
-  try { fitHouse(); } catch (e) {} chrome(); panelT += dt; if (panelT > 2.5) { panelT = 0; refreshPanel(); try { const hs = document.getElementById('hstage'); if (hs) { hs.classList.toggle('fever', alive().some((p) => p.sick && !p.out)); hs.classList.toggle('grief', (G.mem2 || []).some((m) => G.day - m.day < 2)); } } catch (e) {} }
+  fitT += dt; if (fitDirty || fitT > 1) { fitDirty = false; fitT = 0; try { fitHouse(); } catch (e) {} } chrome(); panelT += dt; if (panelT > 2.5) { panelT = 0; refreshPanel(); try { const hs = document.getElementById('hstage'); if (hs) { hs.classList.toggle('fever', alive().some((p) => p.sick && !p.out)); hs.classList.toggle('grief', (G.mem2 || []).some((m) => G.day - m.day < 2)); } } catch (e) {} }
 }
 
 /* ---------- what the simulation tells the game ---------- */
@@ -2110,11 +2282,14 @@ function stepV2(dt) {
 const ROLE_N = { bed: 'Bed', floor: 'Floor', guard: 'Guard', go: 'Go out', send: 'Send' };
 function roleWhy(p, r, roles) {
   if (r === 'bed') { const beds = SIM.bunkCount(); const used = Object.entries(roles).filter(([id, v]) => v === 'bed' && +id !== p.id).length; return used >= beds ? 'No bunk free. Build another.' : ''; }
-  if (r === 'guard') return p.hp < 25 ? `${p.name} can barely stand.` : '';
-  if (r === 'go' || r === 'send') { if (p.hp < 25 || p.mood < 15 || p.fatigue > 92) return `${p.name} is in no state to go out.`; const other = Object.entries(roles).find(([id, v]) => v === r && +id !== p.id); return other ? `${person(+other[0]).name} is already ${r === 'go' ? 'going out' : 'being sent'}.` : ''; }
+  if (r === 'guard') { const w = SIM.watchWhy(p); return w ? `${p.name} ${w}.` : ''; }
+  if (r === 'visit' && !(VIS() && VIS().visitable().length)) return 'You have not met anyone to visit.';
+  if (OUTR.includes(r)) { if (p.hp < 25 || p.mood < 15 || p.fatigue > 92) return `${p.name} is in no state to go out.`; const other = Object.entries(roles).find(([id, v]) => v === r && +id !== p.id); return other ? `${person(+other[0]).name} is already ${r === 'go' ? 'going out' : r === 'visit' ? 'visiting' : 'being sent'}.` : ''; }
   return '';
 }
-const ROLE_BOX = [['bed', 'bed', 'Bunks'], ['floor', 'bed', 'Floor'], ['guard', 'eye', 'Keep watch'], ['go', 'feet', 'Go out'], ['send', 'map', 'Send out alone']];
+const ROLE_BOX = [['bed', 'bed', 'Bunks'], ['floor', 'bed', 'Floor'], ['guard', 'eye', 'Keep watch'], ['go', 'feet', 'Go out'], ['send', 'map', 'Send out alone'], ['visit', 'people', 'Visit']];
+const VIS = () => CR.Visits;
+const OUTR = ['go', 'send', 'visit'];
 const icn = (n) => (CR.Icons ? CR.Icons.html(n) : '');
 /* a building as a tile: its name, how far, and loot and danger as pips you can compare at a glance */
 const pips = (n, of, cls) => `<span class="dpips" aria-hidden="true">${Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('')}</span>`;
@@ -2125,31 +2300,36 @@ function destTile(l, d) {
 }
 const DLEGEND = () => `<div class="dlegend"><span>${icn('feet')}distance</span><span>${icn('bag')}loot</span><span>${icn('warn')}danger</span></div>`;
 function rolesHtml() {
-  const roles = G.roles; const home = alive().filter((p) => !p.out); const goer = home.find((p) => roles[p.id] === 'go'), sender = home.find((p) => roles[p.id] === 'send');
+  const roles = G.roles; const home = alive().filter((p) => !p.out); const goer = home.find((p) => roles[p.id] === 'go'), sender = home.find((p) => roles[p.id] === 'send'), visitor = home.find((p) => roles[p.id] === 'visit');
   if (G.rolesSel && !home.some((p) => p.id === G.rolesSel)) G.rolesSel = 0;
   const pickId = G.rolesSel || 0; const picked = pickId ? person(pickId) : null;
   const dests = (who, key) => { if (!who) return ''; const all = LOCS.filter((l) => l.id !== G.shelter).map((l) => ({ l, d: CAMPUS.travel(G.shelter, l.id) })).sort((a, b) => a.d - b.d).slice(0, 8); const cur = G.rolesDest && G.rolesDest[key];
     if (cur && G.rolesPick !== key) return '';
     return `<div class="ndests"><div class="lth">${key === 'go' ? 'Where ' + who.name + ' goes' : 'Where ' + who.name + ' is sent'}</div><div class="dgrid">${all.map(({ l, d }) => `<button class="rld dbtn${cur === l.id ? ' on' : ''}" data-nd="${key}:${l.id}">${destTile(l, d)}</button>`).join('')}</div>${DLEGEND()}</div>`; };
   const cold = G.cold || 0; const fc = cold ? `<div class="rlcold c${cold}">${['', 'A cool night.', 'A cold night.', 'A bitter night. The harmattan is in the walls.'][cold]} ${G.build.brazier ? (inv('wood') >= (cold >= 3 ? 2 : 1) ? 'The brazier has wood for it.' : 'Not enough wood for the brazier.') : 'No fire.'} ${inv('blanket') ? inv('blanket') + ' blanket' + (inv('blanket') > 1 ? 's.' : '.') : 'No blankets.'}${cold >= 2 ? ' Whoever sleeps on the floor or keeps watch will feel it.' : ''}</div>` : '';
-  const picking = (goer && (!(G.rolesDest || {}).go || G.rolesPick === 'go')) ? 'go' : (sender && (!(G.rolesDest || {}).send || G.rolesPick === 'send')) ? 'send' : '';
+  const picking = (goer && (!(G.rolesDest || {}).go || G.rolesPick === 'go')) ? 'go' : (sender && (!(G.rolesDest || {}).send || G.rolesPick === 'send')) ? 'send' : (visitor && (!(G.rolesDest || {}).visit || G.rolesPick === 'visit')) ? 'visit' : '';
+  const STC = { allies: '#f6b37f', good: '#e9e1c6', wary: '#a59c90', hostile: '#f08a6c', enemies: '#f08a6c', strangers: '#6f685e' };
+  const groupsPick = (who) => { if (!who || !VIS()) return ''; const cur = G.rolesDest && G.rolesDest.visit; if (cur && G.rolesPick !== 'visit') return '';
+    const fs = VIS().visitable().map((f) => ({ f, d: VIS().hours(f) })).sort((a, b) => a.d - b.d);
+    return `<div class="ndests"><div class="lth">Who ${who.name} visits</div><div class="dgrid vgrid">${fs.map(({ f, d }) => { const st = PO.stage(f); return `<button class="rld dbtn vbtn${cur === f.id ? ' on' : ''}" data-nd="visit:${f.id}">${CR.WorldUI ? CR.WorldUI.markSvg(f.id, 28, STC[st]) : ''}<span><b>${f.name.replace(/^The /, '').replace(/ (Cooperative|Fellowship)$/, '')}</b><small class="${st === 'hostile' || st === 'enemies' ? 'vwarn' : ''}">${PO.STAGE_WORD[st]}${f.grudge ? ' · a grudge' : ''} · ${d ? d + ' hr' : 'close'}</small></span></button>`; }).join('')}</div></div>`; };
   const tok = (p) => `<button class="ntok${p.id === pickId ? ' on' : ''}" data-ntok="${p.id}" aria-label="${p.name}" aria-pressed="${p.id === pickId}"><span class="ntp">${portrait(p, stateOf(p), 2)}</span><span class="ntn">${ST.first(p)}</span></button>`;
   const boxes = ROLE_BOX.map(([r, ic, label]) => {
     const inside = home.filter((p) => roles[p.id] === r); const why = picked ? roleWhy(picked, r, roles) : '';
-    const sub = r === 'bed' ? `${inside.length} of ${SIM.bunkCount()}` : r === 'floor' && cold >= 2 ? 'cold' : r === 'send' ? 'back by dawn' : r === 'guard' && !inside.length ? 'nobody' : '';
-    let dest = ''; if ((r === 'go' || r === 'send') && inside[0]) { const cur = G.rolesDest && G.rolesDest[r]; dest = cur && G.rolesPick !== r ? `<button class="ndest" data-ndc="${r}"><span>${LOCBY[cur].name}</span><small>Change</small></button>` : `<span class="ndest none">Pick where, below</span>`; }
+    const vf = r === 'visit' && G.rolesDest && G.rolesDest.visit && PO.fac(G.rolesDest.visit);
+    const sub = r === 'bed' ? `${inside.length} of ${SIM.bunkCount()}` : r === 'floor' && cold >= 2 ? 'cold' : r === 'send' ? 'back by dawn' : r === 'visit' ? (vf && VIS() ? `back by ${VIS().clock(VIS().backAt(vf, G.t))}` : '') : r === 'guard' && !inside.length ? 'nobody' : '';
+    let dest = ''; if (OUTR.includes(r) && inside[0]) { const cur = G.rolesDest && G.rolesDest[r]; const nm = cur ? (r === 'visit' ? (PO.fac(cur) || {}).name : LOCBY[cur].name) : ''; dest = cur && G.rolesPick !== r ? `<button class="ndest" data-ndc="${r}"><span>${nm}</span><small>Change</small></button>` : `<span class="ndest none">${r === 'visit' ? 'Pick who, below' : 'Pick where, below'}</span>`; }
     const can = picked && !why && roles[pickId] !== r;
     return `<div class="nbox nb-${r}${why ? ' no' : ''}${can ? ' can' : ''}" data-nbox="${r}"${why ? ` data-why="${why.replace(/"/g, '&quot;')}"` : ''}><h5>${icn(ic)}<span>${label}</span>${sub ? `<small>${sub}</small>` : ''}</h5><div class="ntoks">${inside.map(tok).join('')}</div>${dest}</div>`;
   }).join('');
   const hint = picked ? `<div class="nhint"><b>${picked.name}</b>: tap a box to move them.</div>` : `<div class="nhint">Tap a face, then a box. Or drag it there.</div>`;
-  return (picking ? '' : fc) + `<div class="rlroles nplan${picking ? ' picking' : ''}">${picking ? '' : hint}<div class="nboxes">${boxes}</div>${dests(goer, 'go')}${dests(sender, 'send')}</div>`;
+  return (picking ? '' : fc) + `<div class="rlroles nplan${picking ? ' picking' : ''}">${picking ? '' : hint}<div class="nboxes">${boxes}</div>${dests(goer, 'go')}${dests(sender, 'send')}${groupsPick(visitor)}</div>`;
 }
 /* moving someone between boxes, by a tap on a box or a drop */
 function nightMove(id, r) {
   if (!G || !G.roles) return; const p = person(id); if (!p) return; const why = roleWhy(p, r, G.roles); if (why) { toastWhy(why); return; }
   G.roles[id] = r; G.rolesSel = 0; sfx('tap');
-  if (G.rolesDest) { if (r !== 'go' && !Object.values(G.roles).includes('go')) G.rolesDest.go = null; if (r !== 'send' && !Object.values(G.roles).includes('send')) G.rolesDest.send = null; }
-  if (r === 'go' || r === 'send') G.rolesPick = null;
+  if (G.rolesDest) OUTR.forEach((k) => { if (r !== k && !Object.values(G.roles).includes(k)) G.rolesDest[k] = null; });
+  if (OUTR.includes(r)) G.rolesPick = null;
   nightRedraw();
 }
 function nightRedraw() { const box = document.querySelector('#modal .rlroles'); if (box) { const f = document.querySelector('#modal .rlcold'); const h = rolesHtml(); const tmp = document.createElement('div'); tmp.innerHTML = h; if (f) f.remove(); box.replaceWith(...tmp.childNodes); } }
@@ -2176,6 +2356,8 @@ function nightRoles() {
   const roles = {}; let beds = SIM.bunkCount();
   home.forEach((p) => { if (p.shift) roles[p.id] = 'guard'; else if (beds > 0) { roles[p.id] = 'bed'; beds--; } else roles[p.id] = 'floor'; });
   G.roles = roles;
+  { const pf = G.planVisit && PO.fac(G.planVisit); G.planVisit = null;
+    if (pf && pf.status === 'active' && pf.met) { const who = home.filter((p) => !p.shift && !roleWhy(p, 'visit', roles)).sort((a, b) => PO.envoyScore(b, pf) - PO.envoyScore(a, pf))[0]; if (who) { roles[who.id] = 'visit'; G.rolesDest = { visit: pf.id }; } } }
   G.rolesSel = 0; ask('Tonight', rolesHtml(), [{ label: 'Begin the night', fn() { applyRoles(); return ''; } }], { icon: '🌙' });
   flush();
 }
@@ -2184,11 +2366,13 @@ function applyRoles() {
   const guards = home.filter((p) => roles[p.id] === 'guard');
   home.forEach((p) => { p.shift = null; p.bed = roles[p.id] === 'floor' ? 'floor' : null; });
   if (guards.length === 1) guards[0].shift = 'all'; else guards.forEach((p, i) => { p.shift = i % 2 ? 'late' : 'early'; });
-  home.forEach((p) => { if (roles[p.id] === 'guard' || roles[p.id] === 'go' || roles[p.id] === 'send') home.forEach((o) => { if (o !== p && (roles[o.id] === 'bed' || roles[o.id] === 'floor')) bondS(o, p, 1, 0, roles[p.id] === 'guard' ? 'kept watch while I slept' : 'went out for us'); }); if (roles[p.id] === 'floor' && home.some((o) => roles[o.id] === 'bed' && relS(p, o).fond < 20)) bondS(p, home.find((o) => roles[o.id] === 'bed'), 0, 1); });
-  const send = home.find((p) => roles[p.id] === 'send'), go = home.find((p) => roles[p.id] === 'go'); const dd = G.rolesDest || {}; G.rolesDest = null;
+  home.forEach((p) => { if (roles[p.id] === 'guard' || OUTR.includes(roles[p.id])) home.forEach((o) => { if (o !== p && (roles[o.id] === 'bed' || roles[o.id] === 'floor')) bondS(o, p, 1, 0, roles[p.id] === 'guard' ? 'kept watch while I slept' : 'went out for us'); }); if (roles[p.id] === 'floor' && home.some((o) => roles[o.id] === 'bed' && relS(p, o).fond < 20)) bondS(p, home.find((o) => roles[o.id] === 'bed'), 0, 1); });
+  const send = home.find((p) => roles[p.id] === 'send'), go = home.find((p) => roles[p.id] === 'go'), vis = home.find((p) => roles[p.id] === 'visit'); const dd = G.rolesDest || {}; G.rolesDest = null;
+  if (vis && !dd.visit) vis.bed = 'floor';                     /* nobody picked to visit: they stay in, on the floor */
   if (send) { if (dd.send) sendOut(send, dd.send); else pickDest(send, 'auto'); }
-  if (go) { if (dd.go) setTimeout(() => startControlled(go, dd.go), 0); else pickDest(go, 'ctrl'); }
-  else if (KNOCK) KNOCK.ff = 'night'; else G.ff = 'night';   /* nobody walking out: the night passes, as in TWoM (after the door, if someone is knocking) */
+  const goNow = () => { if (go) { if (dd.go) setTimeout(() => startControlled(go, dd.go), 0); else pickDest(go, 'ctrl'); } };
+  if (vis && dd.visit && VIS()) { SIM.abort(vis); VIS().go(vis, dd.visit, go ? goNow : null); } else goNow();
+  if (!go) { if (KNOCK) KNOCK.ff = 'night'; else G.ff = 'night'; }   /* nobody walking out: the night passes, as in TWoM (after the door, if someone is knocking) */
   G.roles = null; G.rolesSel = 0;
 }
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', (ev) => {
@@ -2196,7 +2380,7 @@ if (typeof document !== 'undefined' && document.addEventListener) document.addEv
   const ch = ev.target && ev.target.closest && ev.target.closest('[data-ndc]'); if (ch && G && G.roles) { G.rolesPick = ch.dataset.ndc; sfx('tap'); nightRedraw(); return; }
   const b = ev.target && ev.target.closest && ev.target.closest('[data-nr]'); if (!b || !G || !G.roles) return;
   if (b.getAttribute('aria-disabled')) { toastWhy(b.dataset.why); return; }
-  const [id, r] = b.dataset.nr.split(':'); G.roles[+id] = r; sfx('tap'); if (G.rolesDest) { if (r !== 'go' && !Object.values(G.roles).includes('go')) G.rolesDest.go = null; if (r !== 'send' && !Object.values(G.roles).includes('send')) G.rolesDest.send = null; }
+  const [id, r] = b.dataset.nr.split(':'); G.roles[+id] = r; sfx('tap'); if (G.rolesDest) OUTR.forEach((k) => { if (r !== k && !Object.values(G.roles).includes(k)) G.rolesDest[k] = null; });
   const box = document.querySelector('#modal .rlroles'); if (box) box.outerHTML = rolesHtml();
 });
 
@@ -2210,7 +2394,7 @@ const simHost = {
   chatLine,
   controlled: () => G.sel,
   onCleared: (p, st, dig, got) => { const where = ((SIM.stations()[st] || {}).label || 'site').replace(/ site$/i, '').toLowerCase(); const found = Object.entries(got || {}).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${ITEMS[k] ? ITEMS[k][1].toLowerCase() : k}`).join(', '); setTimeout(() => notice(`${p.name} has cleared the ${where} site${found ? ' and found ' + found : ''}. A ${where} can be built there now.`), 60); },
-  onBuilt: (id, p) => { sfx('open'); { const d = SIM.BUILDS[id]; if (d && p) notice(id === 'board' ? `${p.name} boarded up the window.` : `${p.name} finished the ${d.name.toLowerCase().replace(/ i+$/, '')}.`); } if (CR.Tutorial && CR.Tutorial.notify) CR.Tutorial.notify('built'); },
+  onBuilt: (id, p) => { sfx('open'); { const d = SIM.BUILDS[id]; if (d && p) notice(id === 'board' ? `${p.name} boarded up the window.` : `${p.name} finished the ${d.name.toLowerCase().replace(/ i+$/, '')}.`); } },
   onLook: (p, f) => lookSheet(p, f),
   onUse: (p, what) => useStation(p, what),
   relOf: (a, b) => relS(a, b),
@@ -2234,16 +2418,19 @@ SIM.init(simHost);
 
 function dawnV2(day) {
   const lines = [];
-  if (G.thiefId) { const t = person(G.thiefId); if (t && t.alive && chance(0.5)) { stealSome(0.4); t.alive = false; t.gone = true; lines.push(`${t.name} is gone, and so are some supplies.`); G.thiefId = 0; G.stats.left++; moodAll(-3); } }
+  if (G.thiefId) { const t = person(G.thiefId); if (t && t.alive && chance(0.5)) { stealSome(0.4); SIM.abort(t); t.alive = false; t.gone = true; lines.push(`${t.name} is gone, and so are some supplies.`); G.thiefId = 0; G.stats.left++; moodAll(-3); } }
   alive().forEach((s) => { s.slots = 3; });
   alive().forEach((s) => {
     s.brokenDays = s.mood < 15 ? (s.brokenDays || 0) + 1 : 0;
     if (s.mood < 15 && s.brokenDays >= 2 && chance(0.35)) {
-      s.alive = false; s.gone = true; s.pack = {}; G.stats.left++; moodAll(-8);
+      SIM.abort(s); s.alive = false; s.gone = true; s.pack = {}; G.stats.left++; moodAll(-8);
       lines.push(s.cid && CR.Life && CR.Life.turnSurvivor(s) ? `${s.name} is gone. Somebody swears they saw them walk toward the Gate Boys' fire.` : `${s.name} left in the dark and did not come back.`);
     }
   });
   PO.tick(); CR.World.tick(); ST.tick(); if (CR.Life) CR.Life.tick();
+  try { PO.stageNews().forEach((l) => lines.push(l)); } catch (e) { reportError(e); }
+  try { if (VIS()) VIS().dawn().forEach((l) => lines.push(l)); } catch (e) { reportError(e); }
+  try { PO.expire().forEach((f) => { const id = PO.envoyOf(f); const c = id && KS.by[id]; lines.push(`${c ? c.name : 'Someone'} from ${f.name} was coming to ask you for food. They never came. They're eating less instead, and somebody there has stopped eating at all.`); }); } catch (e) { reportError(e); }
   try { exposeDeeds(); othersScavenge(); } catch (e) { reportError(e); }
   try { calendarDawn(day).forEach((l) => lines.push(l)); arcDawn(day).forEach((l) => lines.push(l)); brokenPromises(); const sg = rescueSigns(); if (sg) lines.push(sg); else if (chance(G.build.radio ? 0.5 : 0.3)) lines.push(rescueRumour()); } catch (e) { reportError(e); }
   try { ST.morning({ n: 0 }); } catch (e) { reportError(e); }
@@ -2266,7 +2453,8 @@ function morningReport(day, lines) {
 }
 function hourV2(h, day) {
   if (G.away) return;                                         /* while you are out, the house's small stories and the returns wait for you */                       /* while you are out, the house's small stories wait for you instead of piling up */
-  if (h === 11 && G.doorDay !== G.day && G.day >= (G.doorFree || 0)) { try { strangersReturn(); flush(); } catch (e) { reportError(e); } }
+  if (h === 10) { try { envoyDoor(); } catch (e) { reportError(e); } }
+  if (h === 11 && ST.doorOpen()) { try { strangersReturn(); flush(); } catch (e) { reportError(e); } }
   if (h === 12) { try { collectorVisit(); } catch (e) { reportError(e); } }
   if (h === 18 && G.mk && G.mk.likes >= 8 && !G.mk.warned && G.day >= 6 && chance(0.25)) { G.mk.warned = G.day; G.mkSafe = G.day + 1; say('A note under the door', '<i>Green ink, small, careful handwriting: "Tonight, lights off. Do not answer the door. — K."</i>'); flush(); }
   if (h === 21 && G.build.radio && G.radioDay !== G.day && chance(0.55)) { G.radioDay = G.day; const b = radioNews(null); if (b.ev || chance(0.3)) notice(`On the radio: ${b.t.split('. ')[0]}.`); }
@@ -2481,6 +2669,7 @@ function returnParties() {
   G.S.filter((s) => s.alive && s.out && s.out.mode !== 'ctrl' && s.out.back <= G.t).forEach((s) => {
     const o = s.out; s.out = null; s.f = 0; s.x = 14; s.up = 0; s.at = null; s.act = null;
     if (o.mk) { if (chance(0.08)) { kill(s, 'Shot carrying a package for Mai Kudi.'); toReport(`${s.name} never came back from the gate.`); return; } add('bullets', 3); add('food', 2); remember(s, 'They paid me in bullets and rice. Nobody asked my name.', { w: 4 }); toReport ? (G.nrep ? toReport(`${s.name} came back from the gate with bullets and rice.`) : say(`${s.name} is back`, `<i>${s.name} comes back from the gate with bullets and a bag of rice, and does not want to talk about it.</i>`, { sp: s.sp, state: stateOf(s) })) : 0; return; }
+    if (o.mode === 'visit' && VIS()) { VIS().back(s, o); return; }
     if (o.mode === 'auto') resolveScav(s, o); else { log(`${s.name} is back from ${o.what || 'their errand'}.`, 'good'); notice(`${s.name} is back.`); }
   });
 }
@@ -2622,9 +2811,11 @@ function payWheel(g, s, e, offer) {
   WHEEL.open({ title: `For ${ITEMS[offer][1]}`, hub: offer, items, onPick: (it) => {
     if (roomFor < 1 && it.n >= 1 && bagUsed() - it.n + 1 > bagCap()) { toastWhy('Your bag is full.'); setTimeout(() => tradeWheel(g, s, e), 0); return; }
     e.bag[it.id] -= it.n; e.bag[offer] = (e.bag[offer] || 0) + 1; g.stock[offer] = Math.max(0, (g.stock[offer] || 0) - 1); if (['food', 'water', 'meds'].includes(it.id)) g.stock[it.id] = (g.stock[it.id] || 0) + it.n;
-    setRel(g, 2); mood(s, 1); sfx('choose'); setTimeout(() => { if (G.exp) tradeWheel(g, s, e); }, 0); render();
+    { const f = facOf(g); if (f) PO.deed(f, 'trade', { tags: ['deal'] }); else setRel(g, 2); } mood(s, 1); sfx('choose'); setTimeout(() => { if (G.exp) tradeWheel(g, s, e); }, 0); render();
   } });
 }
+const facOf = (g) => (g && g.fid ? PO.fac(g.fid) : null);
+const stealTags = (k) => (k === 'food' ? ['steal_food', 'steal_store'] : k === 'meds' ? ['steal_meds', 'steal_store'] : ['steal_store']);
 function encSettlement(L, s, e) {
   const g = groupAt(L.id); if (!g) return; g.met = true;
   const f = g.fid ? PO.fac(g.fid) : null; const lead = f ? PO.leaderOf(f) : null;
@@ -2649,11 +2840,11 @@ function encSettlement(L, s, e) {
       if (o) { o.met = true; const OL = LOCBY[o.loc]; setRel(g, 1); return speak(`There is a group at ${OL.name}. ${o.att === 'hostile' || o.att === 'predatory' ? 'Stay away from them.' : o.att === 'desperate' ? 'They are starving. People do foolish things when they are.' : 'They keep to themselves, but they do not shoot.'}`); }
       return speak(pick(['Nothing new. Everyone is waiting for the soldiers.', 'The Gate Boys have been seen near the road again.', 'Somebody at the Theatre is trading for medicine. Everything has a price now.'])); } },
     ...(g.att === 'friendly' ? [{ label: 'Rest by the fire', fn() { s.fatigue = clamp(s.fatigue - 18, 0, 100); runClock(60); mood(s, 3); setRel(g, 1); return `<i>An hour by their fire. Nobody asks you anything. It is the nearest thing to peace you have had.</i>`; } }] : []),
-    ...(g.att === 'desperate' ? [{ label: 'Give them 2 food', off: inv('food') < 2 && !(e.bag.food > 1), why: 'You have none to give.', fn() { if (e.bag.food > 1) e.bag.food -= 2; else add('food', -2); g.stock.food += 2; setRel(g, 20); G.stats.helped++; mood(s, 4); return speak('God will remember you for this.'); } }] : []),
+    ...(g.att === 'desperate' ? [{ label: 'Give them 2 food', off: inv('food') < 2 && !(e.bag.food > 1), why: 'You have none to give.', fn() { if (e.bag.food > 1) e.bag.food -= 2; else add('food', -2); g.stock.food += 2; { const f = facOf(g); if (f) PO.deed(f, 'plea', { tags: ['share', 'feed_weak'], gift: { food: 2 }, text: `${s.name} gave us food at our own fire, when we had none.`, heard: `${s.name} gave ${g.name} food when they were starving.` }); else setRel(g, 20); } G.stats.helped++; mood(s, 4); return speak('God will remember you for this.'); } }] : []),
     { label: `Take from their stores while they are not looking${oddsText(sneak.p)}`, fn() {
       G.stats.thefts++; moral(s, 7, `stole from ${g.name}`, { wit: 'group:' + g.id, victim: g.att === 'hostile' || g.att === 'predatory' ? 'hostile' : g.att === 'desperate' ? 'desperate' : undefined });
-      if (chance(sneak.p)) { const q = grab(rnd(2, 3)); showScene('Nobody noticed', `${q} × ${ITEMS[k2][1]}, and out through the barricade before the fire burns down. Your heart is going like a drum.`, s, 'sneak', foes('idle')); return ''; }
-      setRel(g, -35); if (chance(0.7)) G.flags.groupRaid = g.id; hurt(s, rnd(8, 22), 'Beaten while stealing from ' + g.name + '.'); showScene('Caught', `A hand closes on your collar. They do not shout. They do not need to. They remember your face.`, s, 'sitfloor', foes('aim')); return ''; } },
+      if (chance(sneak.p)) { const q = grab(rnd(2, 3)); { const f = facOf(g); if (f && q > 0 && chance(0.4)) PO.deed(f, 'took', { tags: stealTags(k2), took: q, text: 'Somebody from your house took from our store. That is what people are saying.', heard: `People say someone from your house stole from ${g.name}.` }); } showScene('Nobody noticed', `${q} × ${ITEMS[k2][1]}, and out through the barricade before the fire burns down. Your heart is going like a drum.`, s, 'sneak', foes('idle')); return ''; }
+      { const f = facOf(g); if (f) PO.deed(f, 'took', { seen: true, tags: stealTags(k2), took: 2, text: `We caught ${s.name} with a hand in our store.`, heard: `${g.name} caught ${s.name} stealing from them.` }); else setRel(g, -35); } if (chance(0.7)) G.flags.groupRaid = g.id; hurt(s, rnd(8, 22), 'Beaten while stealing from ' + g.name + '.'); showScene('Caught', `A hand closes on your collar. They do not shout. They do not need to. They remember your face.`, s, 'sitfloor', foes('aim')); return ''; } },
     { label: 'Leave' }
   ];
   ask(g.name, speak(hello), ch, { html: sceneHtml(s, 'idle', foes(g.att === 'friendly' ? 'idle' : 'idle')) });
@@ -2683,7 +2874,7 @@ function weaponWheel(cfg) {
     const have = haveW(k); const p = clamp(sig(base.v + FW[k] - F), 0.05, 0.95); const n = p >= 0.75 ? 4 : p >= 0.5 ? 3 : p >= 0.3 ? 2 : 1;
     return { id: k, label: FWV[k][0], icon: FWV[k][1], off: !have, lock: !have, why: whyNoW(k), sub: have ? `<span class="pips p${n}">${'\u25CF'.repeat(n)}${'\u25CB'.repeat(4 - n)}</span>${k === 'pistol' ? ' ' + inv('bullets') + ' ' + ITEMS.bullets[0] : ''}` : 'locked' };
   });
-  WHEEL.open({ title: 'Fight with', hub: 'warn', items, onPick: (it) => fightWith(cfg, it.id) });
+  WHEEL.open({ title: 'Fight with', hub: 'warn', items, onPick: (it) => fightWith(cfg, it.id), onCancel: () => (cfg.back ? cfg.back() : danger(cfg)) });
 }
 const WINTXT = { crowbar: 'The bar comes down twice. The second time there is no sound at all.', pistol: 'The shot is enormous in the small space. They drop. Your ears ring, and everything within a hundred metres heard it.', machete: 'It is over in two strokes. You do not look at what you have done.', knife: 'Close, quiet, quick. They sag against you, and you lower them to the floor.', club: 'One blow. They fold. You are not sure they will get up, and you do not check.', hands: 'It is ugly and slow, and somehow you are the one still standing.' };
 const LOSETXT = { crowbar: 'The bar glances off a shoulder. Now they know exactly where you are.', pistol: 'The shot goes wide. The answer does not.', machete: 'They were faster than the blade.', knife: 'Too many, too close. The knife finds nothing.', club: 'The blow lands on a raised arm. Theirs does not.', hands: 'You have nothing in your hands. They know it.' };
@@ -2709,13 +2900,15 @@ function plead(cfg) {
   if (r < pity) { const take = bagItems(e)[0]; if (take) e.bag[take[0]] = Math.max(0, e.bag[take[0]] - 1); showScene('They let you go', `Something in your face changes their mind. "Next time," one of them says, and does not finish the sentence.`, s, 'idle', cfg.foes('idle')); return; }
   if (r < pity + (cfg.cruel || 0.45)) { Object.keys(e.bag).forEach((k) => { e.bag[k] = 0; }); hurt(s, rnd(8, 22), cfg.killer || 'Beaten for having nothing.'); mood(s, -4); showScene('You pay anyway', `They are not looking for an answer. When they are done you have a bruised face, an empty bag, and a lesson.`, s, 'sitfloor', cfg.foes('aim')); return; }
   /* they attack: you are on your back foot */
-  ask('They attack', `<i>"Not good enough."</i> The first blow comes before you can answer.`, [
-    { label: 'Fight back', fn() { setTimeout(() => weaponWheel(Object.assign({}, cfg, { first: 0.35, want: null })), 0); return ''; } },
-    { label: 'Try to run', fn() { const f = odds(s, 'flee', cfg.F + 0.3); if (chance(f.p)) { showScene('You get away', 'You do not stop until the corridor ends.', s, 'run', cfg.foes('aim')); return ''; } hurt(s, rnd(10, 26), cfg.killer || 'Cut down while running.'); showScene('Not fast enough', 'They catch you at the stairs.', s, 'limp', cfg.foes('aim')); return ''; } }
+  const attacked = () => ask('They attack', `<i>"Not good enough."</i> The first blow comes before you can answer.`, [
+    { label: 'Fight back', fn() { setTimeout(() => weaponWheel(Object.assign({}, cfg, { first: 0.35, want: null, back: attacked })), 0); return ''; } },
+    { label: 'Try to run', fn() { const f = odds(s, 'flee', cfg.F + 0.3); flee(e); if (chance(f.p)) { showScene('You get away', 'You do not stop until the corridor ends.', s, 'run', cfg.foes('aim')); return ''; } const b0 = s.hp; hurt(s, rnd(10, 26), cfg.killer || 'Cut down while running.'); showScene('Not fast enough', 'They catch you at the stairs. You tear free and keep going.' + hurtLine(s, b0), s, 'limp', cfg.foes('aim')); return ''; } }
   ], { html: sceneHtml(s, 'sitfloor', cfg.foes('aim')) });
+  attacked();
 }
 const setRel0 = (cfg, d) => { if (cfg.g) setRel(cfg.g, d); };
 function danger(cfg) {
+  DANGER_AT = Date.now();
   const { s, e } = cfg; cfg.e = e; const give = cfg.want ? canGive(cfg) : null; const ch = [];
   ch.push({ label: 'Fight' + fatal(s), fn() { setTimeout(() => weaponWheel(cfg), 0); return ''; } });
   if (cfg.want) {
@@ -2735,7 +2928,7 @@ function encPatrol(L, s, e) {
   danger({ s, e, title: 'Patrol', intro: far ? `A torch beam finds you from across the room. Somebody shouts. ${n > 1 ? 'They are' : 'He is'} coming.` : `Torch beams. Voices. ${n > 1 ? n + ' armed men sweep' : 'An armed man sweeps'} the corridor. You are in their path.`, foes, plKind: 'sneak', foeKind: 'walk', F, killer: 'Shot by a patrol.', mercy: 0.15, cruel: 0.5, want: { bag: 'all' }, giveText: 'They go through it quickly, take what they want, and wave you away like a stray.', drops: patrolDrops,
     extra: [
       { label: `Hide${oddsText(hide.p)}${fatal(s)}`, fn() { if (chance(hide.p)) { e.msg = 'They pass. You count to a thousand.'; showScene('They pass', `Their torches slide over the wall above you. Boots. A cough. Then the corridor is empty.`, s, 'sitfloor', foes('walk')); return ''; } hurt(s, rnd(10, 25), 'Shot by a patrol.'); showScene('Found', `A torch swings back and stops on you. A beating. You crawl away.${loseBag()}`, s, 'sitfloor', foes('aim')); return ''; } },
-      { label: `Run${oddsText(run.p)}${fatal(s)}`, fn() { e.noise += 3; const t = loseBag(); if (chance(run.p)) { showScene('You get away', `Something whines past your ear. You do not stop.${t}`, s, 'run', foes('aim')); return ''; } hurt(s, far ? rnd(5, 12) : rnd(8, 20), 'Shot while running.'); showScene('Not fast enough', far ? `A burst chews the wall beside you, and one round clips your arm.${t}` : `A burst. A burning line across your back.${t}`, s, 'limp', foes('aim')); return ''; } }
+      { label: `Run${oddsText(run.p)}${fatal(s)}`, fn() { e.noise += 3; flee(e); const t = loseBag(); if (chance(run.p)) { showScene('You get away', `Something whines past your ear. You do not stop until you are home.${t}`, s, 'run', foes('aim')); return ''; } const b0 = s.hp; hurt(s, far ? rnd(5, 12) : rnd(8, 20), 'Shot while running.'); showScene('Not fast enough', (far ? `A burst chews the wall beside you, and one round clips your arm. You keep running.${t}` : `A burst. A burning line across your back. You keep running.${t}`) + hurtLine(s, b0), s, 'limp', foes('aim')); return ''; } }
     ] });
 }
 function encRival(L, s, e) {
@@ -2750,7 +2943,7 @@ function encHostile(g, L, s, e) {
   const foes = (k) => sps.map((sp) => ({ sp, kind: k, state: 'ok' })); const F = 0.9 + g.size * 0.12;
   const toll = { food: clamp(Math.ceil(g.size / 8), 1, 3), water: 1 };
   danger({ s, e, g, title: g.name, intro: `You walked into ${g.name}'s floor. They were waiting. ${g.size} of them. Somebody has a blade.`, foes, foeKind: 'aim', F, killer: 'Killed by ' + g.name + '.', mercy: g.att === 'predatory' ? 0.05 : 0.2, cruel: g.att === 'predatory' ? 0.7 : 0.45, want: { items: toll }, giveText: `They take the toll and move aside. "Do not come back," says the one with the blade.`,
-    onWin: () => { setRel(g, -25); G.flags.groupRaid = g.id; g.size = Math.max(1, g.size - 1); },
+    onWin: (w) => { const f = facOf(g); const dead = w !== 'club'; if (f) PO.deed(f, dead ? 'killed' : 'hurt', { by: s.id, tags: dead && f.id === 'gate' ? ['kill_gate'] : [], text: dead ? `${s.name} killed one of ours on our own floor.` : `${s.name} beat one of ours half to death on our own floor.`, heard: dead ? `${s.name} killed someone from ${g.name}.` : `${s.name} beat someone from ${g.name} half to death.` }); else setRel(g, -25); G.flags.groupRaid = g.id; g.size = Math.max(1, g.size - 1); },
     extra: [{ label: 'Try to talk', fn() { const ta = odds(s, 'talk', F + 0.1); if (chance(ta.p)) { setRel(g, 10); showScene('They let you go', `Something in your voice works. They lower the blade.`, s, 'idle', foes('idle')); return ''; } hurt(s, rnd(10, 25), 'Beaten to death by ' + g.name + '.'); showScene('It does not work', `The first blow comes before you finish the sentence.`, s, 'sitfloor', foes('aim')); return ''; } }] });
 }
 
@@ -2825,6 +3018,8 @@ function badgeNames(s) {
   if (s.act && s.act.k === 'watch') b.push('eye');
   return b.slice(0, 2);
 }
+if (CR.Visits) CR.Visits.host = { G: () => G, ask, say, flush, add, inv, alive, person, mood, moodAll, hurt, kill, remember, toReport, barter, stateOf, first: (s) => ST.first(s), travel: (loc) => CAMPUS.travel(G.shelter, loc), sfx };
+if (CR.WorldUI) CR.WorldUI.host = { G: () => G, ask, flush, alive, personPage, portrait: (s) => portrait(s, stateOf(s), 2), knock: () => KNOCK, beyond: worldBeyond };
 if (HOUSE) HOUSE.hooks = { knock: () => tallyKnock(), badges: badgeNames, G: () => G, person, selected: () => G.sel, stateOf, modalOpen: () => modalOpen, step: () => {}, tapPerson, tapStation, tapFloor, yard: yardList };
 
 /* test hook (used by the smoke test; harmless in the browser) */
@@ -2891,12 +3086,12 @@ function pcKey(e) {
   const k = e.key; const menuOpen = CR.Menu && CR.Menu.screen;
   const eat = () => { e.preventDefault(); e.stopImmediatePropagation(); };   /* Esc we used here must not also reach the menu's own Esc */
   if (menuOpen) return;                                                         // the menu handles its own keys
-  if (CR.Wheel && CR.Wheel.isOpen()) { if (k === 'Escape') { eat(); CR.Wheel.close(); } return; }
+  if (CR.Wheel && CR.Wheel.isOpen()) { if (k === 'Escape') { eat(); CR.Wheel.cancel(); } return; }
   if (!G) return;
   if (modalOpen) {
     if (/^[1-9]$/.test(k)) { e.preventDefault(); pcChoose(+k - 1); return; }
     if (k === 'Enter') { const bs = document.querySelectorAll('#modal:not(.hidden) [data-m]'); if (bs.length === 1) { e.preventDefault(); bs[0].click(); } return; }
-    if (k === 'Escape') { const c = document.querySelector('#modal:not(.hidden) .mback'); if (c) { eat(); c.click(); } }
+    if (k === 'Escape') { eat(); modalBack(); }
     return;
   }
   const lower = k.length === 1 ? k.toLowerCase() : k;
@@ -2917,7 +3112,7 @@ function pcKey(e) {
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('mousemove', (e) => { try { pcTip(e); } catch (err) { reportError(err); } }, { passive: true });
   document.addEventListener('keydown', (e) => { try { pcKey(e); } catch (err) { reportError(err); } }, true);
-  document.addEventListener('contextmenu', (e) => { if (isPC() && CR.Wheel && CR.Wheel.isOpen()) { e.preventDefault(); CR.Wheel.close(); return; } if (!isPC() || !G || G.screen !== 'day' || modalOpen) return; if (!(e.target.closest && e.target.closest('.pcshell .stage'))) return; e.preventDefault(); try { pcStop(); } catch (err) { reportError(err); } });
+  document.addEventListener('contextmenu', (e) => { if (isPC() && CR.Wheel && CR.Wheel.isOpen()) { e.preventDefault(); CR.Wheel.cancel(); return; } if (!isPC() || !G || G.screen !== 'day' || modalOpen) return; if (!(e.target.closest && e.target.closest('.pcshell .stage'))) return; e.preventDefault(); try { pcStop(); } catch (err) { reportError(err); } });
 }
 if (typeof window !== 'undefined') window.__crisis = { dayCard, save, radioNews, dropDawn, intelOf, priceMul, guestDawn, useStation, hurt, wearTool, wearWord, sitePiles, POOL, LOCS, personPage, cupboardSheet, rescueRumour, calendarDawn, arcDawn, arcPhase, dateStr, priceMul, epilogue, renderEnd, collectorVisit, mkState, evTrade, barter, tapStation, strangersReturn, exposeDeeds, othersScavenge, readTrace, tellSheet, kill, raidWarn, forceEnc, nightRoles, openWheel, goHome, get G() { return G; }, get KNOCK() { return KNOCK; }, get modalOpen() { return modalOpen; }, newGame, act, Q, dawn: dawnV2, nextModal, host, Sim: CR.Sim, stepV2, tapStation, tapFloor, tapPerson, doorSheet, pickDest, sendOut, startControlled, returnParties, lookSheet, homeMenu, get modalOpen() { return modalOpen; } };
 render();

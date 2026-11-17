@@ -13,7 +13,7 @@ const add = (c) => list.push(c);
 
 add({
   id: 'chidera', name: 'Chidera', sex: 'f', age: 20, arch: 'girl_nursing', ov: { skin: '#8d5a3b', hair: 'braids', hairc: '#14100d' }, role: 'Nursing, 200L', home: 'Enugu', faith: 'christian', trait: 'medic',
-  voice: { base: 'mix', dialect: 'igbo', density: 0.5, faith: 'christian' }, axes: { warm: 0.9, brave: 0.4, funny: 0.4, guard: 0.3, pious: 0.8, order: 0.7 },
+  voice: { level: 1, base: 'mix', dialect: 'igbo', density: 0.5, faith: 'christian' }, axes: { warm: 0.9, brave: 0.4, funny: 0.4, guard: 0.3, pious: 0.8, order: 0.7 },
   bio: `Second-year nursing student from Enugu. Hums hymns while she works. Keeps a small notebook and will not say what is in it.`, wants: `to become the nurse her father never had`, fears: `a patient she cannot save`,
   acts: ['writing in her notebook', 'humming a hymn', 'folding bandages', 'praying the rosary'],
   ties: [['segun', 'fellowship friends', 25], ['funke', 'church choir', 20]],
@@ -34,7 +34,7 @@ add({
 
 add({
   id: 'tunde', name: 'Tunde', sex: 'm', age: 22, arch: 'boy_law', ov: { skin: '#6b4429', hair: 'fade', hairc: '#0f0b08', glasses: '#17120e' }, role: 'Law, 300L', home: 'Ibadan', faith: 'christian', trait: 'hustler',
-  voice: { base: 'en', dialect: 'yoruba', density: 0.35, faith: 'christian' }, axes: { warm: 0.6, brave: 0.6, funny: 0.6, guard: 0.5, pious: 0.4, order: 0.9 },
+  voice: { level: 0, base: 'en', dialect: 'yoruba', density: 0.35, faith: 'christian' }, axes: { warm: 0.6, brave: 0.6, funny: 0.6, guard: 0.5, pious: 0.4, order: 0.9 },
   bio: `Third-year law student who argues with everyone and enjoys it. Believes in rules because he has seen what happens without them.`, wants: `to become a human rights lawyer`, fears: `turning into his father`,
   acts: ['reading a ruined law textbook', 'rehearsing an argument aloud', 'sorting the supplies by priority', 'mending his glasses with tape'],
   ties: [['ngozi', 'same lecture hall, always disagreeing', 5], ['hauwa', 'debate society rivals', 15]],
@@ -55,7 +55,7 @@ add({
 
 add({
   id: 'bashir', name: 'Bashir', sex: 'm', age: 23, arch: 'boy_hoodie', ov: { skin: '#8d5a3b', hair: 'twists', hairc: '#0f0b08', head: null }, role: 'Mass Comm, 300L', home: 'Kaduna', faith: 'muslim', trait: 'runner',
-  voice: { base: 'pg', dialect: 'hausa', density: 0.55, faith: 'muslim' }, axes: { warm: 0.75, brave: 0.5, funny: 0.95, guard: 0.7, pious: 0.6, order: 0.3 },
+  voice: { level: 2, base: 'pg', dialect: 'hausa', density: 0.55, faith: 'muslim' }, axes: { warm: 0.75, brave: 0.5, funny: 0.95, guard: 0.7, pious: 0.6, order: 0.3 },
   bio: `Mass Comm student who narrates everything like a radio presenter. The jokes get louder when he is afraid.`, wants: `to host the morning show`, fears: `silence`,
   acts: ['doing a mock broadcast to nobody', 'tapping out a beat on a bucket', 'telling a story with too many voices', 'staring at the wall'],
   ties: [['emeka', 'roommates', 35], ['amina', 'neighbours from Kaduna', 15]],
@@ -76,7 +76,7 @@ add({
 
 add({
   id: 'amina', name: 'Amina', sex: 'f', age: 21, arch: 'girl_hijab', ov: { skin: '#a8714a', head: 'hijab', headc: '#2f6f55' }, role: 'Pharmacy, 300L', home: 'Kano', faith: 'muslim', trait: 'sleeper',
-  voice: { base: 'en', dialect: 'hausa', density: 0.3, faith: 'muslim' }, axes: { warm: 0.5, brave: 0.65, funny: 0.2, guard: 0.75, pious: 0.85, order: 0.95 },
+  voice: { level: 0, base: 'en', dialect: 'hausa', density: 0.3, faith: 'muslim' }, axes: { warm: 0.5, brave: 0.65, funny: 0.2, guard: 0.75, pious: 0.85, order: 0.95 },
   bio: `Pharmacy student who reads every label twice. Prays on time, even now. She watches the door while others sleep.`, wants: `to fix the drug supply in her country`, fears: `making a mistake that kills someone`,
   acts: ['reading medicine labels', 'praying on a folded sheet', 'counting tablets', 'sitting upright, watching the door'],
   ties: [['hauwa', 'northern sisters in a southern school', 35], ['bashir', 'neighbours from the north', 15]],
@@ -97,7 +97,7 @@ add({
 
 add({
   id: 'emeka', name: 'Emeka', sex: 'm', age: 24, arch: 'boy_nerd', ov: { skin: '#a8714a', hair: 'short', glasses: '#17120e' }, role: 'Computer Science, 400L', home: 'Onitsha', faith: 'christian', trait: 'fragile',
-  voice: { base: 'mix', dialect: 'igbo', density: 0.35, faith: 'christian' }, axes: { warm: 0.55, brave: 0.3, funny: 0.45, guard: 0.6, pious: 0.4, order: 0.6 },
+  voice: { level: 1, base: 'mix', dialect: 'igbo', density: 0.35, faith: 'christian' }, axes: { warm: 0.55, brave: 0.3, funny: 0.45, guard: 0.6, pious: 0.4, order: 0.6 },
   bio: `Fourth-year computer science student who fixes things and apologises while doing it. Cannot stand being useless.`, wants: `to leave Nigeria`, fears: `being ordinary and stuck`,
   acts: ['soldering a wire with a heated nail', 'taking a radio apart', 'drawing circuits in the dust', 'staring at a dead laptop'],
   ties: [['bashir', 'roommates', 35], ['ngozi', 'she once bought his hacked software', 5]],
@@ -118,7 +118,7 @@ add({
 
 add({
   id: 'ngozi', name: 'Ngozi', sex: 'f', age: 19, arch: 'girl_fashion', ov: { skin: '#c68a5c', hair: 'weave', hairc: '#14100d' }, role: 'Business Admin, 100L', home: 'Lagos', faith: 'christian', trait: 'hustler',
-  voice: { base: 'pg', dialect: 'igbo', density: 0.45, faith: 'christian' }, axes: { warm: 0.55, brave: 0.7, funny: 0.8, guard: 0.7, pious: 0.5, order: 0.3 },
+  voice: { level: 2, base: 'pg', dialect: 'igbo', density: 0.45, faith: 'christian' }, axes: { warm: 0.55, brave: 0.7, funny: 0.8, guard: 0.7, pious: 0.5, order: 0.3 },
   bio: `First-year student who sells things. Hair, data, snacks, secrets. Her laughter is a performance and she knows it.`, wants: `her own fashion brand`, fears: `being poor again`,
   acts: ['re-braiding her own hair', 'counting an imaginary profit', 'applying lip gloss in a cracked mirror', 'sorting cloth by colour'],
   ties: [['tunde', 'argue in the same lecture hall', 5], ['obinna', 'neighbours in Lagos', 20]],
@@ -139,7 +139,7 @@ add({
 
 add({
   id: 'segun', name: 'Segun', sex: 'm', age: 25, arch: 'boy_fellowship', ov: { skin: '#6b4429', hair: 'short', hairc: '#0f0b08' }, role: 'Microbiology, 400L', home: 'Abeokuta', faith: 'christian', trait: 'devout',
-  voice: { base: 'en', dialect: 'yoruba', density: 0.5, faith: 'christian' }, axes: { warm: 0.7, brave: 0.5, funny: 0.4, guard: 0.5, pious: 0.95, order: 0.7 },
+  voice: { level: 1, base: 'en', dialect: 'yoruba', density: 0.5, faith: 'christian' }, axes: { warm: 0.7, brave: 0.5, funny: 0.4, guard: 0.5, pious: 0.95, order: 0.7 },
   bio: `Fellowship leader who prays aloud and sings off-key. People lean on him. He has not told anyone he is empty.`, wants: `to believe again`, fears: `being exposed as a fraud`,
   acts: ['reading a worn Bible', 'praying under his breath', 'leading a hymn nobody asked for', 'looking at the ceiling'],
   ties: [['chidera', 'fellowship friends', 25], ['funke', 'same church', 25]],
@@ -160,7 +160,7 @@ add({
 
 add({
   id: 'hauwa', name: 'Hauwa', sex: 'f', age: 22, arch: 'girl_natural', ov: { skin: '#4a2e1c', hair: 'afro', hairc: '#0f0b08' }, role: 'Political Science, 300L', home: 'Maiduguri', faith: 'muslim', trait: 'hardened',
-  voice: { base: 'pg', dialect: 'hausa', density: 0.5, faith: 'muslim' }, axes: { warm: 0.45, brave: 0.95, funny: 0.5, guard: 0.85, pious: 0.7, order: 0.5 },
+  voice: { level: 0, base: 'pg', dialect: 'hausa', density: 0.5, faith: 'muslim' }, axes: { warm: 0.45, brave: 0.95, funny: 0.5, guard: 0.85, pious: 0.7, order: 0.5 },
   bio: `From Borno. She has been afraid before and learned its shape. She is the calmest person in the room when it is worst.`, wants: `to govern, one day, and mean it`, fears: `being helpless again`,
   acts: ['sharpening a stick', 'checking the exits', 'teaching someone to be quiet', 'sitting with her back to the wall'],
   ties: [['amina', 'northern sisters', 35], ['tunde', 'debate rivals', 15]],
@@ -181,7 +181,7 @@ add({
 
 add({
   id: 'obinna', name: 'Obinna', sex: 'm', age: 23, arch: 'boy_gym', ov: { skin: '#6b4429', hair: 'fade', hairc: '#0f0b08', build: 'broad' }, role: 'Economics, 200L', home: 'Nnewi', faith: 'christian', trait: 'strong',
-  voice: { base: 'pg', dialect: 'igbo', density: 0.5, faith: 'christian' }, axes: { warm: 0.65, brave: 0.5, funny: 0.7, guard: 0.6, pious: 0.5, order: 0.4 },
+  voice: { level: 2, base: 'pg', dialect: 'igbo', density: 0.5, faith: 'christian' }, axes: { warm: 0.65, brave: 0.5, funny: 0.7, guard: 0.6, pious: 0.5, order: 0.4 },
   bio: `Gym boy with a big laugh and a small voice when he is alone. Plays strong. Would rather be useful than admired.`, wants: `to play professional football`, fears: `being a coward`,
   acts: ['doing push-ups against the wall', 'tying and retying his shoelaces', 'flexing at his shadow', 'kicking a rolled-up sock'],
   ties: [['ngozi', 'neighbours in Lagos, flirting', 20], ['bashir', 'gym partners', 20]],
@@ -202,7 +202,7 @@ add({
 
 add({
   id: 'funke', name: 'Funke', sex: 'f', age: 20, arch: 'girl_church', ov: { skin: '#a8714a', hair: 'bun', hairc: '#14100d', head: 'headtie', headc: '#8a3a8a' }, role: 'Mass Comm, 200L', home: 'Osogbo', faith: 'christian', trait: 'cook',
-  voice: { base: 'en', dialect: 'yoruba', density: 0.35, faith: 'christian' }, axes: { warm: 0.85, brave: 0.35, funny: 0.45, guard: 0.5, pious: 0.7, order: 0.6 },
+  voice: { level: 1, base: 'en', dialect: 'yoruba', density: 0.35, faith: 'christian' }, axes: { warm: 0.85, brave: 0.35, funny: 0.45, guard: 0.5, pious: 0.7, order: 0.6 },
   bio: `Soft-spoken, always feeding somebody. Hums while she stirs. Keeps one hand on her stomach and does not know she is doing it.`, wants: `a family and a quiet kitchen`, fears: `being a burden`,
   acts: ['stirring a pot', 'humming', 'writing in a small diary', 'resting one hand on her belly'],
   ties: [['segun', 'same church', 25], ['chidera', 'choir', 20]],
@@ -223,7 +223,7 @@ add({
 
 add({
   id: 'dan', name: 'Dan', sex: 'm', age: 21, arch: 'boy_hustler', ov: { skin: '#8d5a3b', hair: 'cornrows', hairc: '#0f0b08', head: 'cap', headc: '#2a2a30', chain: true }, role: 'Architecture, 200L', home: 'Makurdi', faith: 'christian', trait: 'runner',
-  voice: { base: 'pg', dialect: null, density: 0, faith: 'christian', tag: 'my guy' }, axes: { warm: 0.6, brave: 0.4, funny: 0.8, guard: 0.85, pious: 0.3, order: 0.1 },
+  voice: { level: 2, base: 'pg', dialect: null, density: 0, faith: 'christian', tag: 'my guy' }, axes: { warm: 0.6, brave: 0.4, funny: 0.8, guard: 0.85, pious: 0.3, order: 0.1 },
   bio: `Smooth, quick, and always three steps ahead of the truth. Everyone likes him. Nobody quite knows him.`, wants: `to clear his debt and be free`, fears: `being found out`,
   acts: ['shuffling a deck of cards', 'whistling', 'checking the door twice', 'counting something in his head'],
   ties: [['ngozi', 'does business with her', 15], ['obinna', 'play cards', 15]],
@@ -244,7 +244,7 @@ add({
 
 add({
   id: 'ada', name: 'Mama Ada', sex: 'f', age: 46, arch: 'cafe_woman', ov: { skin: '#6b4429', hair: 'short', hairc: '#b8b4aa', head: 'headtie', headc: '#c8832b' }, role: 'Cafeteria staff', home: 'Awka', faith: 'christian', trait: 'cook',
-  voice: { base: 'pg', dialect: 'igbo', density: 0.7, faith: 'christian' }, axes: { warm: 0.95, brave: 0.7, funny: 0.7, guard: 0.35, pious: 0.75, order: 0.7 },
+  voice: { level: 4, lines: {"A pot is never empty if somebody loves it.": "Pot wey person love no dey ever empty.", "My child, come. Sit. You have not eaten.": "My pikin, come siddon. You neva chop.", "Wash your hands before you touch my food.": "Go wash your hand before you touch my food o.", "Do not look at me. Look at the children.": "No look me. Look the pikin dem.", "I have eaten. I always have. Believe me.": "I don chop. I no dey miss am. Believe me.", "God, cover us with your wings. Quick, quick.": "God, cover us with your wings. Quick quick.", "Come, come, hide behind me. Quickly.": "Come, come, hide for my back. Sharp sharp.", "That is the sound of full bellies. Beautiful.": "Na so belle wey full dey sound. E fine well well.", "A hot meal. For a day, it is a feast.": "Hot food. For one day, na feast.", "Oh no. Another child.": "Chai. Another pikin.", "I fed him for three years. Three years.": "Na me feed am for three years. Three years.", "I sing so they will sleep.": "I dey sing make dem sleep.", "Leave a little light. Children are afraid of the dark.": "Leave small light. Pikin dey fear dark."}, base: 'pg', dialect: 'igbo', density: 0.7, faith: 'christian' }, axes: { warm: 0.95, brave: 0.7, funny: 0.7, guard: 0.35, pious: 0.75, order: 0.7 },
   bio: `The woman who fed half the campus for eleven years. Everyone is "my child" to her. She limps and says she does not.`, wants: `to see her children again`, fears: `running out of food in front of children`,
   acts: ['counting the last of the rice', 'wiping a spoon on her wrapper', 'singing an old Igbo lullaby', 'sitting down, finally'],
   ties: [['funke', 'she fed her every day', 25], ['obinna', 'he ate three plates a day', 30]],
@@ -265,7 +265,7 @@ add({
 
 add({
   id: 'bello', name: 'Mr. Bello', sex: 'm', age: 52, arch: 'guard', ov: { skin: '#4a2e1c', hair: 'short', hairc: '#b8b4aa', beard: 'stache' }, role: 'Security guard', home: 'Ilorin', faith: 'muslim', trait: 'sleeper',
-  voice: { base: 'pg', dialect: 'yoruba', density: 0.6, faith: 'muslim' }, axes: { warm: 0.55, brave: 0.7, funny: 0.4, guard: 0.8, pious: 0.8, order: 0.9 },
+  voice: { level: 4, lines: {"Everything is in order. For now.": "Everything dey in order. For now.", "I check the door every hour. Habit.": "I dey check the door every hour. Na habit.", "Quiet. Listen. That is the generator house.": "Quiet. Listen. Na generator house be dat.", "A soldier eats when he can.": "Soldier dey chop when e fit.", "I have had smaller meals in worse places.": "I don chop smaller food for place wey worse pass dis.", "Down. Quietly. Away from the window.": "Down. Quiet. Comot for window.", "I have seen this before. Stay behind me.": "I don see dis kind thing before. Stay for my back.", "A cup of tea. Good.": "Cup of tea. E good.", "Today, a good day. Let us be grateful.": "Today na good day. Alhamdulillah.", "Another one. Another one.": "Another one. Another one.", "I should have been there. I should always have been there.": "I for dey there. I for always dey there.", "I keep the watch. I always did.": "I dey keep watch. Na wetin I always do.", "Sleep. I am awake.": "Una sleep. I dey here."}, base: 'pg', dialect: 'yoruba', density: 0.6, faith: 'muslim' }, axes: { warm: 0.55, brave: 0.7, funny: 0.4, guard: 0.8, pious: 0.8, order: 0.9 },
   bio: `The guard from the main gate. Quiet, polite, careful with his words and his cigarettes. Knows the campus better than anyone alive.`, wants: `to see his grandchildren`, fears: `being remembered for the night he ran`,
   acts: ['polishing a scuffed boot', 'checking his baton', 'staring at the gate through a window', 'whistling softly'],
   ties: [['ada', 'ate at her kitchen every day for eleven years', 30], ['hauwa', 'she asks him about the layout', 10]],
@@ -286,7 +286,7 @@ add({
 
 add({
   id: 'grace', name: 'Dr. Grace', sex: 'f', age: 38, arch: 'lect_f', ov: { skin: '#8d5a3b', hair: 'short', hairc: '#0f0b08', head: 'headtie', headc: '#2d5fa0', glasses: '#17120e' }, role: 'Lecturer, Chemistry', home: 'Owerri', faith: 'christian', trait: 'hardened',
-  voice: { base: 'en', dialect: 'igbo', density: 0.25, faith: 'christian' }, axes: { warm: 0.5, brave: 0.7, funny: 0.3, guard: 0.7, pious: 0.55, order: 0.85 },
+  voice: { level: 1, base: 'en', dialect: 'igbo', density: 0.25, faith: 'christian' }, axes: { warm: 0.5, brave: 0.7, funny: 0.3, guard: 0.7, pious: 0.55, order: 0.85 },
   bio: `A chemistry lecturer who thinks in systems and speaks in complete sentences. Was supposed to be on leave. The siege found her instead.`, wants: `to protect her students`, fears: `failing the ones who trusted her`,
   acts: ['writing a plan on the back of an exam script', 'cleaning her glasses', 'organising a supply list', 'quietly rubbing her temples'],
   ties: [['tunde', 'her best student, argues with her', 30], ['chidera', 'taught her first-year chemistry', 25]],

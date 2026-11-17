@@ -206,7 +206,7 @@ function abort(p) {
   if (a.job && a.job.k === 'build') { const q = (G().bq || []).find((x) => x.id === a.job.id); if (q) { q.who = 0; q.prog = Math.max(q.prog, 0); } }
   if (a.k === 'sleep') p.sleeping = false;
   /* two people sitting or talking together: when one is called away, the other gets up too */
-  if (a.k === 'chat' && a.job && a.job.with && !abort.pair) { const o = byId(a.job.with); if (o && o.act && o.act.k === 'chat' && o.act.job && o.act.job.with === p.id) { abort.pair = 1; try { abort(o); } finally { abort.pair = 0; } } }
+  if (!abort.pair) { const tied = G().S.filter((o) => o !== p && o.act && o.act.k === 'chat' && o.act.job && o.act.job.with === p.id); if (tied.length) { abort.pair = 1; try { tied.forEach(abort); } finally { abort.pair = 0; } } }   /* whoever was talking or sitting with them stops too, whatever they themselves were doing */
   /* cancelled mid-walk or mid-climb: they stay where they actually are, not where the walk began */
   if (a.ph < 3) { const pos = posOf(p, acc); p.f = Math.abs(pos.f - Math.round(pos.f)) < 0.05 ? Math.round(pos.f) : pos.f; p.x = pos.x; p.up = pos.up || 0; if (G().t + acc >= a.tW && a.to.up > 0) p.lx = a.to.lx; p.at = null; }
   p.act = null;
@@ -279,7 +279,9 @@ function startJob(p, job) {
 }
 
 /* ---------- decision rule ---------- */
-const wantsWatch = (p, t) => { const h = hourOf(t) + minOf(t) / 60; if (p.shift === 'early') return h >= 20 || h < 1; if (p.shift === 'late') return h >= 1 && h < 5.5; if (p.shift === 'all') return h >= 20 || h < 5.5; return false; };
+/* nobody stands watch who should be lying down: too weak, bedridden, bleeding from an open deep wound, or properly sick */
+function watchWhy(p) { if (!p || !p.alive) return 'is gone'; if (p.hp < 35) return 'can barely stand'; if (bedridden(p)) return 'needs to lie down'; if (p.wnd && p.wnd.lvl >= 2 && !dressed(p)) return 'is bleeding. The wound needs dressing first'; if (p.ill && p.ill.lvl >= 2) return 'is too sick to keep watch'; return ''; }
+const wantsWatch = (p, t) => { if (watchWhy(p)) return false; const h = hourOf(t) + minOf(t) / 60; if (p.shift === 'early') return h >= 20 || h < 1; if (p.shift === 'late') return h >= 1 && h < 5.5; if (p.shift === 'all') return h >= 20 || h < 5.5; return false; };
 function mealsLow() { const n = home().length; return have('meal') < Math.max(2, n * 0.8); }
 function someoneCooking() { return G().S.some((s) => s.act && s.act.k === 'cook'); }
 function pickNext(p) {
@@ -290,7 +292,7 @@ function pickNext(p) {
   /* 1. emergencies */
   if (p.wnd && !dressed(p) && has(p, 'bandage')) { take(p, 'bandage'); self('dress a wound'); beginAct(p, 'treat', 'table', p.trait === 'medic' ? 4 : 8, 'Dressing a wound', { k: 'treat' }, { interrupt: false }); return; }
   if (needsMeds(p) && has(p, 'meds')) { take(p, 'meds'); self('take medicine'); beginAct(p, 'meds', 'table', 5, 'Taking medicine', { k: 'meds' }, { interrupt: false }); return; }
-  if (p.hp < 20 && p.hunger < 60 && p.thirst < 60) { self('lie down'); beginAct(p, 'sleep', B.infirm ? 'infirm' : bunkFor(p), 90, 'Lying down, weak', { k: 'rest' }); p.sleeping = true; return; }
+  if (p.hp < 20 && p.hunger < 60 && p.thirst < 60) { self('lie down'); beginAct(p, 'sleep', B.infirm && !G().S.some((o) => o !== p && o.act && o.act.st === 'infirm') ? 'infirm' : bunkFor(p), 90, 'Lying down, weak', { k: 'rest' }); p.sleeping = true; return; }
   /* 2. eat */
   const fastNow = p.fasting && hourOf(t) >= 5 && hourOf(t) < 19 && p.hunger < 92;
   if (!fastNow && p.hunger >= 55) {
@@ -300,7 +302,8 @@ function pickNext(p) {
   /* 3. drink */
   if (p.thirst >= 50 && has(p, 'water')) { take(p, 'water'); self('drink'); beginAct(p, 'drink', 'water', 3, 'Drinking', { k: 'drink' }, { interrupt: false }); return; }
   /* 3b. the very ill and the badly hurt lie down between meals */
-  if (bedridden(p) && p.hunger < 60 && p.thirst < 55) { beginAct(p, 'sleep', bedFor(p), 120, 'Lying down, too ill to stand', { k: 'rest' }); p.sleeping = true; return; }
+  /*    (eating and drinking were just offered above: if they did not get up for food, they stay down, never up and idle or working) */
+  if (bedridden(p) || p.hp < 20) { const B2 = G().build; const bed = B2.infirm && !G().S.some((o) => o !== p && o.act && o.act.st === 'infirm') ? 'infirm' : bedFor(p); beginAct(p, 'sleep', bed, p.hunger >= 60 || p.thirst >= 55 ? 60 : 120, bedridden(p) ? 'Lying down, too ill to stand' : 'Lying down, weak', { k: 'rest' }); p.sleeping = true; return; }
   /* your orders come before bed and the watch: send a tired person to the door at night and they go, they do not lie back down */
   while (p.q.length) { const job = p.q.shift(); if (startJob(p, job)) return; }
   /* 4. sleep */
@@ -336,7 +339,7 @@ const LIFE = [
   { k: 'sit', label: 'Sitting alone', st: 'spot', min: 25, w: (p) => 2, fx(p) { p.fatigue = Math.max(0, p.fatigue - 4); }, lines: ['', '', 'I keep counting the exits.'] },
   { k: 'write', label: 'Writing in a notebook', st: 'spot', min: 30, w: (p) => (p.sp && /nerd|law|hijab/.test(p.arch || '') ? 3 : 1), fx(p) { mood(p, 2); }, lines: ['', 'If anyone finds this...'] },
   { k: 'tinker', label: 'Fixing things', st: 'bench', min: 30, w: (p) => (p.trait === 'strong' || p.trait === 'hustler' ? 2.5 : 0.6), fx(p) { mood(p, 1); }, lines: ['', 'This will hold.'] },
-  { k: 'exercise', label: 'Pushing through press-ups', st: 'spot', min: 15, w: (p) => (p.trait === 'strong' ? 3 : 0.4), fx(p) { mood(p, 2); p.fatigue += 3; }, lines: ['If I stop moving I stop.'] },
+  { k: 'exercise', label: 'Pushing through press-ups', st: 'spot', min: 15, w: (p) => (p.trait === 'strong' ? 3 : 0.4), fx(p) { mood(p, 2); p.fatigue = Math.min(100, p.fatigue + 3); }, lines: ['If I stop moving I stop.'] },
   { k: 'cry', label: 'Crying alone in a corner', st: 'corner', min: 22, w: (p) => (p.mood < 28 ? 6 : p.mood < 45 ? 1.4 : 0.15), fx(p) { mood(p, 5); G().att = clamp((G().att || 0) + 1, 0, 100); }, lines: ['…', 'Nobody can hear me.', ''] },
   { k: 'smoke', label: 'Smoking by the window', st: 'win0', min: 12, w: (p) => (p.cutoff ? 0 : (have('loud') + have('weed') + have('cigarettes') > 0 ? (p.trait === 'devout' && !(p.hab && (p.hab.tob || p.hab.wd)) ? 0 : (p.mood < 45 ? 2.2 : 0.5) + 8 * Math.max(craveOf(p, 'tob'), craveOf(p, 'wd'))) : 0)), fx(p) { const wantT = craveOf(p, 'tob') >= craveOf(p, 'wd'); const k = !wantT && have('loud') > 0 ? 'loud' : !wantT && have('weed') > 0 ? 'weed' : have('cigarettes') > 0 ? 'cigarettes' : have('loud') > 0 && p.mood < 30 ? 'loud' : have('weed') > 0 ? 'weed' : 'loud'; if (have(k) > 0) { H.add(k, -1); useHabit(p, k); } }, lines: ['', 'Just one.', 'Don\'t tell Mummy.', ''] },
   { k: 'drink', label: 'Drinking ogogoro', st: 'table', min: 15, w: (p) => (p.cutoff || (p.trait === 'devout' && !(p.hab && p.hab.alc)) ? 0 : have('ogogoro') > 0 ? (p.mood < 35 ? 2 : 0.3) + 8 * craveOf(p, 'alc') : 0), fx(p) { if (have('ogogoro') > 0) { H.add('ogogoro', -1); useHabit(p, 'ogogoro'); } }, lines: ['', 'To the ones who are not here.', ''] },
@@ -351,7 +354,7 @@ function lifeAct(p) {
   const others = home().filter((o) => o !== p && !isMe(o) && o.alive && (!o.act || (o.act.k === 'life' || o.act.k === 'sit' || o.act.k === 'stare')) && !o.sleeping && !(o.q && o.q.length));
   if (others.length && chance(0.38)) {
     const q = pick(others); const dur = rnd(12, 25); const mx = clamp(p.x, 18, 222);
-    beginAct(p, 'chat', { id: 'meet', f: p.f, x: mx }, dur, 'Talking with ' + q.name, { k: 'chat', with: q.id }); abort(q); beginAct(q, 'chat', { id: 'meetp', f: p.f, x: clamp(mx + (chance(0.5) ? -16 : 16), 10, 230) }, dur + 4, 'Talking with ' + p.name, { k: 'chat', with: p.id }); return;
+    abort(q); beginAct(p, 'chat', { id: 'meet', f: p.f, x: mx }, dur, 'Talking with ' + q.name, { k: 'chat', with: q.id }); beginAct(q, 'chat', { id: 'meetp', f: p.f, x: clamp(mx + (chance(0.5) ? -16 : 16), 10, 230) }, dur + 4, 'Talking with ' + p.name, { k: 'chat', with: p.id }); return;
   }
   const opts = LIFE.map((l) => [l, l.w(p)]).filter((x) => x[1] > 0); let r = R() * opts.reduce((s, x) => s + x[1], 0); let L = opts[0][0];
   for (const [l, w] of opts) { if ((r -= w) < 0) { L = l; break; } }
@@ -385,7 +388,7 @@ function finish(p) {
       break;
     }
     case 'life': if (a.fx) a.fx(p); break;
-    case 'chat': { const o = byId(job.with); if (o && o.alive && H.bond) { H.bond(p, o, job.comfort ? 3 : 1, 0); } mood(p, job.comfort ? 3 : 2); if (job.comfort && o) { mood(o, 5); logT(`${p.name} sat with ${o.name} until the crying stopped.`, 'good'); } if (H.chatLine) say(p, H.chatLine(p, o), 40); break; }
+    case 'chat': { const o = byId(job.with); if (o && o.act && o.act.k === 'chat' && o.act.job && o.act.job.with === p.id && !o.act.job.sit && o.act.job.k !== 'comfort') o.act = null; if (o && o.alive && H.bond) { H.bond(p, o, job.comfort ? 3 : 1, 0); } mood(p, job.comfort ? 3 : 2); if (job.comfort && o) { mood(o, 5); logT(`${p.name} sat with ${o.name} until the crying stopped.`, 'good'); } if (H.chatLine) say(p, H.chatLine(p, o), 40); break; }
     case 'watch': logT(`${p.name} comes off watch.`, ''); break;
     case 'sort': case 'dig': { if (B.junk && B.junk[job.st]) { delete B.junk[job.st]; const got = H.junkFound ? H.junkFound(p, job.st, job.k === 'dig') : {}; if (H.onCleared) H.onCleared(p, job.st, job.k === 'dig', got); mood(p, 2); logT(`${p.name} cleared the ${job.k === 'dig' ? 'rubble' : 'junk'}${Object.keys(got).length ? ': ' + Object.entries(got).map(([k, v]) => v + ' ' + k).join(', ') : ''}.`, 'good'); } break; }
     case 'board': { B.boards = B.boards || {}; B.boards[job.st] = 1; logT(`${p.name} boarded up the window.`, 'good'); if (H.onBuilt) H.onBuilt('board', p); break; }
@@ -416,6 +419,8 @@ function yieldTick() {
 }
 function tickPerson(p) {
   ensure(p);
+  if (p.act && p.act.k === 'watch' && watchWhy(p)) { abort(p); p.shift = null; logT(`${p.name} comes off watch, hurt.`, 'bad'); }   /* hurt on watch: they go and lie down, nobody makes them stay at the window */
+  if (p.act && p.act.k === 'chat' && p.act.job && p.act.job.with) { const o = byId(p.act.job.with); if (!o || !o.alive || o.gone || o.out) abort(p); }   /* the one they were with has died, left or gone out: nobody talks to an empty room */
   if (p.waitStairs) { const w = p.waitStairs; if (!p.act) p.waitStairs = false; else { const ps = posOf(p, 0); const there = !ps.stairs || (w.up ? ps.f >= w.land - 0.001 : ps.f <= w.land + 0.001); if (there) { p.waitStairs = false; if (p.act.interrupt) { const x = ps.x; abort(p); if (ps.stairs) { p.f = w.land; p.x = x; } pickNext(p); } } } }   /* turn at the next landing, not at the end of the climb */
   const t = G().t; const a = p.act;
   const sleeping = !!(a && a.k === 'sleep' && a.walkLeft <= 0); if (sleeping) p.lastBed = a.st;
@@ -457,8 +462,9 @@ function tickPerson(p) {
   if (a.k === 'watch') { if (p.fatigue > 88 && chance(0.004)) { logT(`${p.name} dozed off on watch.`, 'bad'); abort(p); beginAct(p, 'sleep', 'post', 40, 'Dozing at the post', { k: 'sleep' }); p.sleeping = true; return; } }
   if (a.k === 'sleep') {
     const need = p.hunger >= 92 || p.thirst >= 92; const h = hourOf(t) + minOf(t) / 60; const morning = h >= 6 && h < 12;
-    if (p.fatigue <= 12 || (morning && p.fatigue <= 40) || need) { p.sleeping = false; p.act = null; if (need) logT(`${p.name} wakes, desperate for ${p.thirst >= 92 ? 'water' : 'food'}.`, 'bad'); return; }
-    a.left = 600;
+    const rest = !!(a.job && a.job.k === 'rest');   /* lying down hurt or ill is not sleep: it lasts its hour or two however rested they are */
+    if ((!rest && (p.fatigue <= 12 || (morning && p.fatigue <= 40))) || need) { p.sleeping = false; p.act = null; if (need) logT(`${p.name} wakes, desperate for ${p.thirst >= 92 ? 'water' : 'food'}.`, 'bad'); return; }
+    if (!rest) a.left = 600;
   }
   if (a.k === 'cook' && isNight(t)) G().att = clamp((G().att || 0) + 0.12, 0, 100);
   if (a.k === 'life' && a.job && a.job.life === 'cry' && a.walkLeft <= 0 && a.left > 6 && chance(0.012)) {
@@ -663,7 +669,7 @@ function dawn() {
   if (H.onDawn) H.onDawn(day);
 }
 function autoWatch() {
-  const g = G(); const al = home().filter((p) => p.alive && p.hp > 25); if (!al.length) return;
+  const g = G(); const al = home().filter((p) => p.alive && !watchWhy(p)); if (!al.length) return;
   if (al.some((p) => p.shift)) { g.watchSet = true; return; }
   const sorted = al.slice().sort((a, b) => a.fatigue - b.fatigue + (b.trait === 'sleeper' ? 8 : 0) - (a.trait === 'sleeper' ? 8 : 0));
   const need = al.length >= 4 ? 2 : 1;
@@ -807,6 +813,6 @@ function jobsAt(stId, p) {
   return out;
 }
 function init(host) { H = host; }
-C.Sim = { sitWithWhy, lyingDown, costOf, wreck, WRECKABLE, HABIT, HAB_NAME, habitInit, useHabit, craveOf, craving, hooked, habitTick, habitDawn, ILL, sicken, injure, dress, dressed, medicate, needsMeds, bedridden, condition, healthDawn, syncHealth, rollCold, lightFire, coldNight, warmthOf, COLD_WORD, worstTool, NAMEOF, homeNoise, bunkCount, bedFor, init, start, tick, advance, drive, frac, cancelTask, cancelBuild, activeTasks, order, abort, why, jobsAt, stations, posOf, lookout, resolveRaid, autoWatch, dawn, floors, clock, dayOf, hourOf, minOf, phaseOf, isNight, ensure, pickNext, hurt, SPEEDS, BUILDS, CRAFTS, RATE, EFFECT, walkMin, say, get host() { return H; } };
+C.Sim = { watchWhy, sitWithWhy, lyingDown, costOf, wreck, WRECKABLE, HABIT, HAB_NAME, habitInit, useHabit, craveOf, craving, hooked, habitTick, habitDawn, ILL, sicken, injure, dress, dressed, medicate, needsMeds, bedridden, condition, healthDawn, syncHealth, rollCold, lightFire, coldNight, warmthOf, COLD_WORD, worstTool, NAMEOF, homeNoise, bunkCount, bedFor, init, start, tick, advance, drive, frac, cancelTask, cancelBuild, activeTasks, order, abort, why, jobsAt, stations, posOf, lookout, resolveRaid, autoWatch, dawn, floors, clock, dayOf, hourOf, minOf, phaseOf, isNight, ensure, pickNext, hurt, SPEEDS, BUILDS, CRAFTS, RATE, EFFECT, walkMin, say, get host() { return H; } };
 if (typeof module !== 'undefined') module.exports = C.Sim;
 })(typeof window !== 'undefined' ? window : globalThis);

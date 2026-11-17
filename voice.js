@@ -1,93 +1,113 @@
-/* CRISIS — voices
-   Every character has a hidden voice profile. The player is never told what it is; they just hear it.
-     base:    'en' (English)  |  'pg' (Pidgin)  |  'mix' (English that slides into Pidgin when emotional)
-     dialect: null | 'igbo' | 'yoruba' | 'hausa'   (flavour words and address terms, not full sentences)
-     density: 0..1  how often the dialect shows through
-     tag:     a personal catchphrase
-   Authors write lines in plain English. say() turns them into that person's voice, the same way every time.
-   NOTE FOR THE DESIGNER: the Pidgin rules and dialect banks below are a first pass. Please proof them. They live in two tables. */
+/* CRISIS — voices. Lines are written in plain English; say() gives them the speaker's own voice.
+   Grounded in PIDGIN.md (research on Nigerian Pidgin and Nigerian English). The player is never told any of this.
+
+   level  0  English (Nigerian English: sorry, sir/ma, I'm coming). At most a mother-tongue exclamation.
+          1  English; a Pidgin touch only when the line runs hot (fear, anger, grief, a joke)
+          2  English; Pidgin phrases and tags with peers, more when hot
+          3  mixed: whole sentences slide into Pidgin when hot, phrases otherwise
+          4  Pidgin first (older working people): Pidgin is the everyday voice
+   dialect  igbo | yoruba | hausa : exclamations and address words from the mother tongue
+   faith    christian | muslim : a faith phrase now and then
+   Switching follows the research: up into Pidgin for anger, fear, jokes, closeness, food and money;
+   down into English for elders and authority (opts.to: 'elder' | 'authority'), prayer, and the gravest grief. */
 (function (root) {
 'use strict';
 const C = root.Crisis = root.Crisis || {};
 
-/* ---------- stable randomness: same character + same line = same result ---------- */
+/* stable randomness: the same character saying the same line always says it the same way */
 function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
-/* ---------- Pidgin rules (applied in order) ---------- */
-const SUBJ = { i: 'I', we: 'we', you: 'you', they: 'dem', he: 'e', she: 'she', it: 'e' };
-const PG0 = [
-  [/\b(I|we|you|they|he|she|it)(?: am| are| is|'m|'re|'s) going to\b/gi, (m, a) => (SUBJ[a.toLowerCase()] || a) + ' go'],
-  [/\b(?:I am|I'm) (?:so |very |really )?hungry\b/gi, 'Hungry dey catch me'], [/\b(?:am|is|are) (?:so |very |really )?hungry\b/gi, 'dey hungry well well'],
-  [/\b(?:do not|don't) be angry\b/gi, 'no vex'], [/\b(?:do not|don't) worry\b/gi, 'no worry'], [/\b(?:do not|don't) cry\b/gi, 'no cry'],
-  [/\b(?:have not|haven't|has not|hasn't) eaten\b/gi, 'neva chop'], [/\beaten\b/gi, 'chop'],
-  [/\bleave me alone\b/gi, 'leave me o'], [/\bI swear\b/gi, 'I swear down'], [/\bhow are you\b/gi, 'how you dey'], [/\bwhat happened\b/gi, 'wetin happen'], [/\bwhat do you mean\b/gi, 'wetin you mean'],
-  [/\bit is what it is\b/gi, 'na so e be'], [/\b(afraid|scared) of\b/gi, 'fear'], [/\bI am (so |very )?tired\b/gi, 'I don tire'], [/\byou are (so |very )?easy\b/gi, 'you easy'], [/\bwhat I am going to\b/gi, 'wetin I go'], [/\blet us go\b/gi, 'make we go'], [/\blet me\b/gi, 'make I']
+/* ---------- whole phrases first: these are how people actually say them ---------- */
+const PHRASE = [
+  [/\bhow are you( doing)?\b/gi, 'how you dey'], [/\bwhat happened\b/gi, 'wetin happen'], [/\bwhat is (this|that)\b/gi, 'wetin be $1'],
+  [/\bwhat do you want\b/gi, 'wetin you want'], [/\bwhat do you mean\b/gi, 'wetin you mean'], [/\bwhy\b/gi, 'wetin make'],
+  [/\b(?:do not|don't) worry\b/gi, 'no worry'], [/\b(?:do not|don't) be angry( with me)?\b/gi, 'no vex'],
+  [/\blet us go\b|\blet's go\b/gi, 'make we go'], [/\blet me\b/gi, 'make I'], [/\blet us\b|\blet's\b/gi, 'make we'],
+  [/\bget out\b/gi, 'comot'], [/\bleave me alone\b/gi, 'leave me jare'], [/\bit is what it is\b/gi, 'na so e be'], [/\bthat is how it is\b/gi, 'na so e be'],
+  [/\bI (?:do not|don't) know\b/gi, 'I no know'], [/\bI (?:can not|cannot|can't)\b/gi, 'I no fit'], [/\byou (?:can not|cannot|can't)\b/gi, 'you no fit'],
+  [/\b(?:have not|haven't|has not|hasn't) (eaten|slept|seen|come|finished|started)\b/gi, (m, v) => 'neva ' + ({ eaten: 'chop', slept: 'sleep', seen: 'see', come: 'come', finished: 'finish', started: 'start' })[v.toLowerCase()]],
+  [/\b(?:I am|I'm) (hungry|tired|cold|fine|scared|afraid|okay|ok)\b/gi, (m, a) => 'I dey ' + ({ scared: 'fear', afraid: 'fear', ok: 'okay' }[a.toLowerCase()] || a.toLowerCase())],
+  [/\b(?:I am|I'm) (here|home|inside|outside|coming)\b/gi, 'I dey $1'], [/\byou are (here|there|coming)\b/gi, 'you dey $1']
 ];
-const PG = [
-  [/\bI'm\b/gi, 'I am'], [/\byou're\b/gi, 'you are'], [/\bwe're\b/gi, 'we are'], [/\bthey're\b/gi, 'they are'], [/\bhe's\b/gi, 'he is'], [/\bshe's\b/gi, 'she is'], [/\bit's\b/gi, 'it is'], [/\bthat's\b/gi, 'that is'], [/\bthere's\b/gi, 'there is'], [/\bI've\b/gi, 'I have'], [/\bI'll\b/gi, 'I will'], [/\bwe'll\b/gi, 'we will'], [/\byou'll\b/gi, 'you will'], [/\blet's\b/gi, 'let us'], [/\bwon't\b/gi, 'will not'],
-  [/\bcan't\b/gi, 'cannot'], [/\bdon't\b/gi, 'do not'], [/\bdidn't\b/gi, 'did not'], [/\bdoesn't\b/gi, 'does not'], [/\bisn't\b/gi, 'is not'], [/\baren't\b/gi, 'are not'], [/\bwasn't\b/gi, 'was not'], [/\bhaven't\b/gi, 'have not'],
-  [/\bthere is not\b/gi, 'nothing dey'], [/\bis not\b/gi, 'no be'], [/\bare not\b/gi, 'no be'], [/\bwas not\b/gi, 'no be'],
-  [/\bI cannot\b/gi, 'I no fit'], [/\bcannot\b/gi, 'no fit'], [/\bI do not\b/gi, 'I no'], [/\bdo not\b/gi, 'no'], [/\bdid not\b/gi, 'no'], [/\bdoes not\b/gi, 'no'], [/\bhave not\b/gi, 'neva'], [/\bwill not\b/gi, 'no go'],
-  [/\bI am going to\b/gi, 'I go'], [/\bgoing to\b/gi, 'go'], [/\bI am\b/g, 'I dey'], [/\byou are\b/gi, 'you dey'], [/\bwe are\b/gi, 'we dey'], [/\bthey are\b/gi, 'dem dey'], [/\bhe is\b/gi, 'e dey'], [/\bshe is\b/gi, 'she dey'], [/\bit is\b/gi, 'na'], [/\bthat is\b/gi, 'na'], [/\bthere is\b/gi, 'e get'], [/\bthere are\b/gi, 'e get'],
-  [/\bI have been\b/gi, 'I don dey'], [/\bhave been\b/gi, 'don dey'], [/\bI have\b/gi, 'I get'], [/\bwe have\b/gi, 'we get'], [/\byou have\b/gi, 'you get'], [/\bthey have\b/gi, 'dem get'], [/\bI will\b/gi, 'I go'], [/\bwe will\b/gi, 'we go'], [/\byou will\b/gi, 'you go'], [/\bwill\b/gi, 'go'], [/\bcan\b/gi, 'fit'], [/\bhave to\b/gi, 'must'], [/\bwant to\b/gi, 'wan'], [/\bneed to\b/gi, 'must'],
-  [/\bwhat is\b/gi, 'wetin be'], [/\bwhat\b/gi, 'wetin'], [/\bvery\b/gi, 'well well'], [/\bchildren\b/gi, 'pikin dem'], [/\bchild\b/gi, 'pikin'], [/\bkids\b/gi, 'pikin dem'], [/\bfriends\b/gi, 'padi dem'], [/\bfriend\b/gi, 'padi'], [/\bproblem\b/gi, 'wahala'], [/\btrouble\b/gi, 'wahala'], [/\bfood\b/gi, 'chop'], [/\beat\b/gi, 'chop'], [/\bplease\b/gi, 'abeg'], [/\bthem\b/gi, 'dem'], [/\bthey\b/gi, 'dem'], [/\bthose\b/gi, 'dem'], [/\bthese\b/gi, 'dis'], [/\bthis\b/gi, 'dis'], [/\bthat\b/gi, 'dat'],
-  [/\bknow\b/gi, 'sabi'], [/\bunderstand\b/gi, 'sabi'], [/\bmany\b/gi, 'plenty'], [/\ba lot of\b/gi, 'plenty'], [/\bmother\b/gi, 'mama'], [/\bfather\b/gi, 'papa'], [/\bmy mom\b/gi, 'my mama'], [/\bangry\b/gi, 'vex'], [/\bafraid\b/gi, 'fear'], [/\bscared\b/gi, 'fear'], [/\bcrazy\b/gi, 'mad'], [/\bgo home\b/gi, 'go house'], [/\bhurry\b/gi, 'rush'], [/\bsteal\b/gi, 'thief'], [/\bstealing\b/gi, 'thiefing'], [/\bwomen\b/gi, 'women'], [/\bnothing\b/gi, 'notin'], [/\bhello\b/gi, 'how far'], [/\bokay\b/gi, 'ok'], [/\bright\?/gi, 'abi?'], [/\bisn't it\?/gi, 'abi?'],
-  [/\bbecause\b/gi, 'because'], [/\bliving\b/gi, 'dey live'], [/\bwaiting\b/gi, 'dey wait'], [/\bcrying\b/gi, 'dey cry'], [/\bhungry\b/gi, 'hungry'], [/\bcold\b/gi, 'cold'], [/\btired\b/gi, 'tire'], [/\bbeautiful\b/gi, 'fine'], [/\bhandsome\b/gi, 'fine'], [/\bdead\b/gi, 'don die'], [/\bdied\b/gi, 'die'], [/\bdie\b/gi, 'die']
+/* then words, with the grammar the research gives: be = what something is, na = it is (focus), dey = where or a state,
+   don = already, go = will (never the past), neva = not yet, no before the verb */
+const WORD = [
+  [/\b(?:I am|I'm) a\b/gi, 'I be'], [/\byou are a\b/gi, 'you be'], [/\b(?:he|she) is a\b/gi, 'e be'],
+  [/\b(?:it is|it's|that is|that's) not\b/gi, 'no be'], [/\b(?:it is|it's|that is|that's) (?:a |an )?(?=(?:the|my|your|our|his|her|their|this|[A-Z]))/g, 'na '], [/\b(?:It is|It's|That is|That's) (?:a |an )?(?=(?:the|my|your|our|his|her|their|this|[A-Z]))/g, 'Na '],
+  [/\b(?:they|They) will not\b|\b(?:they|They) won't\b/g, 'dem no go'], [/\b(?:will not|won't)\b/gi, 'no go'],
+  [/\b(?:I am|I'm) going to\b/gi, 'I go'], [/\b(?:we are|we're) going to\b/gi, 'we go'], [/\b(?:you are|you're) going to\b/gi, 'you go'], [/\bgoing to\b/gi, 'go'],
+  [/\bI will\b|\bI'll\b/gi, 'I go'], [/\bwe will\b|\bwe'll\b/gi, 'we go'], [/\byou will\b|\byou'll\b/gi, 'you go'], [/\b(?:they will|they'll)\b/gi, 'dem go'],
+  [/\b(?:will not|won't)\b/gi, 'no go'], [/\b(?:do not|don't|does not|doesn't|did not|didn't)\b/gi, 'no'],
+  [/\bI have (already )?(eaten|finished|seen|told you)\b/gi, (m, a, v) => 'I don ' + ({ eaten: 'chop', finished: 'finish', seen: 'see', 'told you': 'tell you' })[v.toLowerCase()]],
+  [/\bthey\b/gi, 'dem'], [/\bthem\b/gi, 'dem'], [/\byou people\b|\byou all\b/gi, 'una'],
+  [/\bchildren\b/gi, 'pikin dem'], [/\bchild\b/gi, 'pikin'], [/\bproblem\b|\btrouble\b/gi, 'wahala'], [/\beat\b/gi, 'chop'],
+  [/\bknow how to\b/gi, 'sabi'], [/\bunderstand\b/gi, 'sabi'], [/\bangry\b/gi, 'vex']
 ];
-const PG_TAILS = ['o', 'sha', 'jare', 'now', 'abeg', 'you hear?', 'abi?', 'na so'];
-
-/* ---------- dialect banks (flavour, not full sentences) ---------- */
-const DIALECT = {
-  igbo: { exclaim: ['Chai!', 'Chineke!', 'Ewoo!', 'Kai!'], sorrow: ['Ewoo.', 'Ndo.', 'Chineke m.'], warm: ['Nne.', 'Nna.', 'My brother.', 'Nwanne m.'], thanks: ['Daalu.', 'Daalu o.'], please: ['Biko.'], agree: ['Ngwa.', 'O di mma.'], swear: ['I swear, o.'], god: ['Chineke.', 'God.'], tags: ['o', 'nna', 'nne', 'biko'], addrM: ['Nna', 'Oga'], addrF: ['Nne', 'Oga'] },
-  yoruba: { exclaim: ['Ah-ah!', 'Ehen!', 'E ma se o!', 'Ha!'], sorrow: ['E pele.', 'Ah, pele.'], warm: ['Omo mi.', 'Egbon mi.', 'My own.'], thanks: ['E se.', 'E se o.'], please: ['Jowo.'], agree: ['O ya.', 'Ehen.'], swear: ['I swear down.'], god: ['Oluwa.', 'God.'], tags: ['o', 'abi', 'jare', 'sha'], addrM: ['Oga', 'Egbon'], addrF: ['Oga', 'Egbon'] },
-  hausa: { exclaim: ['Wallahi!', 'Haba!', 'Kai!', 'Ya Allah!'], sorrow: ['Sannu.', 'Ya Allah.', 'Hakuri.'], warm: ['Dan uwa.', 'My brother.', 'Yaya.'], thanks: ['Na gode.', 'Na gode sosai.'], please: ['Don Allah.'], agree: ['Yauwa.', 'Toh.'], swear: ['Wallahi.'], god: ['Insha Allah.', 'Allah.'], tags: ['wallahi', 'toh', 'haba'], addrM: ['Oga', 'Malam'], addrF: ['Oga', 'Hajiya'] }
-};
-const FAITH = { muslim: { god: ['Insha Allah.', 'Alhamdulillah.', 'Allah ya kiyaye.'], sorrow: ['Innalillahi.'] }, christian: { god: ['God abeg.', 'Jesus.', 'God dey.'], sorrow: ['Lord have mercy.'] } };
-
-/* ---------- transforms ---------- */
-function pidginize(text, r, heat) {
+function pidginize(text) {
   let t = text;
-  PG0.forEach(([re, to]) => { t = t.replace(re, to); });
-  PG.forEach(([re, to]) => { t = t.replace(re, (m) => (/^[A-Z]/.test(m) && to ? to.charAt(0).toUpperCase() + to.slice(1) : to)); });
-  t = t.replace(/\bdi di\b/g, 'di');
-  if (r() < 0.55 * (heat || 1)) t = t.replace(/\bthe\b/gi, (m) => (r() < 0.6 ? (/^T/.test(m) ? 'Di' : 'di') : m));
-  /* sentence tails */
-  t = t.split(/(?<=[.!?])\s+/).map((sn) => (sn.split(/\s+/).length >= 4 && r() < 0.22 * (heat || 1) ? sn.replace(/([a-z])([.!])$/, (m, a2, p2) => a2 + ', ' + PG_TAILS[Math.floor(r() * 3)] + p2) : sn)).join(' ');
+  PHRASE.forEach(([re, to]) => { t = t.replace(re, (...a) => keepCase(a[0], typeof to === 'function' ? to(...a) : a[0].replace(re, to))); });
+  WORD.forEach(([re, to]) => { t = t.replace(re, (...a) => keepCase(a[0], typeof to === 'function' ? to(...a) : to)); });
   return t;
 }
-function mood(text) { if (/\b(yes|ok|okay|fine|alright|agree|sure|fair|good|right)\b/i.test(text) && !/[!]/.test(text)) return 'agree'; if (/!/.test(text)) return 'exclaim'; if (/\b(sorry|lost|dead|died|gone|miss|cry|grave|funeral)\b/i.test(text)) return 'sorrow'; if (/\b(thank|thanks)\b/i.test(text)) return 'thanks'; if (/\b(please)\b/i.test(text)) return 'please'; if (/\b(God|pray|Lord)\b/.test(text)) return 'god'; if (/\b(friend|brother|sister|love)\b/i.test(text)) return 'warm'; return 'plain'; }
-const ENGLISH_ONLY = true;   // the Pidgin and dialect layer is switched off; set false to bring it back
+function keepCase(src, out) { return /^[A-Z]/.test(src) ? out.charAt(0).toUpperCase() + out.slice(1) : out; }
+/* a light touch for English speakers: only safe whole phrases, never grammar */
+const TOUCH = [
+  [/\b(?:do not|don't) worry\b/i, 'no worry'], [/\bwhat happened\b/i, 'wetin happen'],
+  [/\blet us go\b|\blet's go\b/i, 'make we go'], [/\bI (?:do not|don't) know\b/i, 'I no know'], [/\bget out\b/i, 'comot'], [/\bit is what it is\b/i, 'na so e be']
+];
+
+/* ---------- mother tongue, faith, tags ---------- */
+const DIALECT = {
+  igbo: { exclaim: ['Chai!', 'Chineke!'], sorrow: ['Chai.', 'Ndo.'], warm: ['Nne.', 'Nna.'], thanks: ['Daalu.'], please: ['Biko.'] },
+  yoruba: { exclaim: ['Ah-ah!', 'Omo!'], sorrow: ['Pele.', 'E pele.'], warm: ['Omo mi.'], thanks: ['E se.'], please: ['Jowo.'] },
+  hausa: { exclaim: ['Haba!', 'Kai!'], sorrow: ['Sannu.', 'Kai.'], warm: ['Dan uwa.'], thanks: ['Na gode.'], please: ['Don Allah.'] }
+};
+const FAITH = { muslim: ['Insha Allah.', 'Alhamdulillah.'], christian: ['God dey.', 'God help us.'] };
+const TAGS = { 1: ['o'], 2: ['o', 'abi?', 'sha'], 3: ['o', 'abi?', 'sha', 'jare'], 4: ['o', 'abi?', 'sha', 'jare', 'now'] };
+function mood(text) {
+  if (/\b(sorry|lost|dead|died|gone|miss|cry|grave|funeral|buried)\b/i.test(text)) return 'sorrow';
+  if (/\b(thank|thanks)\b/i.test(text)) return 'thanks';
+  if (/\b(please|beg)\b/i.test(text)) return 'please';
+  if (/!/.test(text) || /\b(God|kill|die|blood|run|now|hungry|scared|afraid|angry|hate|lie|liar|thief|stupid)\b/i.test(text)) return 'exclaim';
+  return 'plain';
+}
+const hotOf = (s) => (/[!?]$/.test(s) ? 0.5 : 0) + (/\b(kill|die|dead|blood|hungry|scared|afraid|angry|hate|lie|liar|thief|stupid|joke|laugh|food|money|chop|God)\b/i.test(s) ? 0.5 : 0);
+/* old voice records (base en/mix/pg) map onto levels until every character carries one */
+function levelOf(v) { if (v.level != null) return v.level; return v.base === 'pg' ? 2 : v.base === 'mix' ? 1 : 0; }
+
 function say(voice, text, opts) {
-  opts = opts || {}; if (!voice || ENGLISH_ONLY) return text;
+  opts = opts || {}; if (!voice || !text) return text;
+  if (voice.lines && voice.lines[text] && !(opts.to === 'elder' || opts.to === 'authority')) return voice.lines[text];   /* hand-written lines win */
   const r = rng(hash((opts.id || '') + '|' + text));
-  let t = text, heat = opts.heat != null ? opts.heat : 0.5;
-  if (voice.base === 'pg') t = pidginize(t, r, 1);
-  else if (voice.base === 'mix') {
-    /* English that slides into Pidgin when the feeling runs hot */
-    const sentences = t.split(/(?<=[.!?])\s+/);
-    t = sentences.map((s) => { const hot = /[!]|\b(God|dead|kill|die|hungry|scared|afraid|angry|love|miss|sorry|please)\b/i.test(s); return r() < (hot ? 0.7 : 0.16) + (heat - 0.5) * 0.3 ? pidginize(s, r, 0.8) : s; }).join(' ');
+  let L = levelOf(voice);
+  if (opts.to === 'elder' || opts.to === 'authority') L = Math.max(0, L - 2);   /* in front of elders and authority, English */
+  if (opts.prayer || /\b(pray|Lord|Allah)\b/.test(text)) L = Math.min(L, 1);
+  const heat = opts.heat != null ? opts.heat : 0.5;
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  let t = sentences.map((s) => {
+    const hot = hotOf(s) + (heat - 0.5);
+    if (L >= 4) return pidginize(s);
+    if (L === 3) return r() < 0.35 + hot * 0.5 ? pidginize(s) : s;
+    if (L >= 1) {   /* English with a touch: one safe phrase, only when the line runs hot (level 1) or now and then (level 2) */
+      const p = L === 2 ? 0.25 + hot * 0.45 : hot * 0.45;
+      if (r() < p) { for (const [re, to] of TOUCH) if (re.test(s)) return s.replace(re, (m) => keepCase(m, to)); }
+    }
+    return s;
+  }).join(' ');
+  /* one tag at most, at the end, never on a question already tagged */
+  if (L >= 1 && TAGS[L] && r() < (L >= 3 ? 0.3 : L === 2 ? 0.16 : 0.06) && /[a-z][.!]$/.test(t) && t.split(/\s+/).length >= 4) {
+    const tg = TAGS[L][Math.floor(r() * TAGS[L].length)]; t = tg.endsWith('?') ? t.replace(/[.!]$/, ', ' + tg) : t.replace(/([a-z])([.!])$/, '$1 ' + tg + '$2');
   }
-  /* dialect flavour */
-  const D = voice.dialect && DIALECT[voice.dialect];
-  if (D && r() < (voice.density || 0.4)) {
-    const m = opts.mood || mood(text);
-    if (m === 'plain') { const tg = D.tags[Math.floor(r() * D.tags.length)]; t = t.replace(/([.!?])$/, ', ' + tg + '$1'); }
-    else { const bank = D[m] || D.warm; const w = bank[Math.floor(r() * bank.length)];
-    if (m === 'exclaim' || m === 'sorrow' || m === 'god') t = (r() < 0.6 ? w + ' ' + t : t + ' ' + w); else if (m === 'thanks' || m === 'please' || m === 'warm') t = t + ' ' + w; else t = w + ' ' + t; }
-  }
-  if (voice.faith && FAITH[voice.faith] && /\b(God|pray|safe|tomorrow|rescue)\b/i.test(text) && r() < 0.35) { const f = FAITH[voice.faith].god; t += ' ' + f[Math.floor(r() * f.length)]; }
-  /* personal tag, now and then */
-  if (voice.tag && r() < 0.14) t = t.replace(/([.!?])$/, ', ' + voice.tag + '$1');
+  /* the mother tongue: an exclamation or word, only when the line asks for it */
+  const D = voice.dialect && DIALECT[voice.dialect]; const m = opts.mood || mood(text);
+  if (D && m !== 'plain' && D[m] && r() < [0.06, 0.1, 0.15, 0.22, 0.32][L]) { const w = D[m][Math.floor(r() * D[m].length)]; t = m === 'thanks' || m === 'please' ? t + ' ' + w : w + ' ' + t; }
+  if (voice.faith && FAITH[voice.faith] && /\b(God|pray|safe|tomorrow|rescue|alive)\b/i.test(text) && r() < 0.25) t += ' ' + FAITH[voice.faith][Math.floor(r() * 2)];
+  if (voice.tag && r() < 0.1 && /[a-z][.!]$/.test(t)) t = t.replace(/([.!])$/, ', ' + voice.tag + '$1');
   t = t.replace(/\s{2,}/g, ' ').replace(/ ,/g, ',').trim();
-  return t.replace(/(^|[.!?]\s+)([a-z])/g, (m, a, b) => a + b.toUpperCase());
+  return t.replace(/(^|[.!?]\s+)([a-z])/g, (mm, a, b) => a + b.toUpperCase());
 }
-function address(voice, sex) {   /* what they call the commander */
-  const D = voice && voice.dialect && DIALECT[voice.dialect];
-  const base = voice && voice.base === 'en' ? ['Commander', 'Sir', 'Chief'] : ['Oga', 'Chief', 'Boss'];
-  if (D && Math.random() < 0.0) return (sex === 'f' ? D.addrF : D.addrM)[0];
-  return base;
-}
-C.Voice = { say, pidginize, hash, rng, DIALECT, address };
+function address(voice) { const L = voice ? levelOf(voice) : 0; return L >= 3 ? ['Oga', 'Chief'] : ['Sir', 'Chief']; }
+C.Voice = { say, pidginize, hash, rng, DIALECT, address, levelOf };
 if (typeof module !== 'undefined') module.exports = C.Voice;
 })(typeof window !== 'undefined' ? window : globalThis);

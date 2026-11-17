@@ -50,7 +50,7 @@ P.init = function (host, party) {
   });
   G.fac.forEach((f) => { G.fac.forEach((o) => { if (o.id !== f.id) f.op[o.id] = K().opinion[f.id + '|' + o.id] || 0; }); });
   /* your people vouch for their own: a faction that lost a member to your party starts warm toward you */
-  G.fac.forEach((f) => { f.p = f.missing.length * 14; });
+  G.fac.forEach((f) => { f.p = f.missing.length * 14; if (f.missing.length) f.met = true; });
   G.zones = Object.fromEntries(Object.entries(cast.zones).map(([k, z]) => [k, { id: k, name: z.name, holder: z.holder, claimants: z.claimants.slice(), tension: rnd(8, 25), since: 1, last: 0, note: z.note }]));
   G.ledger = []; G.pacts = []; G.wars = []; G.rumors = []; G.envoys = []; G.rep = { honor: 0, fear: 0, wealth: 0 };
   /* if a zone holder is missing its leader, nothing changes; holder always exists */
@@ -65,15 +65,18 @@ P.sync = function () {
     if (!g) { g = { id: i + 1, fid: f.id, name: f.name, loc: f.loc, size: size(f), att: 'wary', rel: f.p, stock: { food: f.food, water: f.water, meds: f.meds }, alive: true, met: false, starve: 0 }; G.groups.push(g); }
     g.name = f.name; g.loc = f.loc; g.size = Math.max(0, size(f)); g.alive = f.status === 'active'; g.met = g.met || f.met;
     g.rel = f.p; g.stock.food = f.food; g.stock.water = f.water; g.stock.meds = f.meds;
+    g._s = { rel: g.rel, food: f.food, water: f.water, meds: f.meds, size: g.size };   /* what both sides agreed on; pull() merges only what changed since */
     g.att = f.status !== 'active' ? 'desperate' : f.p <= -60 ? 'predatory' : f.p <= -20 ? 'hostile' : (f.food < size(f) * 0.6 ? 'desperate' : f.p >= 25 ? 'friendly' : 'wary');
     g.faces = f.members.slice(0, 4).map((m) => face(m));
     if (!g.faces.length) g.faces = [C.Sprites.gen('refugee', i * 977 + 3), C.Sprites.gen('boy_hoodie', i * 313 + 5)];
     g.leaderName = leaderOf(f) ? leaderOf(f).name : '';
   });
 };
-P.pull = function () {   // changes made to G.groups by older code flow back
-  const G = H.G;
-  (G.groups || []).forEach((g) => { const f = fac(g.fid); if (!f) return; f.p = clamp(g.rel, -100, 100); f.food = Math.max(0, g.stock.food); f.water = Math.max(0, g.stock.water); f.meds = Math.max(0, g.stock.meds); if (g.size < size(f)) { const lost = size(f) - g.size; f.foll = Math.max(0, f.foll - lost); } if (g.met) f.met = true; });
+P.pull = function () {   // changes made to G.groups by older code flow back. Only the change since the last sync is merged, so
+  const G = H.G;          // changes made straight to G.fac during the day (cards, envoys, trades) are kept too
+  (G.groups || []).forEach((g) => { const f = fac(g.fid); if (!f) return; const o = g._s || { rel: f.p, food: f.food, water: f.water, meds: f.meds, size: size(f) };
+    f.p = clamp(f.p + (g.rel - o.rel), -100, 100); f.food = Math.max(0, f.food + (g.stock.food - o.food)); f.water = Math.max(0, f.water + (g.stock.water - o.water)); f.meds = Math.max(0, f.meds + (g.stock.meds - o.meds));
+    if (g.size < o.size) { const lost = o.size - g.size; f.foll = Math.max(0, f.foll - lost); } if (g.met) f.met = true; });
 };
 
 /* ---------- rumours (these become the news, with a reliability) ---------- */
@@ -118,7 +121,7 @@ function think(f) {
     if (pactWith(f, o) && (hungry || op < -10) && ai.honor < 0.4) opts.push({ w: 0.5, do: 'betray', o });
   });
   Object.values(G.zones).forEach((z) => { if (z.holder !== f.id && z.claimants.includes(f.id) && f.morale > 35) { const h = fac(z.holder); if (h && h.status === 'active') opts.push({ w: ai.aggr * 1.1 * (power(f) > power(h) * 0.85 ? 1.5 : 0.35) + z.tension / 120, do: 'contest', z, o: h }); } });
-  if (G.player && f.p > -50 && f.met !== false) opts.push({ w: 0.55 * (hungry ? 2 : 1), do: 'envoy' });
+  if (envoyCan(f)) opts.push({ w: envoyW(f, hungry), do: 'envoy' });
   opts.push({ w: 0.8, do: 'recruit' }, { w: 0.6, do: 'fortify' }, { w: 0.9, do: 'forage' });
   const tot = opts.reduce((a, b) => a + b.w, 0); let r = Math.random() * tot; for (const o of opts) { if ((r -= o.w) < 0) return o; } return opts[0];
 }
@@ -132,22 +135,239 @@ function act(f, o) {
     case 'pact': { const t = o.o; if (chance(0.55)) { G.pacts.push({ type: 'nonaggr', between: [f.id, t.id], until: G.day + rnd(8, 14) }); bump(f, t, 8); rumor(`${dn(f)} and ${dn(t)} are said to have shaken hands.`, 0.8, [f, t]); } break; }
     case 'betray': { const t = o.o; G.pacts = G.pacts.filter((p) => !(p.between && p.between.includes(f.id) && p.between.includes(t.id))); bump(f, t, -40); const r = fight(f, t); rumor(`${dn(f)} broke their word to ${dn(t)}. Nobody is calling it a surprise.`, 0.9, [f, t]); break; }
     case 'contest': { const z = o.z, h = o.o; z.tension = clamp(z.tension + 12, 0, 100); if (z.tension > 55 && chance(0.55)) { const r = fight(f, h, z.id); z.tension = clamp(z.tension - 28, 0, 100); if (r.win) { z.holder = f.id; z.since = G.day; rumor(`${dn(f)} have taken the ${z.name} from ${dn(h)}. ${r.fallen.length ? r.fallen[0].name + ' fell in the fight.' : ''}`, 0.85, [f, h]); } else rumor(`${dn(h)} held the ${z.name} against ${dn(f)}.`, 0.8, [f, h]); G.wars.push({ a: f.id, b: h.id, zone: z.id, start: G.day, on: true }); } else rumor(`${dn(f)} are massing near the ${z.name}.`, 0.6, [f, h]); break; }
-    case 'envoy': { G.envoys.push(mkEnvoy(f)); break; }
+    case 'envoy': { const e = mkEnvoy(f); if (e) G.envoys.push(e); break; }
     case 'recruit': { if (f.morale > 50 && f.food > size(f) * 0.8) { f.foll += rnd(1, 4); } break; }
     case 'fortify': { f.arms += rnd(0, 2); f.morale = clamp(f.morale + 2, 0, 100); break; }
     case 'forage': { f.food += rnd(0, Math.ceil(size(f) * 0.25)); f.water += rnd(0, Math.ceil(size(f) * 0.2)); if (chance(0.1)) f.meds += 1; break; }
   }
 }
-function mkEnvoy(f) {
-  const G = H.G, sz = size(f); const hungry = f.food < sz * 0.5;
-  const kinds = [];
-  if (hungry) kinds.push('plea', 'plea', 'trade'); else kinds.push('trade', 'pact');
-  if (f.p < -10 && power(f) > 20) kinds.push('tribute');
-  if (live().some((o) => atWar(f, o))) kinds.push('call');
-  if (f.p > 20 && f.mem.trust) kinds.push('secret');
-  if (f.missing.length && !f.mem.missingAsked) kinds.push('missing', 'missing');
-  const k = pick(kinds); return { fid: f.id, kind: k, day: G.day };
+/* ---------- envoys: who comes to your door, and how often (DIPLOMACY.md 1.11, 1.20) ---------- */
+/* each group sends the same person every time */
+const ENVOY = { kitchen: 'sani', gate: 'jaja', chapel: 'bernadette', medical: 'patience', hustlers: 'amara', theatre: 'ruky', union: 'aisha', terrace: 'peters', tech: 'ike', pitch: 'garba', sisters: 'kamsi', staff: 'folasade', security: 'yakubu', mph: 'rita' };
+const MAJOR = new Set(['kitchen', 'gate', 'chapel', 'medical', 'hustlers', 'theatre', 'union']);
+const ENV_START = 4, ENV_CD = 5, ENV_CD_URGENT = 2, ENV_GAP = 2, ENV_EXPIRE = 3;
+/* the person at the door: their envoy if still with them, else whoever is left who is not the leader */
+const envoyOf = (f) => { const e = ENVOY[f.id]; if (e && f.members.includes(e)) return e; return f.members.find((m) => m !== f.leader) || f.leader || null; };
+/* a stranger group has heard of you when a group it likes already knows you */
+const heard = (f) => f.met || live().some((o) => o.id !== f.id && o.met && f2o(f, o) >= 20);
+const urgent = (e) => { const f = fac(e.fid); return ['due', 'repaid', 'default'].includes(e.kind) || (e.kind === 'call' && f && f.p >= 40); };
+const pending = (f) => (H.G.envoys || []).some((e) => e.fid === f.id);
+function envoyCan(f) {
+  const G = H.G; if (G.day < ENV_START || pending(f) || !heard(f)) return false;
+  if (f.envoyDay != null && G.day - f.envoyDay < ENV_CD) return false;
+  return f.p > -45;                                       /* enemies do not send envoys; they send raids */
 }
+function envoyW(f, hungry) {
+  const p = f.p || 0; const close = !f.met ? 0.5 : p >= 40 ? 1.8 : p >= 15 ? 1.4 : p > -15 ? 1 : 0.6;
+  return 0.22 * (hungry ? 2 : 1) * (MAJOR.has(f.id) ? 2 : 1) * close;
+}
+function mkEnvoy(f) {
+  const G = H.G, sz = size(f); const hungry = f.food < sz * 0.5; const p = f.p || 0;
+  const kinds = [];
+  if (!f.met) { kinds.push(hungry ? 'plea' : 'trade'); }                       /* strangers only introduce themselves with a need or an offer */
+  else if (p <= -15) { if (power(f) > 20) kinds.push('tribute'); }              /* hostile groups only make demands */
+  else {
+    if (hungry) kinds.push('plea', 'plea', 'trade'); else kinds.push('trade');
+    if (p >= 15 && !pactOf(f, 'nonaggr') && !pactOf(f, 'trade')) kinds.push('pact');
+    if (p < -10 && power(f) > 20) kinds.push('tribute');
+    if (p >= 15 && live().some((o) => atWar(f, o))) kinds.push('call');
+    if (p > 20 && f.mem.trust) kinds.push('secret');
+    if (f.missing.length && !f.mem.missingAsked) kinds.push('missing', 'missing');
+  }
+  if (!kinds.length) return null;
+  return { fid: f.id, kind: pick(kinds), day: G.day };
+}
+/* Called once a day before the strangers' hour. Picks the envoy who gets today's knock, or nobody.
+   o.doorOpen: no knock today, the quiet gap is over, and the door has not had two days in a row.
+   o.kudiDue: Mai Kudi comes today. o.strangerDue: a stranger is coming back today. */
+P.door = function (o) {
+  const G = H.G; if (!G.envoys || !G.envoys.length || !o.doorOpen) return null;
+  const ok = G.envoys.filter((e) => { const f = fac(e.fid); if (!f || f.status !== 'active') return false; const last = f.envoyDay != null ? G.day - f.envoyDay : 99; return urgent(e) ? last >= ENV_CD_URGENT : (G.day >= ENV_START && last >= ENV_CD); });
+  if (!ok.length) return null;
+  /* a visit last night was the day's diplomatic moment: only pleas and an ally's call for help still come (1.11) */
+  if (G.visitDay === G.day - 1) { const pr = ok.find((e) => e.kind === 'plea' || (e.kind === 'call' && (fac(e.fid) || {}).p >= 40)); return pr || null; }
+  const u = ok.find(urgent); if (u) return u;
+  if (o.kudiDue) return null;
+  if (G.day - (G.envoyLast != null ? G.envoyLast : -9) <= ENV_GAP) return null;
+  if (G.doorKind === 'envoy' && o.strangerDue) return null;                    /* envoys and strangers take turns */
+  const w = (e) => { const f = fac(e.fid); return (MAJOR.has(f.id) ? 2 : 1) * (e.kind === 'plea' || e.kind === 'call' ? 1.6 : 1) * (f.p >= 15 ? 1.4 : 1); };
+  let r = Math.random() * ok.reduce((a, e) => a + w(e), 0); for (const e of ok) { if ((r -= w(e)) < 0) return e; } return ok[0];
+};
+/* the envoy got the knock: off the queue, and the group waits its turn again */
+P.sent = function (e) { const G = H.G; G.envoys = G.envoys.filter((x) => x !== e); const f = fac(e.fid); if (f) f.envoyDay = G.day; G.envoyLast = G.day; };
+/* envoys who waited three days give up; the morning card says so */
+P.expire = function () {
+  const G = H.G; const out = [];
+  G.envoys = (G.envoys || []).filter((e) => { const f = fac(e.fid); if (!f || f.status !== 'active') return false; if (urgent(e) || G.day - e.day <= ENV_EXPIRE) return true; if (f.met && e.kind === 'plea') out.push(f); return false; });
+  return out;
+};
+
+/* ---------- what you can see of them (the People and Groups screen, DIPLOMACY.md 1.2, 1.19) ---------- */
+const STAGES = ['enemies', 'hostile', 'wary', 'good', 'allies'];
+const STAGE_WORD = { strangers: 'Strangers', enemies: 'Enemies', hostile: 'Hostile', wary: 'Wary', good: 'On good terms', allies: 'Allies' };
+const rawStage = (p) => (p <= -45 ? 0 : p <= -15 ? 1 : p < 15 ? 2 : 3);   /* Allies takes the alliance itself, not only the number */
+/* a stage only changes once standing is 5 past the line, so it never flickers */
+P.stage = function (f) {
+  if (!f || !f.met) return 'strangers';
+  const p = f.p || 0; let c = f.stg != null ? f.stg : rawStage(p); const up = rawStage(p - 5), dn = rawStage(p + 5);
+  if (up > c) c = up; else if (dn < c) c = dn; f.stg = c;
+  return f.ally && c >= 3 ? 'allies' : STAGES[c];
+};
+P.STAGE_WORD = STAGE_WORD;
+/* what a group remembers about you, in their words; newest last */
+P.remember = function (f, text) { if (!f || !text) return; f.said = (f.said || []).filter((x) => x.t !== text); f.said.push({ d: H.G.day, t: text }); if (f.said.length > 8) f.said.shift(); };
+/* people of theirs you have met face to face */
+P.meet = function (f, cid) { if (!f || !cid) return; f.seen = f.seen || []; if (!f.seen.includes(cid)) f.seen.push(cid); };
+/* what you know about one person, and who told you */
+P.know = function (cid, text, by) { const G = H.G; G.known = G.known || {}; const k = G.known[cid] = G.known[cid] || []; if (k.some((x) => x.t === text)) return false; k.push({ d: G.day, t: text, by: by || 'them' }); return true; };
+
+/* ---------- deeds, values, grudges and amends (DIPLOMACY.md 1.3 to 1.5, 1.7) ----------
+   Standing moves through what you do, not through talk. A deed lands on the group it was done to; groups friendly with them
+   hear of it over the next one to three days at half strength (the Tech Guild hears everything, at full). Every group judges by
+   its own values: a deed it admires counts for more, and one it cannot forgive starts a grudge, even when it was done to someone
+   else. A grudge drops them to Hostile, and they will not come above Wary until you make the amends they name. */
+const DEED = {
+  trade: 1, plea: 15, kept: 10, paid: 8, shelter: 12, spared: 10, aid: 15, mercy: 10, kindness: 8,
+  refuse: -3, late: -5, threat: -10, sided: -15, took: -20, broke: -25, hurt: -30, killed: -50
+};
+/* what each group admires (the deed counts 1.75 times, and they warm to you a little when they hear you did it to others)
+   and what it cannot forgive (a grudge, whoever it was done to) */
+const VALUES = {
+  kitchen: { admire: ['share', 'feed_weak', 'work'], never: ['steal_food', 'hoard'] },
+  gate: { admire: ['strength', 'paid', 'word', 'silent'], never: ['cheat', 'inform', 'kill_gate'] },
+  chapel: { admire: ['mercy', 'bury', 'shelter', 'spare'], never: ['cruel', 'kill_unarmed', 'rob_dead'] },
+  medical: { admire: ['bring_meds', 'protect_healer', 'honest_sick'], never: ['steal_meds', 'hide_sick', 'threaten_healer'] },
+  hustlers: { admire: ['deal', 'silent', 'paid'], never: ['welch', 'cut_out'] },
+  theatre: { admire: ['law', 'word', 'written'], never: ['lawless', 'help_union_theatre'] },
+  union: { admire: ['loyal', 'bold', 'share'], never: ['side_council', 'mock'] },
+  terrace: { admire: ['deal', 'silent', 'rank'], never: ['shame'] },
+  tech: { admire: ['honest', 'fix', 'knowledge'], never: ['lie'] },
+  pitch: { admire: ['courage', 'loyal', 'stand_gate'], never: ['coward', 'deal_gate'] },
+  sisters: { admire: ['protect', 'word', 'shelter'], never: ['deal_gate', 'harm_woman'] },
+  staff: { admire: ['manners', 'rank', 'word'], never: ['disrespect', 'steal_store'] },
+  security: { admire: ['duty', 'courage', 'word'], never: ['help_gate', 'coward'] },
+  mph: { admire: ['share', 'shelter', 'feed_weak'], never: ['hoard'] }
+};
+/* the amends each group asks for, in their words, and how the game knows you did them.
+   gift: give them enough of the right thing; visit: done in person (visits come in step 3) */
+const AMENDS = {
+  kitchen: { say: 'Bring back what you took, and food on top of it. Carry it to our door yourself.', gift: { item: 'food', over: 2 } },
+  gate: { say: 'Pay double. Or give us the one who did it.', gift: { double: true } },
+  chapel: { say: 'Come and tell us what you did. Then help us bury our dead.', visit: 'confess' },
+  medical: { say: 'Return what you took, and medicine of your own with it.', gift: { item: 'meds', over: 1 } },
+  hustlers: { say: 'Pay what you owe, and a cut on top for our trouble.', gift: { cut: 1.25 } },
+  theatre: { say: 'Come to the Theatre. Stand before a hearing, and accept what it decides.', visit: 'hearing' },
+  union: { say: 'Give to the people. Publicly. Feed the camp and let them see whose food it is.', gift: { n: 6 } },
+  terrace: { say: 'A private apology, through Mr. Alabi. And something to show you mean it.', gift: { n: 5 } },
+  tech: { say: 'Bring us parts that work, and tell us the truth this time.', gift: { item: 'parts', n: 3 } },
+  pitch: { say: 'Stand with us once when it comes to blood. Then we will talk.', visit: 'fight' },
+  sisters: { say: 'Bring someone out who needs saving. Then we will know what you are.', visit: 'rescue' },
+  staff: { say: 'A formal apology. In person. From the eldest among you.', visit: 'apology' },
+  security: { say: 'Stand a night watch with us at the gatehouse.', visit: 'watch' },
+  mph: { say: 'Feed the camp for one day. Not a handful. A day.', gift: { item: 'food', n: 10 } }
+};
+const CAP_DAY = { gift: 12, trade: 4 };   /* gifts and small trades can only buy so much warmth in one day */
+const friendsOf = (f) => live().filter((o) => o.id !== f.id && (f2o(o, f) >= 15 || o.id === 'tech'));
+const RIVALS = { gate: ['sisters', 'security', 'pitch'], sisters: ['gate'], security: ['gate'], pitch: ['gate'], theatre: ['union'], union: ['theatre'], terrace: ['mph'], mph: ['terrace'] };
+const rivalsOf = (f) => (RIVALS[f.id] || []).map(fac).filter((o) => o && o.status === 'active');
+const admires = (g, tags) => (VALUES[g.id] ? VALUES[g.id].admire : []).some((t) => (tags || []).includes(t));
+/* a plea turned away: the group you shut out may hold it against you, likelier each time you do it.
+   The Chapel and the Sisterhood forgive it; the MPH Camp, who live on pleas, take it hardest, even when it was done to others */
+const FORGIVE_PLEA = new Set(['chapel', 'sisters']);
+function turnedAway(f) {
+  if (FORGIVE_PLEA.has(f.id) || f.grudge) return;
+  f.turned = (f.turned || 0) + 1;
+  if (chance(Math.min(0.9, 0.1 + 0.25 * f.turned + (f.id === 'mph' ? 0.25 : 0)))) grudge(f, 'turn_away', 'We came to you starving and you shut the door. We remember whose door it was.');
+}
+const neverForgives = (g, tags) => (VALUES[g.id] ? VALUES[g.id].never : []).find((t) => (tags || []).includes(t));
+/* standing moves, under the grudge ceiling and the day's cap on small kindnesses */
+function move(f, d, kind) {
+  const G = H.G; if (!d) return 0;
+  if (CAP_DAY[kind] && d > 0) { f.capd = f.capd && f.capd.day === G.day ? f.capd : { day: G.day }; const used = f.capd[kind] || 0; d = Math.max(0, Math.min(d, CAP_DAY[kind] - used)); f.capd[kind] = used + d; }
+  f.p = clamp((f.p || 0) + d, -100, 100); if (f.grudge) f.p = Math.min(f.p, 14); return d;
+}
+/* a grudge: down to Hostile at once, and no higher than Wary until amends */
+function grudge(f, why, text) {
+  const G = H.G; if (f.grudge) return; f.grudge = { why, day: G.day, forever: false }; f.p = Math.min(f.p || 0, -20);
+  if (text !== false) P.remember(f, text || 'What you did, we will not forget.'); const a = AMENDS[f.id]; if (a) P.remember(f, a.say);
+}
+P.grudge = grudge;
+/* the deed itself. o: { tags, n (how many times, e.g. days late), value (a gift's worth), seen (they saw who did it),
+   text (what they say about it), heard (what their friends hear), quiet (it does not spread), mult, took (worth taken), leader } */
+P.deed = function (f, kind, o) {
+  o = o || {}; if (!f || f.status !== 'active') return 0; const G = H.G;
+  let d = kind === 'gift' ? Math.round(2 * (o.value || 0)) : (DEED[kind] || 0) * (o.n || 1);
+  if (kind === 'took' && o.seen) d = -30;
+  if (o.mult) d = Math.round(d * o.mult);
+  if (d > 0 && admires(f, o.tags)) d = Math.round(d * 1.75);
+  if (kind === 'threat') f.fear = clamp((f.fear || 0) + 10, 0, 100);
+  if (kind === 'killed') f.fear = clamp((f.fear || 0) + 25, 0, 100);
+  const moved = move(f, d, kind);
+  if (o.text) P.remember(f, o.text);
+  const nv = neverForgives(f, o.tags);
+  if (nv || kind === 'killed') { grudge(f, nv || 'killed', kind === 'killed' ? 'You killed one of ours. There is no price for that.' : (o.grudgeText || (o.text ? false : undefined))); if (f.grudge && o.took) f.grudge.took = (f.grudge.took || 0) + o.took; if (f.grudge && o.by && !f.grudge.by) f.grudge.by = o.by; if (f.grudge && (kind === 'killed' || nv === 'kill_gate' || nv === 'kill_unarmed')) f.grudge.blood = true; }   /* blood is never settled with a gift */
+  if ((o.tags || []).includes('turn_away')) turnedAway(f);
+  if (kind === 'killed' && o.leader && f.id !== 'chapel' && f.grudge) f.grudge.forever = true;
+  if (kind === 'broke') friendsOf(f).forEach((g) => { if (g.id !== 'tech') move(g, -5, 'broke'); });
+  if (f.grudge && o.gift) amendsCheck(f, o.gift);
+  /* word spreads to their friends over the next days */
+  if (!o.quiet && kind !== 'trade') { G.gossip = G.gossip || []; G.gossip.push({ fid: f.id, kind, d, tags: o.tags || [], day: G.day + rnd(1, 3), what: o.heard || null }); }
+  return moved;
+};
+/* gossip arrives: their friends feel a wrong done to them at half strength (the Tech Guild at full), and every group that hears
+   judges it by its own values */
+function gossipTick() {
+  const G = H.G; if (!G.gossip || !G.gossip.length) return;
+  const due = G.gossip.filter((x) => x.day <= G.day); G.gossip = G.gossip.filter((x) => x.day > G.day);
+  due.forEach((x) => {
+    const v = fac(x.fid); if (!v) return;
+    /* sworn rivals watch each other: kindness to one is a small wrong to the other, and they judge it by their own values */
+    rivalsOf(v).forEach((g) => { if (!g.met) return; if (x.d > 0) move(g, -Math.round(x.d * 0.3), 'gossip'); const nv = neverForgives(g, x.tags); if (nv) grudge(g, nv, `You went to ${v.name}. We saw. We will not forget it.`); });
+    friendsOf(v).forEach((g) => {
+      if (!g.met && !heard(g)) return;
+      const full = g.id === 'tech'; const share = x.d < 0 ? x.d * (full ? 1 : 0.5) : 0;
+      if (share) move(g, Math.round(share), 'gossip');
+      if (admires(g, x.tags) && x.d > 0) move(g, 5, 'gossip');
+      const nv = neverForgives(g, x.tags);
+      if (!nv && g.id === 'mph' && x.tags.includes('turn_away') && chance(0.5)) grudge(g, 'turn_away', `${x.what || 'You shut your door on starving people.'} We heard. Our turn will come, and your door will be shut.`);
+      if (nv) grudge(g, nv, x.what ? `${x.what} We heard. We will not forget it.` : `We heard what you did to ${v.name}. We will not forget it.`);
+      else if (x.what && (share || admires(g, x.tags))) P.remember(g, x.what);
+    });
+  });
+}
+/* amends: a gift that matches what they asked for (visits, for the rest, come in step 3) */
+function amendsCheck(f, gift) {
+  const a = AMENDS[f.id]; if (!f.grudge || f.grudge.forever || f.grudge.blood || !a || !a.gift) return false;
+  const want = a.gift; const owed = (H.G.ledger || []).filter((l) => l.fid === f.id && l.dir === 'owe' && l.status === 'open').reduce((t, l) => t + value(l.items), 0);
+  const took = f.grudge.took || 0; const val = value(gift); let ok = false;
+  if (want.item) ok = (gift[want.item] || 0) >= (want.n || Math.max(1, took + (want.over || 0)));
+  else if (want.double) ok = val >= Math.max(4, owed * 2, took * 2);
+  else if (want.cut) ok = val >= Math.max(3, owed * want.cut);
+  else if (want.n) ok = val >= want.n;
+  if (ok) P.amends(f); return ok;
+}
+P.amends = function (f) { if (!f || !f.grudge || f.grudge.forever) return false; f.grudge = null; f.p = Math.max(f.p || 0, -10); P.remember(f, 'You did what we asked. It is finished between us. Not forgotten. Finished.'); return true; };
+P.amendsFor = (f) => (f && f.grudge && !f.grudge.forever && AMENDS[f.id] ? AMENDS[f.id].say : null);
+/* a gift: the one way kindness is counted, and the way most amends are made */
+P.gift = function (f, items, o) {
+  o = o || {}; const tags = (o.tags || []).slice(); if (items.food || items.water || items.meal) tags.push('share'); if (items.meds) tags.push('bring_meds');
+  if ((items.food || items.water || items.meal) && f.food < size(f) * 0.5) tags.push('feed_weak');
+  return P.deed(f, 'gift', Object.assign({}, o, { value: value(items), tags, gift: items }));
+};
+/* every stage change shows once in the world, on the morning card */
+const STAGE_NEWS = {
+  'good+': (n) => `People from ${n} have started calling your people by name.`,
+  'wary+': (n) => `People from ${n} stopped spitting when your people pass.`,
+  'wary-': (n) => `Nobody from ${n} waved back today. Yesterday they did.`,
+  'hostile-': (n) => `Someone from ${n} spat on your door in the night. It was still wet at dawn.`,
+  'enemies-': (n) => `${n.charAt(0).toUpperCase() + n.slice(1)} left a dog on your step in the night. Its throat was cut.`
+};
+P.stageNews = function () {
+  const out = [];
+  live().forEach((f) => { if (!f.met) return; const st = P.stage(f); const was = f.stgSeen; f.stgSeen = st; if (!was || was === st) return;
+    const up = STAGES.indexOf(st) > STAGES.indexOf(was); const fn = STAGE_NEWS[st + (up ? '+' : '-')]; if (fn) out.push(fn(f.name.replace(/^The /, 'the '))); });
+  return out;
+};
 
 /* ---------- the daily tick ---------- */
 P.tick = function () {
@@ -163,10 +383,13 @@ P.tick = function () {
   });
   /* zones with no holder get claimed by the strongest claimant */
   Object.values(G.zones).forEach((z) => { z.tension = clamp(z.tension + (live().filter((f) => z.claimants.includes(f.id) && f.id !== z.holder).length) * 1.2 - 1, 0, 100); if (!z.holder) { const c = live().filter((f) => z.claimants.includes(f.id)).sort((a, b) => power(b) - power(a))[0]; if (c) { z.holder = c.id; rumor(`${c.name} walked into the ${z.name} and sat down.`, 0.8, [c]); } } });
+  /* a pact with you that ran its whole term unbroken is a promise kept */
+  G.pacts.filter((q) => q.until < G.day && (q.between || []).includes('player') && !q.broken).forEach((q) => { const f = fac(q.with); if (f && f.status === 'active') P.deed(f, 'kept', { tags: ['word', 'written'], text: 'Our pact ran its whole term, and you kept every day of it.' }); });
   /* pacts expire, wars cool */
   G.pacts = G.pacts.filter((p) => p.until >= G.day); G.wars.forEach((w) => { if (G.day - w.start > 8 || (fac(w.a) && fac(w.a).status !== 'active') || (fac(w.b) && fac(w.b).status !== 'active')) w.on = false; });
   /* opinion toward you drifts toward the mood of the day */
-  live().forEach((f) => { f.p = clamp(f.p + (f.p > 0 ? -0.4 : 0.4), -100, 100); });
+  live().forEach((f) => { if (!f.ally) f.p = clamp(f.p + (f.p > 0 ? -0.4 : 0.4), -100, 100); if (f.grudge) f.p = Math.min(f.p, 14); f.fear = Math.max(0, (f.fear || 0) - 3); });
+  gossipTick();
   P.ledgerTick();
   P.sync();
 };
@@ -178,7 +401,7 @@ P.ledgerTick = function () {
     if (l.status !== 'open' || G.day < l.due) return; const f = fac(l.fid); if (!f || f.status !== 'active') { l.status = 'void'; return; }
     if (l.dir === 'owed') {          // they owe you
       const can = Object.entries(l.items).every(([k, n]) => (f[k] || 0) >= n * 0.5); const honest = gdef(f.id).ai.honor;
-      if (can && chance(0.35 + honest * 0.55)) { Object.entries(l.items).forEach(([k, n]) => { const take = Math.min(f[k] || 0, n); f[k] -= take; H.add(k, take); }); l.status = 'paid'; f.p = clamp(f.p + 6, -100, 100); G.rep.honor++; G.envoys.push({ fid: f.id, kind: 'repaid', items: l.items, day: G.day }); }
+      if (can && chance(0.35 + honest * 0.55)) { Object.entries(l.items).forEach(([k, n]) => { const take = Math.min(f[k] || 0, n); f[k] -= take; H.add(k, take); }); l.status = 'paid'; f.p = clamp(f.p + 6, -100, 100); G.rep.honor++; G.envoys.push({ fid: f.id, kind: 'repaid', items: l.items, day: G.day }); P.remember(f, `We paid back what we owed you, to the last ${NAME[Object.keys(l.items)[0]] || 'of it'}.`); }
       else { l.status = 'default'; G.envoys.push({ fid: f.id, kind: 'default', items: l.items, day: G.day }); }
     } else {                           // you owe them
       l.late = (l.late || 0) + 1; if (l.late === 1) G.envoys.push({ fid: f.id, kind: 'due', items: l.items, day: G.day });
@@ -187,7 +410,11 @@ P.ledgerTick = function () {
 };
 P.repay = function (l) {
   const f = fac(l.fid); if (!Object.entries(l.items).every(([k, n]) => H.inv(k) >= n)) return false;
-  Object.entries(l.items).forEach(([k, n]) => { H.add(k, -n); f[k] = (f[k] || 0) + n; }); l.status = 'paid'; f.p = clamp(f.p + 10, -100, 100); H.G.rep.honor++; return true;
+  Object.entries(l.items).forEach(([k, n]) => { H.add(k, -n); f[k] = (f[k] || 0) + n; }); l.status = 'paid'; H.G.rep.honor++;
+  const late = Math.max(0, H.G.day - l.due);
+  if (!late) P.deed(f, 'paid', { tags: ['paid', 'word'], text: H.G.day < l.due ? 'You paid your debt before the day. People here noticed.' : 'You paid what you owed, on the day.' });
+  else P.deed(f, 'late', { n: late, text: `You paid what you owed. ${late === 1 ? 'A day' : late + ' days'} late.` });
+  if (f.grudge) amendsCheck(f, l.items); return true;
 };
 
 /* ---------- your side of the table ---------- */
@@ -306,6 +533,6 @@ function betray(s, f) {
     { label: 'Do it', fn() { if (!spend(s)) return tooTired(s); H.G.pacts = H.G.pacts.filter((p) => p !== pact); const take = (k) => { const q = Math.floor((f[k] || 0) * 0.5); f[k] -= q; H.add(k, q); return q; }; const a = take('food'), b2 = take('water'), c = take('meds'); f.p = -90; if (C.Life) C.Life.nem(f, 'you robbed them while they trusted you', 75); f.morale = clamp(f.morale - 15, 0, 100); H.G.rep.honor -= 6; live().forEach((o) => { if (o.id !== f.id) o.p = clamp(o.p - 6, -100, 100); }); H.G.stats.thefts++; H.moodAll(-6); return `<i>It is quick. It is easy. You carry ${a} food, ${b2} water and ${c} medicine out through a door that was left open for you. Nobody in your group says a word. Everyone in the campus will know by morning.</i>`; } }, { label: 'Back out' }], faceArt(f)); return ''; })();
 }
 
-C.Politics = Object.assign(P, { power, size, stance, fac, live, face, faceArt, leaderOf, value, itemText, NAME, f2o, bump, rumor, atWar, pactWith, kill, fight, mkEnvoy, think, act, get host() { return H; } });
+C.Politics = Object.assign(P, { DEED, VALUES, AMENDS, ENVOY, MAJOR, envoyOf, heard, urgent, power, size, stance, fac, live, face, faceArt, leaderOf, value, itemText, NAME, f2o, bump, rumor, atWar, pactWith, kill, fight, mkEnvoy, think, act, get host() { return H; } });
 if (typeof module !== 'undefined') module.exports = P;
 })(typeof window !== 'undefined' ? window : globalThis);

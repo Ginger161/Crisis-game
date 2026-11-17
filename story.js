@@ -177,28 +177,41 @@ const DREAD = ['horror', 'crisis', 'nemesis'];
 const TOD = { meal_together: 'evening', mi_watch: 'night', ng_owambe: 'evening', mi_dream: 'morning', legacy_scream: 'night', broadcast: 'evening', knock_3am: 'night', lullaby: 'night', child_crying: 'night', story_fire: 'evening', closeness: 'evening', ghost: 'morning' };
 /* RETIRED: events that belong to an older version of the game, or that duplicate a newer one.
    legacy_beg / legacy_trade -> the door visitors (v_need, v_trade); mi_rumour_trade, ng_paper_news, news_rumor -> the one rumour channel
-   (the morning report and the radio); envoy, standoff, secret_out, defector -> the faction-diplomacy layer, folded away:
-   the groups are now places and people you meet, not a negotiating table. */
-const RETIRED = new Set(['legacy_beg', 'legacy_trade', 'mi_rumour_trade', 'ng_paper_news', 'news_rumor', 'envoy', 'standoff', 'secret_out', 'defector']);
+   (the morning report and the radio); standoff, secret_out, defector -> the faction-diplomacy layer, folded away.
+   envoy is back (DIPLOMACY.md 1.20), but only through its own door scheduler, never drawn at random. */
+const RETIRED = new Set(['legacy_beg', 'legacy_trade', 'mi_rumour_trade', 'ng_paper_news', 'news_rumor', 'standoff', 'secret_out', 'defector']);
+/* one knock at the door a day: every visitor, favour, trader, envoy and returning stranger shares it. After a knock, a day or two
+   of quiet; and never knocks three days running */
+function doorOpen() {
+  const G = H.G, d = G.day, h = G.doorHist || [];
+  return G.doorDay !== d && d >= (G.doorFree || 0) && !(h.includes(d - 1) && h.includes(d - 2));
+}
+function markDoor(kind, gap) {
+  const G = H.G; G.doorDay = G.day; G.doorFree = G.day + (gap != null ? gap : 1 + (Math.random() < 0.5 ? 1 : 0)); G.doorKind = kind || 'story';
+  G.doorHist = (G.doorHist || []).filter((x) => G.day - x < 4).concat([G.day]);
+}
 function eligible(d, x) {
   if (RETIRED.has(d.id)) return null;
-  /* one knock at the door a day: every visitor, favour, trader and returning stranger shares it */
-  if (d.door && (H.G.doorDay === H.G.day || H.G.day < (H.G.doorFree || 0))) return null;   /* knocks are spaced: after one, a day or two of quiet at the door */
+  if (d.sched && !(x && x.sched)) return null;                /* fired only by its own scheduler (the envoys) */
+  if (d.door && !doorOpen()) return null;
   const G = H.G; G.dir = G.dir || { tension: 20, last: [], cool: {} };
   if (d.once && mem('fired:' + d.id)) return null;
   const last = G.dir.cool[d.id]; if (last != null && G.day - last < (d.cd == null ? 4 : d.cd)) return null;
   if (d.when && !d.when(x)) return null;
   { const h = ((G.t || 0) % 1440) / 60; const tod = TOD[d.id] || (/^ng_prayer_warriors$|^mi_headcount$/.test(d.id) ? 'night' : null);   /* events written for a time of day only happen then */
     if (tod === 'night' && !(h >= 20 || h < 5)) return null; if (tod === 'evening' && !(h >= 17 || h < 2)) return null; if (tod === 'morning' && !(h >= 5 && h < 11)) return null; }
-  if (d.kind !== 'beat' && G.dir.last.slice(-2).includes(d.id)) return null;
+  if (d.kind !== 'beat' && !d.sched && G.dir.last.slice(-2).includes(d.id)) return null;
   return resolveCast(d, x);
 }
 function fire(d, cs, x) {
-  if (d.door) { H.G.doorDay = H.G.day; H.G.doorFree = H.G.day + 1 + (Math.random() < 0.5 ? 1 : 0); }
+  if (d.door) markDoor(d.sched ? 'envoy' : 'story');
   const G = H.G; G.dir = G.dir || { tension: 20, last: [], cool: {} };
   let ok = true; CUR = d.kind === 'beat' ? { A: d._s } : (cs || {});
-  if (d.door && H.knock) ok = H.knock(d, cs, () => d.run(x, cs || {}));
-  else if (d.kind === 'beat') ok = runBeat(d, x); else ok = d.run(x, cs || {}) !== false;
+  H.deciding = (H.deciding || 0) + 1;
+  try {
+    if (d.door && H.knock) ok = H.knock(d, cs, () => d.run(x, cs || {}));
+    else if (d.kind === 'beat') ok = runBeat(d, x); else ok = d.run(x, cs || {}) !== false;
+  } finally { H.deciding--; }
   if (ok === false) return false;
   G.dir.cool[d.id] = G.day; G.dir.last.push(d.id); if (G.dir.last.length > 8) G.dir.last.shift();
   if (d.once) setMem('fired:' + d.id);
@@ -260,7 +273,7 @@ function describe(s) {          /* a survivor's page: the moment before the atta
 
 C.Story = {
   set host(h) { H = h; }, get host() { return H; }, get cur() { return CUR; }, set cur(v) { CUR = v; }, bubble, defs, add, ctx, morning, tick, talk, topicsFor, onDeath, initRel, describe,
-  rel, bond, mem, setMem, speak, voiced, render, portrait, applyFx, first, cd, pick, rnd, chance, clamp, key, resolveCast, eligible, fire
+  rel, bond, mem, setMem, speak, voiced, render, portrait, applyFx, first, cd, pick, rnd, chance, clamp, key, resolveCast, eligible, fire, doorOpen, markDoor
 };
 if (typeof module !== 'undefined') module.exports = C.Story;
 })(typeof window !== 'undefined' ? window : globalThis);

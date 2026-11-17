@@ -356,7 +356,7 @@ ng('fuel', 'visitor', 1.2, (A) => ({ title: 'Fuel', text: `A boy with two jerryc
 ng('area_boys', 'politics', 0, (A) => ({ title: 'Area boys', text: `They are lounging on the wall of the next block, six of them, legs swinging. They saw you coming a long time ago.\n\n<b>"Oga, this is our area. To pass here, you must settle us."</b>\n\n${speak(A, `They are not bandits. They are something older and more annoying.`)}`, choices: [
   { label: 'Settle them (1 food, 1 water)', off: H().inv('food') < 1 || H().inv('water') < 1, fn() { H().add('food', -1); H().add('water', -1); return `<i>"Respect, Oga." They return to their wall.</i>`; } },
   { label: 'Talk your way through', fn() { if (chance(0.5)) { return `<i>"You are a good man." You are allowed past, with a handshake.</i>`; } H().add('food', -1); return `<i>Still cost you, in the end.</i>`; } },
-  { label: 'Go the long way round', fn() { A.fatigue += 8; return `<i>It adds half an hour. It also adds nothing to your pride.</i>`; } }] }));
+  { label: 'Go the long way round', fn() { A.fatigue = Math.min(100, A.fatigue + 8); return `<i>It adds half an hour. It also adds nothing to your pride.</i>`; } }] }));
 
 /* ---------- the notes tab ---------- */
 L.notes = function () {

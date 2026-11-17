@@ -110,7 +110,6 @@ html.pc .rsel .mini small{display:block;font-size:12px;color:var(--dim);text-ali
 html.pc .spdg button.on{background:var(--accent);color:var(--cream)}
 
 /* hovering an object in the house outlines it */
-html.pc #hstage [data-st]:hover{fill:rgba(255,236,190,.07);stroke:rgba(242,235,207,.55);stroke-width:.8;stroke-dasharray:2 1.5}
 html.pc #hstage [data-p]:hover{fill:rgba(255,236,190,.06)}
 /* a docked sheet is as tall as what it says, up to the full height: a two-line event is a card, a barter is a panel */
 html.pc #modal.dock{align-items:flex-start;pointer-events:none;box-shadow:none}

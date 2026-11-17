@@ -41,64 +41,75 @@ const W = {
 C.World = W;
 
 /* ---------- envoys: the visits that make the map feel alive ---------- */
-S.add({ id: 'envoy', kind: 'politics', door: true, w: (x) => 5, cd: 0, when: (x) => (x.G.envoys || []).length > 0,
+/* the group's envoy, always the same person, speaks for them (DIPLOMACY.md 1.11); the scheduler in politics.js picks the day */
+const envoyLine = (f, text) => { const id = P.envoyOf(f); const c = id && K().by[id]; if (!c) return leaderLine(f, text); return S.bubble(c.name, 'you', V.say(c.voice, text, { id: c.id })); };
+const envoyArt = (f) => { const id = P.envoyOf(f); if (!id || !K().by[id]) return P.faceArt(f); const hungry = f.food < P.size(f) * 0.5; return { sp: P.face(id), state: hungry ? 'hungry' : 'ok' }; };
+/* the cards are written when they knock; meeting them, and what they tell you, only counts once somebody opens the door */
+let envOpen = null;
+S.add({ id: 'envoy', kind: 'politics', door: true, sched: true, w: 0, cd: 0, when: (x) => !!x.envoy,
+  onOpen() { const fn = envOpen; envOpen = null; if (fn) fn(); },
+  onIgnore() { envOpen = null; const G = H().G; const f = fac(G.envoyAt); if (!f || f.status !== 'active') return; P.deed(f, 'refuse', { quiet: true, text: f.met ? 'We knocked. Somebody was home. Nobody opened.' : null }); },
   run(x) {
-    const G = x.G; const e = G.envoys.shift(); const f = fac(e.fid); if (!f || f.status !== 'active') return false; f.met = true;
-    const art = P.faceArt(f); const lead = (t) => leaderLine(f, t);
+    const G = x.G; const e = x.envoy; P.sent(e); const f = fac(e.fid); if (!f || f.status !== 'active') return false; G.envoyAt = f.id;
+    const art = envoyArt(f); const eid = P.envoyOf(f); const ec = eid && K().by[eid];
+    let line = null; const lead = (t) => { if (!ec) return leaderLine(f, t); const v = V.say(ec.voice, t, { id: eid }); if (!line) line = String(v).replace(/<[^>]+>/g, ''); return S.bubble(ec.name, 'you', v); };
+    envOpen = () => { f.met = true; P.meet(f, eid); if (line) f.lastLine = { cid: eid, t: line, d: G.day };
+      if (ec) { for (const q of (ec.topics || []).filter((q) => q.layer !== 'secret')) { if (P.know(eid, q.lines[0], 'told')) break; } } };   /* each visit they let one more thing about themselves slip */
+    const mem = (t) => P.remember(f, t);
     const party = x.al; const rep = pick(party);
     if (e.kind === 'trade') {
       const give = pick(['food', 'water', 'meds', 'parts', 'cloth']), get = pick(['food', 'water', 'meds', 'bandage'].filter((k) => k !== give)); const gq = rnd(2, 5), wq = Math.max(1, gq + rnd(-1, 1));
       if (!(f[give] > gq + 2)) return false;
       ask(`${f.name} propose a trade`, `${lead(`We have ${gq} ${NAME[give]} to spare. We could use ${wq} of your ${NAME[get]}.`)}`, [
-        { label: 'Accept', off: H().inv(get) < wq, fn() { H().add(get, -wq); H().add(give, gq); f[give] -= gq; f[get] = (f[get] || 0) + wq; f.p = clamp(f.p + 5, -100, 100); return `<i>Fair is fair. They go quietly.</i>`; } },
-        { label: 'Haggle for more', off: H().inv(get) < wq, fn() { if (chance(0.5 + f.p / 200)) { H().add(get, -wq); H().add(give, gq + 1); f[give] -= gq + 1; f[get] = (f[get] || 0) + wq; return `<i>A little more. They respect the push.</i>`; } f.p = clamp(f.p - 4, -100, 100); return `<i>They leave without the trade. Not offended. Not pleased.</i>`; } },
+        { label: 'Accept', off: H().inv(get) < wq, fn() { H().add(get, -wq); H().add(give, gq); f[give] -= gq; f[get] = (f[get] || 0) + wq; P.deed(f, 'trade', { tags: ['deal'], text: 'You traded fair with us.' }); return `<i>Fair is fair. They go quietly.</i>`; } },
+        { label: 'Haggle for more', off: H().inv(get) < wq, fn() { if (chance(0.5 + f.p / 200)) { H().add(get, -wq); H().add(give, gq + 1); f[give] -= gq + 1; f[get] = (f[get] || 0) + wq; P.deed(f, 'trade', { tags: ['deal'], text: 'You pushed for more, and got it.' }); return `<i>A little more. They respect the push.</i>`; } P.deed(f, 'refuse', { text: 'You tried to squeeze us over a small trade.' }); return `<i>They leave without the trade. Not offended. Not pleased.</i>`; } },
         { label: 'Decline', fn() { return `<i>They nod and go.</i>`; } }], art);
     } else if (e.kind === 'pact') {
       const type = pick(['nonaggr', 'trade']); const nm = type === 'nonaggr' ? 'a non-aggression pact' : 'a trade pact';
       ask(`${f.name} offer a pact`, `${lead(`It is a hard season. Let us write it down: ${nm}. For two weeks, at least.`)}`, [
-        { label: 'Accept', fn() { G.pacts.push({ type, with: f.id, until: G.day + rnd(10, 16), between: ['player', f.id] }); f.p = clamp(f.p + 8, -100, 100); G.rep.honor++; return `<i>It is signed on a torn page. Both sides keep a copy.</i>`; } },
-        { label: 'Ask for something extra', fn() { if (chance(0.5)) { G.pacts.push({ type, with: f.id, until: G.day + 12, between: ['player', f.id] }); H().add('food', 2); return `<i>They add two rations to the bargain. They will remember being pushed.</i>`; } f.p = clamp(f.p - 5, -100, 100); return `<i>No pact. A cold goodbye.</i>`; } },
-        { label: 'Refuse', fn() { f.p = clamp(f.p - 3, -100, 100); return `<i>They leave, politely.</i>`; } }], art);
+        { label: 'Accept', fn() { G.pacts.push({ type, with: f.id, until: G.day + rnd(10, 16), between: ['player', f.id] }); P.deed(f, 'kindness', { mult: 0.4, tags: ['written'], text: 'You gave us your word, on a torn page. We kept our copy.' }); G.rep.honor++; return `<i>It is signed on a torn page. Both sides keep a copy.</i>`; } },
+        { label: 'Ask for something extra', fn() { if (chance(0.5)) { G.pacts.push({ type, with: f.id, until: G.day + 12, between: ['player', f.id] }); H().add('food', 2); mem('You made us pay extra for your word.'); return `<i>They add two rations to the bargain. They will remember being pushed.</i>`; } P.deed(f, 'refuse', { text: 'You wanted paying for your word.' }); return `<i>No pact. A cold goodbye.</i>`; } },
+        { label: 'Refuse', fn() { P.deed(f, 'refuse', { text: 'You would not put your name to a pact with us.' }); return `<i>They leave, politely.</i>`; } }], art);
     } else if (e.kind === 'plea') {
       const k = f.food < f.water ? 'food' : 'water'; const q = rnd(3, 6);
       ask(`${f.name} are starving`, `${lead(`We are asking, not demanding. ${q} ${NAME[k]}. Our children have not eaten since yesterday.`)}\n\n<i>${f.members.length ? `${K().by[f.members[0]].name} stands at the back, not meeting your eyes.` : ''}</i>`, [
-        { label: `Give ${q} ${NAME[k]}`, off: H().inv(k) < q, fn() { H().add(k, -q); f[k] += q; f.p = clamp(f.p + 20, -100, 100); G.rep.honor += 2; G.stats.helped++; return `<i>They take it in both hands. ${f.name} will not forget the night you fed them.</i>`; } },
-        { label: 'Lend it, to be repaid', off: H().inv(k) < q, fn() { H().add(k, -q); f[k] += q; G.ledger.push({ id: Date.now() + Math.random(), fid: f.id, dir: 'owed', items: { [k]: q + 1 }, due: G.day + 6, status: 'open' }); f.p = clamp(f.p + 10, -100, 100); return `<i>A debt, then. Both of you understand it.</i>`; } },
-        { label: 'Turn them away', fn() { f.p = clamp(f.p - 18, -100, 100); G.stats.refused++; all(-2); return `<i>They go. Somebody in your group will not look at you for the rest of the day.</i>`; } }], art);
+        { label: `Give ${q} ${NAME[k]}`, off: H().inv(k) < q, fn() { H().add(k, -q); f[k] += q; P.deed(f, 'plea', { tags: ['share', 'feed_weak'], gift: { [k]: q }, text: 'You fed us the week our children stopped crying, because they were too weak to.', heard: `You fed ${f.name} when they were starving.` }); G.rep.honor += 2; G.stats.helped++; return `<i>They take it in both hands. ${f.name} will not forget the night you fed them.</i>`; } },
+        { label: 'Lend it, to be repaid', off: H().inv(k) < q, fn() { H().add(k, -q); f[k] += q; G.ledger.push({ id: Date.now() + Math.random(), fid: f.id, dir: 'owed', items: { [k]: q + 1 }, due: G.day + 6, status: 'open' }); P.deed(f, 'plea', { mult: 0.6, tags: ['share'], text: 'You lent us food when we were starving. We have not forgotten that we owe you.' }); return `<i>A debt, then. Both of you understand it.</i>`; } },
+        { label: 'Turn them away', fn() { P.deed(f, 'refuse', { tags: ['turn_away'], text: 'We came to your door starving. You shut it.', heard: `${f.name} came to your door starving, and you shut it.` }); G.stats.refused++; all(-2); return `<i>They go. Somebody in your group will not look at you for the rest of the day.</i>`; } }], art);
     } else if (e.kind === 'tribute') {
       const k = pick(['food', 'water']); const q = rnd(3, 6);
       ask(`${f.name} want a toll`, `${lead(`You are on our side of the water. A toll, then. ${q} ${NAME[k]}, every week. We will keep the road clear for you.`)}`, [
-        { label: 'Pay', off: H().inv(k) < q, fn() { H().add(k, -q); f[k] += q; f.p = clamp(f.p + 6, -100, 100); G.rep.honor--; return `<i>You buy a week. You do not buy respect.</i>`; } },
-        { label: 'Refuse', fn() { f.p = clamp(f.p - 15, -100, 100); const g = G.groups.find((q2) => q2.fid === f.id); if (g && chance(0.5)) G.flags.groupRaid = g.id; return `<i>"Then we will see you in the dark."</i>`; } },
-        { label: 'Bluff: say you have friends', fn() { const sc = P.myPower() / Math.max(1, P.power(f)); if (sc > 0.6 && chance(0.6)) { f.p = clamp(f.p - 4, -100, 100); G.rep.fear++; return `<i>They study you. They decide not to find out.</i>`; } f.p = clamp(f.p - 22, -100, 100); const g = G.groups.find((q2) => q2.fid === f.id); if (g) G.flags.groupRaid = g.id; return `<i>They did find out.</i>`; } }], art);
+        { label: 'Pay', off: H().inv(k) < q, fn() { H().add(k, -q); f[k] += q; P.deed(f, 'kindness', { mult: 0.25, quiet: true, text: 'You paid without a fight.' }); G.rep.honor--; return `<i>You buy a week. You do not buy respect.</i>`; } },
+        { label: 'Refuse', fn() { P.deed(f, 'refuse', { mult: 3, tags: ['stand_gate', 'courage'].filter(() => f.id === 'gate'), text: 'You refused us.', heard: `You refused ${f.name} their toll to their faces.` }); const g = G.groups.find((q2) => q2.fid === f.id); if (g && chance(0.5)) G.flags.groupRaid = g.id; return `<i>"Then we will see you in the dark."</i>`; } },
+        { label: 'Bluff: say you have friends', fn() { const sc = P.myPower() / Math.max(1, P.power(f)); if (sc > 0.6 && chance(0.6)) { P.deed(f, 'threat', { mult: 0.4, quiet: true, text: 'You told us you have friends. Maybe you do.' }); G.rep.fear++; return `<i>They study you. They decide not to find out.</i>`; } P.deed(f, 'threat', { mult: 2, tags: ['lie'], text: 'You lied to us about having friends.' }); const g = G.groups.find((q2) => q2.fid === f.id); if (g) G.flags.groupRaid = g.id; return `<i>They did find out.</i>`; } }], art);
     } else if (e.kind === 'call') {
       const enemy = P.live().find((o) => P.atWar(f, o)); if (!enemy) return false;
       ask(`${f.name} call for help`, `${lead(`We are at war with ${enemy.name}. A friend would send help. A friend would not wait to be asked twice.`)}`, [
-        { label: 'Send supplies to them', off: H().inv('food') < 3, fn() { H().add('food', -3); f.food += 3; f.morale = clamp(f.morale + 10, 0, 100); f.p = clamp(f.p + 14, -100, 100); enemy.p = clamp(enemy.p - 8, -100, 100); return `<i>You have chosen. ${enemy.name} will learn it.</i>`; } },
-        { label: 'Stay out of it', fn() { f.p = clamp(f.p - 6, -100, 100); return `<i>They look at you the way you look at a closed door.</i>`; } },
-        { label: `Offer to mediate with ${enemy.name}`, fn() { if (chance(0.45 + G.rep.honor * 0.03)) { P.bump(f, enemy, 25); G.wars.forEach((w) => { if ([w.a, w.b].includes(f.id)) w.on = false; }); G.rep.honor += 2; return `<i>By dawn, two leaders have agreed to stop. It is a miracle, and you are tired.</i>`; } return `<i>Neither side will move. You tried.</i>`; } }], art);
+        { label: 'Send supplies to them', off: H().inv('food') < 3, fn() { H().add('food', -3); f.food += 3; f.morale = clamp(f.morale + 10, 0, 100); P.deed(f, 'aid', { tags: ['loyal', 'courage'].concat(f.id === 'gate' ? ['deal_gate', 'help_gate'] : []), gift: { food: 3 }, text: `You sent food when ${enemy.name} came for us.` }); P.deed(enemy, 'sided', { tags: (f.id === 'gate' ? ['deal_gate', 'help_gate'] : []).concat(f.id === 'theatre' && enemy.id === 'union' ? ['side_council'] : [], f.id === 'union' && enemy.id === 'theatre' ? ['help_union_theatre', 'lawless'] : []), text: `When we fought ${f.name}, you fed them.` }); return `<i>You have chosen. ${enemy.name} will learn it.</i>`; } },
+        { label: 'Stay out of it', fn() { P.deed(f, 'refuse', { mult: 2, tags: f.p >= 40 ? ['coward'] : [], text: `When ${enemy.name} came for us, you stayed behind your door.` }); return `<i>They look at you the way you look at a closed door.</i>`; } },
+        { label: `Offer to mediate with ${enemy.name}`, fn() { if (chance(0.45 + G.rep.honor * 0.03)) { P.bump(f, enemy, 25); G.wars.forEach((w) => { if ([w.a, w.b].includes(f.id)) w.on = false; }); G.rep.honor += 2; mem(`You stood between us and ${enemy.name}, and it stopped.`); return `<i>By dawn, two leaders have agreed to stop. It is a miracle, and you are tired.</i>`; } return `<i>Neither side will move. You tried.</i>`; } }], art);
     } else if (e.kind === 'secret') {
       const m = pick(f.members.filter((q) => q !== f.leader)); if (!m) return false; const c = K().by[m]; const line = c.topics && c.topics.find((t) => t.layer === 'secret');
       ask(`${f.name} trust you`, `${lead(`We have decided to tell you something. About one of ours. ${c.name}.`)}\n\n<i>${line ? line.lines[0] : 'A secret, shared the way you share a weight.'}</i>`, [
-        { label: 'Keep it', fn() { f.p = clamp(f.p + 12, -100, 100); f.mem.trust = 1; return `<i>It stays with you. You will carry it carefully.</i>`; } },
-        { label: 'Use it', fn() { f.p = clamp(f.p - 20, -100, 100); H().add('food', 2); G.rep.honor--; return `<i>It pays, once. It ends the trust forever.</i>`; } }], art);
+        { label: 'Keep it', fn() { P.deed(f, 'kept', { tags: ['silent'], quiet: true, text: `We told you something about ${c.name}. You kept it.` }); f.mem.trust = 1; return `<i>It stays with you. You will carry it carefully.</i>`; } },
+        { label: 'Use it', fn() { P.deed(f, 'broke', { tags: ['inform'], text: `We trusted you with something about ${c.name}. You sold it.`, heard: `You sold a secret ${f.name} trusted you with.` }); H().add('food', 2); G.rep.honor--; return `<i>It pays, once. It ends the trust forever.</i>`; } }], art);
     } else if (e.kind === 'missing') {
       f.mem.missingAsked = 1; const cid = pick(f.missing); const mc = K().by[cid]; const sv = x.al.find((s) => s.cid === cid); if (!sv) return false;
       ask(`${f.name} ask about ${mc.name}`, `${lead(`We heard ${mc.name} is with you. We have been afraid for days. Is ${mc.name} alive? Is ${mc.name} well?`)}\n\n${speak(sv, `They are asking about me. Oga, tell them I am fine. Or... let me see them. Please.`)}`, [
-        { label: `Let ${first(sv)} send word`, fn() { f.p = clamp(f.p + 14, -100, 100); mood(sv, 8); sv.trust = clamp((sv.trust || 0) + 6, 0, 100); G.rep.honor++; return `<i>A scrap of paper, a line in ${first(sv)}'s handwriting. It is carried across the campus by someone running.</i>`; } },
-        { label: `Let ${first(sv)} visit for an hour`, off: sv.slots < 1, fn() { sv.slots--; f.p = clamp(f.p + 22, -100, 100); mood(sv, 12); sv.trust = clamp((sv.trust || 0) + 12, 0, 100); G.rep.honor += 2; f.mem.visited = 1; return `<i>${first(sv)} comes back with red eyes and a new weight on their shoulders, and lighter in a way you cannot name.</i>`; } },
-        { label: 'Say nothing', fn() { f.p = clamp(f.p - 8, -100, 100); mood(sv, -6); sv.trust = clamp((sv.trust || 0) - 8, 0, 100); return `<i>${first(sv)} will remember that you could have, and did not.</i>`; } }], art);
+        { label: `Let ${first(sv)} send word`, fn() { P.deed(f, 'kindness', { quiet: true }); mood(sv, 8); sv.trust = clamp((sv.trust || 0) + 6, 0, 100); G.rep.honor++; mem(`You let ${mc.name} send word.`); return `<i>A scrap of paper, a line in ${first(sv)}'s handwriting. It is carried across the campus by someone running.</i>`; } },
+        { label: `Let ${first(sv)} visit for an hour`, off: sv.slots < 1, fn() { sv.slots--; P.deed(f, 'kindness', { mult: 1.5, quiet: true }); mood(sv, 12); sv.trust = clamp((sv.trust || 0) + 12, 0, 100); G.rep.honor += 2; f.mem.visited = 1; mem(`You let ${mc.name} come and see us. We held on too long.`); return `<i>${first(sv)} comes back with red eyes and a new weight on their shoulders, and lighter in a way you cannot name.</i>`; } },
+        { label: 'Say nothing', fn() { P.deed(f, 'refuse', { mult: 2, quiet: true }); mood(sv, -6); sv.trust = clamp((sv.trust || 0) - 8, 0, 100); mem(`We asked if ${mc.name} was alive. You told us nothing.`); return `<i>${first(sv)} will remember that you could have, and did not.</i>`; } }], art);
     } else if (e.kind === 'repaid') { say(`${f.name} paid up`, `${lead(`Here. What we owed. With our thanks.`)}\n\n<i>${itemText(e.items)} are placed in your hands. Honest people are rarer than food.</i>`, art); return true; }
     else if (e.kind === 'default') {
       ask(`${f.name} cannot pay`, `${lead(`We do not have it. We will not have it. I am sorry, truly.`)}`, [
-        { label: 'Forgive the debt', fn() { f.p = clamp(f.p + 18, -100, 100); G.rep.honor += 2; return `<i>They almost cry. Debts forgiven are worth more than debts collected.</i>`; } },
-        { label: 'Demand it anyway', fn() { f.p = clamp(f.p - 18, -100, 100); const k = Object.keys(e.items)[0]; const q = Math.min(f[k] || 0, 3); f[k] -= q; H().add(k, q); return `<i>You take what they have. They watch you do it.</i>`; } }], art);
+        { label: 'Forgive the debt', fn() { P.deed(f, 'mercy', { tags: ['mercy'], text: 'You forgave what we could not pay.', heard: `You forgave ${f.name} a debt they could not pay.` }); G.rep.honor += 2; return `<i>They almost cry. Debts forgiven are worth more than debts collected.</i>`; } },
+        { label: 'Demand it anyway', fn() { const k = Object.keys(e.items)[0]; const q = Math.min(f[k] || 0, 3); f[k] -= q; H().add(k, q); P.deed(f, 'took', { seen: true, tags: f.food < P.size(f) * 0.5 ? ['cruel', 'steal_food'].slice(0, k === 'food' ? 2 : 1) : [], text: 'We could not pay. You took what we had left anyway.', heard: `${f.name} could not pay you, so you took what they had left.` }); return `<i>You take what they have. They watch you do it.</i>`; } }], art);
     } else if (e.kind === 'due') {
       const l = G.ledger.find((q) => q.fid === f.id && q.dir === 'owe' && q.status === 'open'); if (!l) return false;
       ask(`${f.name} want repaying`, `${lead(`You said ${itemText(l.items)} in five days. It has been five days.`)}`, [
         { label: 'Repay now', off: !Object.entries(l.items).every(([k, n]) => H().inv(k) >= n), fn() { return P.repay(l) ? `<i>Settled. They shake your hand.</i>` : ''; } },
-        { label: 'Ask for more time', fn() { l.due = G.day + 3; f.p = clamp(f.p - 8, -100, 100); return `<i>Three days. They are not pleased.</i>`; } },
-        { label: 'Refuse', fn() { l.status = 'default'; if (C.Life) C.Life.nem(f, 'you refused to repay what you owe them', 40); f.p = clamp(f.p - 35, -100, 100); G.rep.honor -= 2; const g = G.groups.find((q2) => q2.fid === f.id); if (g) G.flags.groupRaid = g.id; return `<i>"You will see what that costs."</i>`; } }], art);
+        { label: 'Ask for more time', fn() { l.due = G.day + 3; P.deed(f, 'late', { text: 'You asked for more time on your debt.' }); return `<i>Three days. They are not pleased.</i>`; } },
+        { label: 'Refuse', fn() { l.status = 'default'; if (C.Life) C.Life.nem(f, 'you refused to repay what you owe them', 40); P.deed(f, 'broke', { tags: ['welch', 'cheat'], text: 'You refused to pay what you owe us.', heard: `You refused to pay ${f.name} what you owed them.` }); G.rep.honor -= 2; const g = G.groups.find((q2) => q2.fid === f.id); if (g) G.flags.groupRaid = g.id; return `<i>"You will see what that costs."</i>`; } }], art);
     }
     return true;
   } });

@@ -1,0 +1,288 @@
+{
+ "_note": "Sounds fetched with a Creator account / API key for testing. Replace from the Business Plus account before release.",
+ "amb/amb_day_1.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "a66b5b95-5d1b-4937-a5dd-4effee343290",
+  "title": "Wind, Interior, City, Quiet Apartment, Wind Through Window, Whistling Wind, Howling, Distant Traffic, Cordoba, Argentina"
+ },
+ "amb/amb_day_2.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "7a30f7d2-ca19-45ee-a535-b4f09e8ec5b8",
+  "title": "Ambience, Industrial, Abandoned Factory, Metallic Resonance, Distant Boat Engine, Light Wind, City Activity, Birds, Distant Sea, Interior, Athens, Greece 02"
+ },
+ "amb/amb_day_3.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "bece3bc4-d1f2-446b-a606-4d824f02fd60",
+  "title": "Ambience, Industrial, Abandoned Factory, Metallic Resonance, Distant Boat Engine, Light Wind, City Activity, Birds, Distant Sea, Interior, Athens, Greece 01"
+ },
+ "amb/amb_night_1.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "7993342e-eee7-45e1-acdb-0ad16d77ffc6",
+  "title": "Ambience, Suburban, City Night, Evening Ambience, Crickets, Cicadas, Dog Barks, Distant Traffic"
+ },
+ "amb/amb_night_2.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "4245c333-1d86-4d7f-8e23-25986ae8d738",
+  "title": "Ambience, Rural, Dog Barking, Distant, Crickets, Night, Thailand"
+ },
+ "amb/amb_night_3.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "5f1c92b4-4aff-4836-aa63-8a8729dec9e5",
+  "title": "Ambience, Suburban, Night, Evening Ambience, Cicadas, Distant Dog Barking, Distant Traffic Hum"
+ },
+ "amb/amb_rain_1.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "0fceec71-a6cb-416d-86f4-63b25dd03541",
+  "title": "Rain, Interior, Heavy, On Tin Shed, Loud, Monsoon"
+ },
+ "amb/amb_rain_2.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "ba266382-172b-47bf-90e2-c1cd86c82adc",
+  "title": "Rain, General, Heavy, On Tin Roof Metal"
+ },
+ "amb/amb_rain_3.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "fbbe3ac8-eb25-484a-9943-db89283ef0e9",
+  "title": "Rain, Glass, Window, Roof, Middle Of Rain On Loft, Roof Window, Heavy 03"
+ },
+ "amb/amb_storm_1.mp3": {
+  "source": "Epidemic Sound (Business Plus licence)",
+  "id": "1c9285b3-6c11-4f8c-ba02-3a716bf8ee6f",
+  "title": "Weather, Thunder, Big, Rolling, Distant, Light Rain 01"
+ },
+ "amb/amb_run.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "c96c249f-f3bf-44ef-90c8-0c624537a7a3",
+  "title": "Ambience, Room Tone, Empty Hall, Deep 02 - Epidemic Sound"
+ },
+ "amb/amb_fire.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "951f2f06-5caa-4635-9c22-fec7c0d612e5",
+  "title": "Fire, Crackle, Campfire, Close, Moderate Size - Epidemic Sound"
+ },
+ "amb/amb_flies.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "94dc1fe2-4012-40f1-b59d-b73a5431f225",
+  "title": "Animals, Insect, Fly, Buzz Around, Close Up 01 - Epidemic Sound"
+ },
+ "amb/amb_radio.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "b8590697-02e0-420a-824a-c49de9160167",
+  "title": "Communications, Static, Radio Tuning, Interference - Epidemic Sound"
+ },
+ "music/mus_title.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "40bd0f6a-d8cf-3417-9cb0-082717856456",
+  "title": "& Wishes - Martin Gauffin"
+ },
+ "music/mus_day.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "73b270a2-e57d-42aa-8f94-554a4ada1bb8",
+  "title": "Asheville Lament - American Legion"
+ },
+ "music/mus_night.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "ec9b2f23-3be0-342a-9ec3-cba37997cbbe",
+  "title": "Project Blue Book - Craft Case"
+ },
+ "music/mus_run.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "c41fd4e0-4e2d-3294-863f-e2d199b42b5f",
+  "title": "Terra Firma - Dream Cave"
+ },
+ "music/mus_danger.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "a1fa17e9-666b-32a6-9735-560a01e7b609",
+  "title": "Cornered Bugs - Experia"
+ },
+ "music/mus_grief.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "2da384fb-3cf2-4934-9323-68952603ec53",
+  "title": "The Farewell - Franz Gordon"
+ },
+ "music/mus_end.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "c530d0c2-321a-30b1-96a4-8347b3f60ba7",
+  "title": "Held - Clarence Reed"
+ },
+ "sfx/sfx_knock.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "513a6e21-39d6-40e9-a3e4-ef967c47b7bf",
+  "title": "Doors, Knock, Knocking On Wooden Door 03 - Epidemic Sound"
+ },
+ "sfx/sfx_bang.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "d54f09c7-b201-4ea8-b7fc-e54cb4d7a32f",
+  "title": "Doors, Knock, Old Barn Door, Pounding, Rattle 02 - Epidemic Sound"
+ },
+ "sfx/sfx_door.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "4006f7ed-b65c-44fd-995b-0821f2f02c1e",
+  "title": "Doors, Wood, Open, Creaking, Squeak, Slowly - Epidemic Sound"
+ },
+ "sfx/sfx_doorshut.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "bdf59492-09fd-4b72-a027-c3520243899c",
+  "title": "Doors, Wood, Heavy Door, Slam - Epidemic Sound"
+ },
+ "sfx/sfx_cupboard.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "f45b93c3-563a-4da6-8741-f49bf73dfcf7",
+  "title": "Doors, Cabinet, Cupboard, Wood, Open, Close, Hard - Epidemic Sound"
+ },
+ "sfx/sfx_drink.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "bf092605-5bf7-4821-a9e8-eba6abd83649",
+  "title": "Food & Drink, Drinking, Slurp Water, Gulp, Swallow - Epidemic Sound"
+ },
+ "sfx/sfx_pour.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "6131b913-883b-4641-bcaf-94b4ff4bf91b",
+  "title": "Water, Pour, Into Kettle From Cup - Epidemic Sound"
+ },
+ "sfx/sfx_pick.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "7831c6be-b915-4dc7-bf90-a15fb6acbff7",
+  "title": "Doors, Misc, Lock Picking 02 - Epidemic Sound"
+ },
+ "sfx/sfx_glass.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "dc84e905-f864-4355-8eee-7f3fc2e09285",
+  "title": "Glass, Break, Bottle, Smash - Epidemic Sound"
+ },
+ "sfx/sfx_shot_far.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "a10c05e6-6ed0-4c72-916b-69f5289f7c54",
+  "title": "Guns, Rifle, Assault Rifle, Single Fire, Moderate Distance - Epidemic Sound"
+ },
+ "sfx/sfx_burst_far.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "98592ab5-61fe-40d8-8d7c-e17d093ab043",
+  "title": "Guns, Automatic, Gunshots, Machine Gun, Burst, Distant - Epidemic Sound"
+ },
+ "sfx/sfx_shot.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "beff3f92-5d57-40de-a320-f4ffe287b429",
+  "title": "Guns, Pistol, Gunshot, Exterior 01 - Epidemic Sound"
+ },
+ "sfx/sfx_slash.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "19214cf7-ab05-4f07-a05e-80b2d306bdf4",
+  "title": "Swooshes, Swish, Knife, Swing, Swipe Air, Whoosh, Slash - Epidemic Sound"
+ },
+ "sfx/sfx_thunder.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "51a8da1c-bca9-4b1c-b1ea-5c247e1ff516",
+  "title": "Weather, Thunder, Thunder Clap, Heavy Impact, Gritty, Distant 05 - Epidemic Sound"
+ },
+ "sfx/sfx_scream.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "16273595-04ac-4b1d-9a00-cdbdb7a1e277",
+  "title": "Voices, Scream, Male Forest Scream, 36 Year Old, Perspective 2 - Epidemic Sound"
+ },
+ "sfx/sfx_tick.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "8370f7a5-9ccb-4952-9a61-07a36d190e9a",
+  "title": "Fire, Misc, Fuse, Stop, Burn Out, Bomb, Dynamite 03 - Epidemic Sound"
+ },
+ "sfx/sfx_page.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "af766588-9c36-4ab8-9d46-59da44d531c1",
+  "title": "Paper, Handle, Notepad, Page Turn 01 - Epidemic Sound"
+ },
+ "sfx/sfx_pencil.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "d283b949-59d2-4b9b-9eaa-b813f517dd90",
+  "title": "Objects, Writing, Pencil On Paper, Letter - Epidemic Sound"
+ },
+ "sfx/sfx_tap.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "baa7e409-25f9-4f01-8ee4-cc321130e985",
+  "title": "User Interface, Click, Select, Smartphone, Short 03 - Epidemic Sound"
+ },
+ "sfx/sfx_match.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "be11e537-2b4a-492e-a493-c58828fbdc44",
+  "title": "Fire, Ignite, Match, Lighting, Strike Box - Epidemic Sound"
+ },
+ "sfx/sfx_cough.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "3020c887-5743-45cf-8445-a615711b521f",
+  "title": "Human, Cough, Man Coughing - Epidemic Sound"
+ },
+ "sfx/sfx_run.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "a344ac55-28f0-4a98-afa7-e21af506c1b2",
+  "title": "Footsteps, Human, Sneakers, Concrete, Sprint, Distant - Epidemic Sound"
+ },
+ "sfx/sfx_hammer.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "8e4d6d02-b7bf-411d-b847-c1ff41af1a32",
+  "title": "Tools, Hand, Hammer, Hit Nail Into Wooden Decking 02 - Epidemic Sound"
+ },
+ "sfx/sfx_saw.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "1f109f59-dac0-407c-ac5e-1b0fd0559d94",
+  "title": "Tools, Hand, Wood Saw, Sawing, Single Strokes, Fast - Epidemic Sound"
+ },
+ "sfx/sfx_cook.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "25e17e14-2885-4027-92d1-ffb8c780f301",
+  "title": "Food & Drink, Cooking, Water, Boiling, Loop - Epidemic Sound"
+ },
+ "sfx/sfx_search.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "317cd3d7-a4d1-4449-a825-a8dad266d84c",
+  "title": "Objects, Container, Cardboard Box, Rummage - Epidemic Sound"
+ },
+ "sfx/sfx_pry.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "5581eeb3-3b54-4666-8fe9-9ff529a1f3c7",
+  "title": "Tools, Hand, Hammer, Knock, Hit, Impact, Break, Door, Wood, Creak - Epidemic Sound"
+ },
+ "sfx/sfx_rubble.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "e8931190-99b3-41b4-b9c5-089f19def9d0",
+  "title": "Rocks, Crash & Debris, Stones, Brick, Flakes, Many Rolling Down - Epidemic Sound"
+ },
+ "sfx/sfx_hit.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "56d155fd-6a52-41a1-8399-fe2b88309c95",
+  "title": "Fight, Impact, Punch, Fist, Hard, Body Impact, Short 01 - Epidemic Sound"
+ },
+ "sfx/sfx_dog.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "ca96587f-b82b-4728-b8ba-a5709f616b15",
+  "title": "Animals, Dog, Barking, Distant - Epidemic Sound"
+ },
+ "sfx/sfx_heart.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "84b44e32-dfcc-41f7-a7d3-e32cf50dad70",
+  "title": "Human, Heartbeat - Epidemic Sound"
+ },
+ "sfx/sfx_bag.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "9a06dd54-3c35-4360-ad01-b5493621407b",
+  "title": "Objects, Zipper, Backpack, Short, Close & Open - Epidemic Sound"
+ },
+ "sfx/sfx_step.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "4a0e032d-92a5-4385-b755-9fbcca7b14cf",
+  "title": "Footsteps, Human, Sneakers, Concrete, Walk, Close - Epidemic Sound"
+ },
+ "sfx/sfx_eat.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "801510f8-5621-40a8-a57c-b091d9219df2",
+  "title": "Food & Drink, Tableware, Dishes, Eating With Cutlery On Plate - Epidemic Sound"
+ },
+ "sfx/sfx_club.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "117911df-6e00-4d72-872a-ae56e8a08c24",
+  "title": "Wood, Impact, Wooden Stick, Hit Log, Hard - Epidemic Sound"
+ },
+ "sfx/sfx_siren.mp3": {
+  "source": "Epidemic Sound (Creator account, TEST ONLY)",
+  "id": "3ee522b6-0203-4fcb-9596-72f34b22b21a",
+  "title": "Vehicles, Siren, Police Siren, Distant - Epidemic Sound"
+ }
+}

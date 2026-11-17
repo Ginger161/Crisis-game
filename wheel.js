@@ -19,7 +19,7 @@ function ensure() {
   el = document.createElement('div'); el.id = 'wheel'; el.className = 'wheel hidden'; document.body.appendChild(el);
   el.addEventListener('click', (e) => {
     const w = e.target.closest('[data-w]'); const cur = stack[stack.length - 1];
-    if (e.target.closest('[data-wclose]') || (!w && e.target === el)) { close(); return; }
+    if (e.target.closest('[data-wclose]') || (!w && e.target === el)) { cancel(); return; }
     if (e.target.closest('[data-wmore]')) { { let pp = perPage(); if ((short() || narrow()) && cur.items.length > pp) pp = Math.max(1, pp - 1); cur.page = (cur.page + 1) % Math.ceil(cur.items.length / pp); }  draw(); return; }
     if (!w || !cur) return; const it = cur.items[+w.dataset.w]; if (!it) return;
     if (it.off) { toast(it.why || 'Not available right now.'); return; }
@@ -33,7 +33,7 @@ const cost = (it) => {
   const t = it.time ? `<span class="ct">${I ? I.html('clock') : ''}${it.time}</span>` : '';
   return `<span class="wmeta">${chips}${t}</span>`;
 };
-const card = (it, gi, idx) => `<button class="wedge${it.off ? ' off' : ''}${it.danger ? ' danger' : ''}" data-w="${gi}" style="--i:${idx}"><span class="wcard"><span class="wi">${it.icon && IC() ? IC().html(it.icon) : ''}</span>${it.count !== undefined ? `<em>${it.count}</em>` : ''}${it.lock && IC() ? `<span class="wlock">${IC().html('lock')}</span>` : ''}</span><span class="wl">${it.label}</span>${cost(it)}${it.sub ? `<small>${it.sub}</small>` : ''}</button>`;
+const card = (it, gi, idx) => `<button class="wedge${it.off ? ' off' : ''}${it.danger ? ' danger' : ''}" data-w="${gi}"${it.off && it.why ? ` title="${String(it.why).replace(/"/g, '&quot;')}"` : ''} style="--i:${idx}"><span class="wcard"><span class="wi">${it.icon && IC() ? IC().html(it.icon) : ''}</span>${it.count !== undefined ? `<em>${it.count}</em>` : ''}${it.lock && IC() ? `<span class="wlock">${IC().html('lock')}</span>` : ''}</span><span class="wl">${it.label}</span>${cost(it)}${it.sub ? `<small>${it.sub}</small>` : ''}</button>`
 const moreCard = (idx) => `<button class="wedge wmore" data-wmore="1" style="--i:${idx}"><span class="wcard"><span class="wi">…</span></span><span class="wl">More</span></button>`;
 
 function draw() {
@@ -43,7 +43,7 @@ function draw() {
   if (mob) {
     /* a phone held upright: the choices come up as a sheet of tiles, three across, every word inside its tile. No paging: it scrolls */
     const I = IC(); const hub0 = cur.hub && I ? I.html(cur.hub) : '';
-    const tile = (it, gi) => `<button class="wtile${it.off ? ' off' : ''}${it.danger ? ' danger' : ''}" data-w="${gi}" aria-label="${String(it.label).replace(/<[^>]+>/g, '').replace(/"/g, '')}">${it.time ? `<span class="wtm">${it.time}</span>` : ''}<span class="wi">${it.icon && I ? I.html(it.icon) : ''}${it.lock && I ? `<span class="wlock">${I.html('lock')}</span>` : ''}</span>${it.count !== undefined ? `<em class="wcount">${it.count}</em>` : ''}<b class="wl">${it.label}</b>${Object.keys(it.cost || {}).length ? `<span class="wcost">${Object.entries(it.cost).map(([k, n]) => `<span class="${it.lack && it.lack[k] ? 'lack' : ''}">${I ? I.item(k) : ''}${n}</span>`).join('')}</span>` : ''}${it.sub ? `<small>${it.sub}</small>` : ''}</button>`;
+    const tile = (it, gi) => `<button class="wtile${it.off ? ' off' : ''}${it.danger ? ' danger' : ''}" data-w="${gi}" aria-label="${String(it.label).replace(/<[^>]+>/g, '').replace(/"/g, '')}">${it.time ? `<span class="wtm">${it.time}</span>` : ''}<span class="wi">${it.icon && I ? I.html(it.icon) : ''}${it.lock && I ? `<span class="wlock">${I.html('lock')}</span>` : ''}</span>${it.count !== undefined ? `<em class="wcount">${it.count}</em>` : ''}<b class="wl">${it.label}</b>${Object.keys(it.cost || {}).length ? `<span class="wcost">${Object.entries(it.cost).map(([k, n]) => `<span class="${it.lack && it.lack[k] ? 'lack' : ''}">${I ? I.item(k) : ''}${n}</span>`).join('')}</span>` : ''}${it.off && it.why ? `<small class="wwhy">${it.why}</small>` : it.sub ? `<small>${it.sub}</small>` : ''}</button>`
     el.innerHTML = `<div class="wsheet" role="dialog" aria-label="${cur.title}"><div class="wshead"><span class="whub">${hub0}</span><b>${cur.title}</b><button class="wx" data-wclose="1">Close</button></div><div class="wtiles">${cur.items.map((it, i) => tile(it, i)).join('')}</div>${cur.items.some((it) => it.off) ? '<div class="wsnote">Faded: something is missing. Tap it to see what.</div>' : ''}</div>`;
     el.classList.remove('hidden'); if (I) I.skin(el); return;
   }
@@ -75,9 +75,11 @@ function draw() {
   el.innerHTML = `<div class="wring" style="--rx:${Rx}px;--ry:${Ry}px">${o}</div>`; el.classList.remove('hidden');
   if (IC()) IC().skin(el);
 }
-function open(opts) { ensure(); if (!el) return; stack.push({ title: opts.title, hub: opts.hub, items: opts.items || [], onPick: opts.onPick, page: 0 }); draw(); }
+function open(opts) { ensure(); if (!el) return; stack.push({ title: opts.title, hub: opts.hub, items: opts.items || [], onPick: opts.onPick, onCancel: opts.onCancel, page: 0 }); draw(); }
 function close() { if (!el) return; stack = []; el.classList.add('hidden'); el.innerHTML = ''; }
+/* the player backed out (Back, the backdrop, Esc, right-click): the caller decides what that means */
+function cancel() { const cur = stack[stack.length - 1]; close(); if (cur && cur.onCancel) { cur.onCancel(); if (C.Wheel.after) { try { C.Wheel.after(); } catch (e2) {} } } }
 const isOpen = () => !!(el && !el.classList.contains('hidden'));
-C.Wheel = { open, close, isOpen };
+C.Wheel = { open, close, cancel, isOpen };
 if (typeof module !== 'undefined') module.exports = C.Wheel;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -447,7 +447,7 @@ function draw(ts) {
     const dp = pos.depth || 0; const back = dp > 0.02; if (a.back !== back) { a.back = back; (back ? H.layerB : H.layer).appendChild(a.el); }
     { const hide = H.strip && Math.abs(pos.f - H.stripF) > 0.35; if (a.hid !== hide) { a.hid = hide; a.el.style.display = hide ? 'none' : ''; } }
     if (!Number.isFinite(x) || !Number.isFinite(y)) { if (!H.badPos) { H.badPos = 1; try { (window.__errors = window.__errors || []).push('house: no position for ' + p.name + ' act=' + JSON.stringify(p.act && { k: p.act.k, st: p.act.st, label: p.act.label, to: p.act.to, from: p.act.from })); } catch (e) {} } return; }
-    const sc = 1 - 0.17 * dp; a.el.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)})`);
+    const sc = 1 - 0.17 * dp; const tf = `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc.toFixed(3)})`; if (a.tf !== tf) { a.tf = tf; a.el.setAttribute('transform', tf); }   /* someone sitting still is not redrawn */
     const lvl = dp > 0.02 ? Math.min(4, 1 + Math.floor(dp * 3.999)) : 0; const lite = !!(C.Perf && C.Perf.lite()); if (a.lvl !== lvl || a.lite !== lite) { a.lvl = lvl; a.lite = lite; if (lvl && !lite) { a.el.setAttribute('filter', `url(#dim${lvl})`); a.el.removeAttribute('opacity'); } else { a.el.removeAttribute('filter'); if (lvl) a.el.setAttribute('opacity', (1 - lvl * 0.13).toFixed(2)); else a.el.removeAttribute('opacity'); } }
     /* progress over the head for timed jobs at a station */
     let bar = '';
@@ -475,12 +475,25 @@ function updateViewPC(G, box) {
   const x0 = VX + VW / 2 - (visW / 2 + 6) / s, y0 = VH / 2 - vh / 2 + 4;
   if (H.vy == null || H.vw == null) { H.vx = x0; H.vy = y0; H.vw = vw; }
   H.vx += (x0 - H.vx) * 0.14; H.vy += (y0 - H.vy) * 0.14; H.vw += (vw - H.vw) * 0.14; const vhh = H.vw * box.height / box.width;
-  H.svg.setAttribute('viewBox', `${H.vx.toFixed(1)} ${H.vy.toFixed(1)} ${H.vw.toFixed(1)} ${vhh.toFixed(1)}`);
+  setVB(`${H.vx.toFixed(1)} ${H.vy.toFixed(1)} ${H.vw.toFixed(1)} ${vhh.toFixed(1)}`); H.vbx = [H.vx, H.vy, H.vw, vhh];
   H.strip = false; H.pxs = box.width / H.vw;
   H.root.querySelectorAll('.hfl').forEach((b) => { b.style.display = 'none'; });
 }
+/* everything measured once, at the start of the frame, before anything is changed: the rest of the frame works from these numbers.
+   Reading layout after changing it forces the phone to lay the page out again, several times a frame; on a cheap phone that is the lag */
+/* the camera only moves the picture when it really moved: a still camera repaints nothing */
+function setVB(v) { if (H.vbStr !== v) { H.vbStr = v; H.svg.setAttribute('viewBox', v); } }
+H.ctm = function () { const b = H.box, v = H.vbx; if (!b || !v || !v[2] || !v[3] || !H.svg || !H.svg.createSVGMatrix) return H.svg && H.svg.getScreenCTM(); const a = b.width / v[2], d = b.height / v[3]; const m = H.svg.createSVGMatrix(); m.a = a; m.b = 0; m.c = 0; m.d = d; m.e = b.left - v[0] * a; m.f = b.top - v[1] * d; return m; };   /* an SVGMatrix: older engines will not transform a point by a plain DOMMatrix */
 function updateView(G) {
-  const box = H.root.getBoundingClientRect(); if (!box.width || !box.height) return;
+  /* the house's own box only changes when the screen, the sheet or a card changes it: measure then (and once a second to be safe), never every frame */
+  const now = performance.now();
+  if (!H.box || H.boxDirty || now - (H.boxT || 0) > 1000) {
+    if (!H.ro && typeof ResizeObserver !== 'undefined') { H.ro = new ResizeObserver(() => { H.boxDirty = true; }); H.ro.observe(H.root); }
+    H.boxDirty = false; H.boxT = now; const b0 = H.root.getBoundingClientRect(); H.box = b0;
+    const upB = H.root.querySelector('.hfl.up'); H.ubox = upB && upB.style.display !== 'none' && upB.offsetParent ? upB.getBoundingClientRect() : null;
+    const sb = (H.hooks.modalOpen && H.hooks.modalOpen() && document.querySelector('#modal:not(.hidden) .box')) || document.querySelector('.msheet.up'); H.sheetTop = sb ? sb.getBoundingClientRect().top : null;
+  }
+  const box = H.box; if (!box.width || !box.height) return;
   if (document.documentElement.classList.contains('pc')) { updateViewPC(G, box); return; }
   H.vw = null;
   const vw = Math.min(VW, H.zoomW || ZOOMW), vh = vw * box.height / box.width;
@@ -489,18 +502,18 @@ function updateView(G) {
   const f = H.focus != null ? H.focus : sp.f;
   H.strip = vh < FH * 1.7; H.stripF = Math.round(clamp(f, 0, N - 1));   /* a short strip shows one floor: people on the others would be cut in half at the edges */
   /* a sheet open over the house covers its lower part: centre the floor in the part you can still see, so the person the sheet is about stays in view */
-  let seen = vh; { const sb = (H.hooks.modalOpen && H.hooks.modalOpen() && document.querySelector('#modal:not(.hidden) .box')) || document.querySelector('.msheet.up'); if (sb) { const top = sb.getBoundingClientRect().top; if (top > box.top + 40 && top < box.bottom) seen = vh * (top - box.top) / box.height; } }
+  let seen = vh; { const sb = H.sheetTop != null; if (sb) { const top = H.sheetTop; if (top > box.top + 40 && top < box.bottom) seen = vh * (top - box.top) / box.height; } }
   let y0 = yb(clamp(f, 0, N - 1)) - FH * 0.42 - seen / 2; y0 = clamp(y0, -6, VH - seen + 4); if (seen >= VH + 6) y0 = VH - seen; if (seen === vh && vh >= VH + 6) y0 = VH - vh;
   let x0 = clamp(sp.x - vw / 2, VX, VX + VW - vw);
   if (H.vy == null) { H.vy = y0; H.vx = x0; } H.vy += (y0 - H.vy) * 0.12; H.vx += (x0 - H.vx) * 0.12;
-  H.svg.setAttribute('viewBox', `${H.vx.toFixed(1)} ${H.vy.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}`);
-  const many = vh < VH - 10; const up = H.root.querySelector('.hfl.up'), dn = H.root.querySelector('.hfl.dn'); if (up) up.style.display = many ? 'block' : 'none'; if (dn) dn.style.display = many ? 'block' : 'none';
+  setVB(`${H.vx.toFixed(1)} ${H.vy.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}`); H.vbx = [H.vx, H.vy, vw, vh];
+  const many = vh < VH - 10; const up = H.root.querySelector('.hfl.up'), dn = H.root.querySelector('.hfl.dn'); const dsp = many ? 'block' : 'none'; if (up && up.style.display !== dsp) up.style.display = dsp; if (dn && dn.style.display !== dsp) dn.style.display = dsp;
 }
 function toneOf(t) { const h = (t % 1440) / 60; if (h >= 21 || h < 4.5) return 0.62; if (h >= 19) return 0.12 + (h - 19) * 0.25; if (h < 6.5) return 0.62 - (h - 4.5) * 0.25; return 0; }
 /* speech: one bubble at a time, only for people you can see, and only for a few real seconds, whatever the game speed */
 function placeBubbles(G) {
   const box = H.root.querySelector('.hbub');
-  if (H.hooks.modalOpen && H.hooks.modalOpen()) { Object.keys(H.bub || {}).forEach((k) => { H.bub[k].remove(); delete H.bub[k]; }); H.curBub = null; return; }   /* no speech over an open sheet */ const svg = H.svg; const m = svg.getScreenCTM(); if (!m) return; const host = H.root.getBoundingClientRect(); const now = performance.now();
+  if (H.hooks.modalOpen && H.hooks.modalOpen()) { Object.keys(H.bub || {}).forEach((k) => { H.bub[k].remove(); delete H.bub[k]; }); H.curBub = null; return; }   /* no speech over an open sheet */ const svg = H.svg; const m = H.ctm(); if (!m) return; const host = H.box || H.root.getBoundingClientRect(); const now = performance.now();
   const vb = svg.viewBox.baseVal; const sel = H.hooks.selected && H.hooks.selected();
   H.bs = H.bs || {};
   /* start the clock on the first frame a line is seen */
@@ -551,13 +564,12 @@ function updateChips(G, ts) {
   if (!H.chipT || ts - H.chipT > 120) {
     H.chipT = ts; H.active = activeSet(G); const S = chipList(G); const JK = (G.build && G.build.junk) || {}; const sig = S.map((s) => s.id + (s.built === false ? 'n' : '') + (JK[s.id] || '')).join(',');
     if (sig !== H.chipSig) { H.chipSig = sig; box.innerHTML = S.map((s) => `<button class="hchip${s.built === false ? ' site' : ''}" data-st="${s.id}" aria-label="${s.label}">${C.Icons ? C.Icons.html(chipIcon(s) || CHIPICON[s.id] || 'tools') : ''}<svg class="hring" viewBox="0 0 48 48" aria-hidden="true"><circle class="rb" cx="24" cy="24" r="21"/><circle class="rf" cx="24" cy="24" r="21" pathLength="100"/></svg></button>`).join(''); H.chipEls = [...box.children].map((el, i) => ({ el, s: S[i] })); if (C.Icons) C.Icons.skin(box); }
-    /* a soft pulse around the objects you can tap right now */
-    const Sall = SIM().stations(); const hint = [...H.active].map((id) => Sall[id]).filter((s) => s && isDirect(s)).map((s) => { const y1 = yb(s.f), bx = hitBox(s, y1, y1 - FH); return `<rect class="hint" x="${(bx[0] - 1).toFixed(1)}" y="${(bx[1] - 1).toFixed(1)}" width="${bx[2] + 2}" height="${bx[3] + 2}" rx="2" fill="none" stroke="#f6b37f" stroke-width=".9"/>`; }).join('');
-    if (hint !== H.hintSig) { H.hintSig = hint; H.hintG.innerHTML = hint; }
+    /* objects are just tappable: no boxes drawn around them */
+    if (H.hintSig !== '') { H.hintSig = ''; H.hintG.innerHTML = ''; }
     /* the ring round the icon fills as the work goes on, like TWoM */
     (H.chipEls || []).forEach(({ el, s }) => { const w = workAt(G, s.id); const on = w !== null; el.classList.toggle('working', on); const f = el.querySelector('.rf'); if (f) f.style.strokeDashoffset = on ? String(100 - Math.round(w * 100)) : '100'; });
   }
-  const m = H.svg.getScreenCTM(); if (!m || !H.chipEls) return; const host = H.root.getBoundingClientRect();
+  const m = H.ctm(); if (!m || !H.chipEls) return; const host = H.box || H.root.getBoundingClientRect();
   const pts = H.chipEls.map(({ el, s }) => { const y1 = yb(s.f); const hb = hitBox(s, y1, y1 - FH); const pt = H.svg.createSVGPoint(); pt.x = s.x; pt.y = Math.min(hb[1] - 5, y1 - 44);   /* above head height, never over the person using it */ const q = pt.matrixTransform(m); return { el, x: q.x - host.left, y: q.y - host.top }; });
   /* bubbles never sit on top of each other: spread neighbours at least 50px apart, and keep the whole row on screen */
   /* per row of markers (one floor): spread them at least 50px apart, but squeeze the gap when a crowded floor would not fit, so none is ever pushed off screen */
@@ -566,8 +578,8 @@ function updateChips(G, ts) {
   rows.forEach((r) => { r.sort((a, b) => a.x - b.x); const gap = r.length > 1 ? Math.min(50, (hi - lo) / (r.length - 1)) : 50; for (let i = 1; i < r.length; i++) if (r[i].x - r[i - 1].x < gap) r[i].x = r[i - 1].x + gap;
     const over = r[r.length - 1].x - hi; if (over > 0) r.forEach((p) => { p.x -= over; }); const under = lo - r[0].x; if (under > 0) r.forEach((p) => { p.x += under; }); r.forEach((p) => { p.x = clamp(p.x, lo, hi); }); });
   /* the short view has floor buttons on the right edge: a marker that would sit under the up button drops just below it, over its own site */
-  const upB = H.root.querySelector('.hfl.up'); const ub = upB && upB.offsetParent ? upB.getBoundingClientRect() : null;
-  pts.forEach((p) => { let y = Math.max(26, p.y); if (ub && host.left + p.x + 22 > ub.left && host.top + y - 22 < ub.bottom) y = ub.bottom - host.top + 24; p.el.style.left = p.x + 'px'; p.el.style.top = y + 'px'; });
+  const ub = H.ubox;
+  pts.forEach((p) => { let y = Math.max(26, p.y); if (ub && host.left + p.x + 22 > ub.left && host.top + y - 22 < ub.bottom) y = ub.bottom - host.top + 24; const L = Math.round(p.x) + 'px', T = Math.round(y) + 'px'; if (p.el.style.left !== L) p.el.style.left = L; if (p.el.style.top !== T) p.el.style.top = T; });   /* only touch what moved */
 }
 
 /* ---------- yard visitors (only drawn when somebody is looking out) ---------- */
@@ -592,7 +604,7 @@ H.attach = function (container, G) {
     H.key = key; const old = H.layer; H.actors = {}; H.bub = {};
     const staticSvg = H.toneSvg(buildStatic(G));
     H.root.querySelector('.hsvg').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VX} 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges"><g id="hstatic">${staticSvg}</g><g id="hdyn"></g><g id="hhint" pointer-events="none"></g><g id="hactb"></g><g id="hrail">${railOut}</g><g id="hyard"></g><g id="hact"></g><rect id="hhaze" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#5a4c38" opacity=".16" pointer-events="none"/><rect id="hdark" x="${VX - 600}" y="-900" width="${VW + 1200}" height="${VH + 1800}" fill="#060a22" opacity="0" pointer-events="none"/><g id="hstars" opacity="0" pointer-events="none">${Array.from({ length: 14 }, (_, i) => rect(VX + ((i * 37) % VW), 2 + ((i * 11) % 14), 0.8, 0.8, '#f2ebcf')).join('')}</g><g id="hglow" pointer-events="none"></g></svg>`;
-    H.svg = H.root.querySelector('svg'); H.layer = H.svg.querySelector('#hact'); H.layerB = H.svg.querySelector('#hactb'); H.dynG = H.svg.querySelector('#hdyn'); H.dynK = null; refreshDyn(G); if (C.Perf && C.Perf.bitmap()) bakeStatic(staticSvg, key); H.hintG = H.svg.querySelector('#hhint'); H.hintSig = null; H.chipSig = null; H.active = new Set(); H.dark = H.svg.querySelector('#hdark'); H.stars = H.svg.querySelector('#hstars'); H.yard = H.svg.querySelector('#hyard'); H.glow = H.svg.querySelector('#hglow'); H.yardKey = null; H.tone = -1;
+    H.svg = H.root.querySelector('svg'); H.vbStr = null; H.layer = H.svg.querySelector('#hact'); H.layerB = H.svg.querySelector('#hactb'); H.dynG = H.svg.querySelector('#hdyn'); H.dynK = null; refreshDyn(G); if (C.Perf && C.Perf.bitmap()) bakeStatic(staticSvg, key); H.hintG = H.svg.querySelector('#hhint'); H.hintSig = null; H.chipSig = null; H.active = new Set(); H.dark = H.svg.querySelector('#hdark'); H.stars = H.svg.querySelector('#hstars'); H.yard = H.svg.querySelector('#hyard'); H.glow = H.svg.querySelector('#hglow'); H.yardKey = null; H.tone = -1;
   }
   if (H.root.parentNode !== container) container.appendChild(H.root);
   if (!H.raf) H.raf = requestAnimationFrame(frame);
@@ -602,9 +614,11 @@ H.attach = function (container, G) {
 function bakeStatic(src, key) {
   if (typeof Image === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) return;
   const x0 = VX - 30, y0 = -60, w = VW + 60, h = VH + 90;
-  const dpr = Math.min(3, (typeof devicePixelRatio !== 'undefined' && devicePixelRatio) || 1);
+  const dpr = Math.min(2, (typeof devicePixelRatio !== 'undefined' && devicePixelRatio) || 1);
+  /* a cheap phone has little picture memory: an oversized house image is evicted and redrawn, and that shows as flicker */
+  const cap = C.Perf && C.Perf.mode === 'light' ? 1.5e6 : C.Perf && C.Perf.mode === 'balanced' ? 2.5e6 : 4e6;
   let px = Math.ceil((Math.max(320, (typeof innerWidth !== 'undefined' ? innerWidth : 390)) * dpr) / (H.zoomW || ZOOMW));
-  px = Math.max(2, Math.min(px, 7, Math.floor(Math.sqrt(6e6 / (w * h)))));
+  px = Math.max(2, Math.min(px, 6, Math.floor(Math.sqrt(cap / (w * h)))));
   const doc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0} ${y0} ${w} ${h}" width="${Math.round(w * px)}" height="${Math.round(h * px)}" shape-rendering="crispEdges">${src}</svg>`;
   const u0 = URL.createObjectURL(new Blob([doc], { type: 'image/svg+xml' })); const img = new Image();
   img.onload = () => {

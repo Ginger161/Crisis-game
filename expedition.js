@@ -188,6 +188,8 @@ function onTap(ev) {
   const S = X.st; if (!S || (X.hooks.modalOpen && X.hooks.modalOpen()) || C.paused) return; ev.preventDefault(); const p = S.p;
   try { if (C.Audio) { C.Audio.start(); C.Audio.sfx('tap'); } } catch (e) {}
   if (p.busy || S.e.dead) return; if (S.e.forced) return; if (S.e.homing) { S.e.homing = false; p.run = false; } const w = toWorld(ev);
+  /* double-tap (double-click) the same spot to run there: twice as fast, twice as loud */
+  { const t = performance.now(), lt = S.lastTap; const dbl = !!(lt && t - lt.t < 340 && Math.abs(ev.clientX - lt.x) < 40 && Math.abs(ev.clientY - lt.y) < 40); S.lastTap = dbl ? null : { t, x: ev.clientX, y: ev.clientY }; p.run = dbl; }
   if ((S.e.floor || 0) === 0 && w.x < 24 && w.y > FLOOR - 50) { goto(26, () => { if (X.hooks.exit) X.hooks.exit(); }); return; }
   if (S.camp) { const tp = S.camp.people.find((q) => Math.abs(w.x - q.x) <= 12 && w.y > FLOOR - 42); if (tp) { goto(tp.x - 22, () => { if (X.hooks.meet) X.hooks.meet('people'); }); return; } }
   const sti = S.stairs.find((q) => Math.abs(w.x - q.x) <= 18 && w.y > FLOOR - 64); if (sti) { goto(sti.x, () => { if (X.hooks.stairs) X.hooks.stairs(sti.dir); }); return; }
@@ -266,9 +268,9 @@ function tick() {
   if (e.dead) { setKind(p, 'dead'); p.state = 'dead'; redraw(p); return; }
   p.state = X.hooks.stateNow ? X.hooks.stateNow() : p.state;
   if (p.target != null && !p.busy) {
-    const dx = p.target - p.x, spd = (p.sneak ? 13 : p.run ? 58 : 25) * (X.hooks.slow ? X.hooks.slow() : 1), step = spd * dt; e.sneak = !!p.sneak;
-    if (Math.abs(dx) <= step) { p.x = p.target; p.target = null; const f = p.then; p.then = null; setKind(p, 'idle'); if (f) f(); }
-    else { p.x += Math.sign(dx) * step; p.dir = Math.sign(dx); p.walked += step; setKind(p, p.sneak ? 'sneak' : p.run ? 'run' : 'walk'); if (!p.sneak && p.walked > 55) { p.walked = 0; e.noise += 1; } else if (p.sneak && p.walked > 170) { p.walked = 0; e.noise += 1; } }
+    const dx = p.target - p.x, spd = (p.run ? 58 : p.sneak ? 13 : 25) * (X.hooks.slow ? X.hooks.slow() : 1), step = spd * dt; e.sneak = !!p.sneak && !p.run;
+    if (Math.abs(dx) <= step) { p.x = p.target; p.target = null; if (!e.homing) p.run = false; const f = p.then; p.then = null; setKind(p, 'idle'); if (f) f(); }
+    else { p.x += Math.sign(dx) * step; p.dir = Math.sign(dx); p.walked += step; setKind(p, p.run ? 'run' : p.sneak ? 'sneak' : 'walk'); if (p.run && p.walked > 28) { p.walked = 0; e.noise += 1; } else if (!p.run && !p.sneak && p.walked > 55) { p.walked = 0; e.noise += 1; } else if (!p.run && p.sneak && p.walked > 170) { p.walked = 0; e.noise += 1; } }
   } else if (!p.busy && p.kind !== 'idle' && !p.hidden) setKind(p, 'idle');
   if (e.homing && p.target == null && !p.busy && !S.lock && !p.hidden) X.runHome();
   { const rise = e.noise - S.nPrev; if (rise >= 0.99) X.sound(p.x, Math.round(rise), 'you'); e.noise = Math.max(0, e.noise - dt * (p.hidden ? 0.5 : 0.3)); S.nPrev = e.noise; }
