@@ -999,3 +999,22 @@ button[aria-disabled="true"][data-why]:not(.ltc):not(.hchip){opacity:.62}
 .vgrid .vbtn .gmark{flex:none}
 .vamend{color:#f0b8a8}
 #modal .btns button:has(.vamend){border-color:#a8321f;background:#2a1713}
+
+/* Veritas ID cards */
+.idsvg{display:block;width:100%;height:auto;filter:drop-shadow(0 8px 12px rgba(0,0,0,.7))}
+.idflip{position:relative;perspective:900px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.idflip .idf,.idflip .idb{transition:transform .5s ease;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.idflip .idb{position:absolute;inset:0;transform:rotateY(180deg)}
+.idflip.over .idf{transform:rotateY(180deg)}
+.idflip.over .idb{transform:rotateY(360deg)}
+.idflip.dead .idsvg{filter:grayscale(1) brightness(.8) drop-shadow(0 8px 12px rgba(0,0,0,.7))}
+.idx{position:absolute;inset:4% 2%;pointer-events:none;background:linear-gradient(to bottom right,transparent calc(50% - 1.5px),rgba(232,226,210,.6) 50%,transparent calc(50% + 1.5px))}
+.iddead{position:relative;padding:8px 6px 30px;margin:0 0 10px;border-radius:8px;background:radial-gradient(ellipse at 50% 40%,#25211b,#100f0d 80%)}
+.idchalk{position:absolute;right:16px;bottom:4px;font-family:var(--hand);font-size:19px;color:#e8e2d2;opacity:.8;transform:rotate(-3deg)}
+.pid{margin:12px auto 0;max-width:340px}
+.idopen{position:fixed;inset:0;z-index:120;display:flex;flex-direction:column;opacity:0;transition:opacity .38s ease;background:radial-gradient(ellipse at 50% 42%,rgba(201,138,58,.12),transparent 55%),repeating-linear-gradient(90deg,#1d1a16 0 70px,#121110 70px 72px),#141210}
+.idopen.on{opacity:1}
+.idopen::after{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 40%,rgba(0,0,0,.8) 100%)}
+.idfloor{position:relative;flex:1;width:min(100%,520px);margin:0 auto;z-index:1}
+.idspot{position:absolute;width:62%;transform-origin:50% 50%}
+.idgo{position:relative;z-index:2;align-self:center;min-width:200px;margin:10px 0 calc(18px + env(safe-area-inset-bottom,0px))}

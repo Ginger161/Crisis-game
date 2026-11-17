@@ -226,7 +226,10 @@ function newGame() {
   ]);
   say('Day 1', `${intro}\n\nFour of you are holed up in ${LOCBY[G.shelter].name} on the Veritas campus. No power. No signal. Little food. Others are out there too, in the other blocks, behind their own doors, deciding what they will do to survive. ${missingLine}\n\nYou are the one the others look to. The last word on the radio, before it died: <i>"Remain where you are. Help is coming."</i> It did not say when.`);
   log('Day 1. The siege begins.');
-  flush();
+  /* their cards first; the Day 1 card waits underneath, and the clock does not run, until they are put away */
+  let opened = false;
+  if (CR.IDCard) { try { const was = CR.paused; HOLD++; CR.paused = true; CR.IDCard.opening(G.S.filter((p) => p.alive), () => { CR.paused = was; HOLD = Math.max(0, HOLD - 1); flush(); }); opened = true; } catch (e) { reportError(e); HOLD = Math.max(0, HOLD - 1); } }
+  if (!opened) flush();
   save();
 }
 
@@ -503,7 +506,7 @@ function kill(s, why) {
   Object.entries(s.pack || {}).forEach(([k, v]) => add(k, v)); s.pack = {};
   sfx('death'); buzz([90, 60, 220]);   /* the sound engine holds its breath, rings, and the grief music follows */
   if (G.exp && G.exp.sid === s.id && /patrol|bandit|bursary|gate boys|collector|mai kudi/i.test(why || '')) { capturedDeath(s, why); return; }   /* the slow death is the bandits' signature: not a scavenger's knife or a fall */
-  Q.push({ death: true, title: `${s.name} is dead`, text: deathText(s, why), choices: [{ label: 'Continue' }], art: { side: true, sp: s.sp, kind: 'dead', state: 'dead' } });
+  Q.push({ death: true, title: `${s.name} is dead`, text: (CR.IDCard ? CR.IDCard.deadCard(s, G.day) : '') + deathText(s, why), choices: [{ label: 'Continue' }], art: { side: true, sp: s.sp, kind: 'dead', state: 'dead' } });
 }
 /* the bandits do not kill a runner they catch quickly. The end of that night is shown once, here, and the place keeps what was left */
 const CAUGHT = [
@@ -527,7 +530,7 @@ function capturedDeath(s, why) {
   art += R_(100, 71, 10, 2.5, '#7a7f85') + R_(108, 70, 3, 1.4, '#3a2a1c') + R_(54, 72, 7, 2, '#5a5f66') + R_(30, 66, 8, 8, '#3a5a7a') + R_(30, 66, 8, 1.5, '#7a9aba');
   const html = `<svg class="caught" viewBox="0 0 160 90" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${art}</svg>`;
   Q.splice(0, Math.max(0, Q.length - 1));   /* keep only what just happened (the fight), then the death */
-  Q.push({ death: true, title: `${s.name}`, text: `<i>${pick(CAUGHT)(s.name, f, h)}</i>`, choices: [{ label: 'Continue' }], art: { html } });
+  Q.push({ death: true, title: `${s.name}`, text: (CR.IDCard ? CR.IDCard.deadCard(s, G.day) : '') + `<i>${pick(CAUGHT)(s.name, f, h)}</i>`, choices: [{ label: 'Continue' }], art: { html } });
   other.forEach((o) => remember(o, `${s.name} never came back. Somebody heard screaming from ${L ? L.name : 'across the campus'} all night. I heard it too, I think.`, { w: 16, who: s.id, bark: `Do you think ${ST.first(s)} called for us?` }));
   if (other.length) toReport(`${s.name} never came back. In the morning, somebody from another block says they heard screaming all night from ${L ? L.name : 'across the campus'}.`);
 }
@@ -2586,7 +2589,7 @@ function personPage(t) {
     { label: 'Close' }
   ];
   const big = CR.Side ? CR.Side.render(t.sp, t.out ? 'idle' : (t.act && t.act.k === 'sleep' ? 'sleep' : 'idle'), { scale: 5, state: stateOf(t) }) : '';
-  ask(t.name, `<div class="ppage"><div class="ppic">${big}</div><div class="pst">${stateWords(t)}</div><div class="pdo">${doing}</div>${quote ? `<div class="pq">${quote}</div>` : ''}${c && c.role ? `<div class="pbio">${c.role}${c.home ? ', from ' + c.home : ''}.</div>` : ''}</div>`, ch, null);
+  ask(t.name, `<div class="ppage"><div class="ppic">${big}</div><div class="pst">${stateWords(t)}</div><div class="pdo">${doing}</div>${CR.IDCard ? `<div class="pid">${CR.IDCard.flip(t)}</div>` : ''}${quote ? `<div class="pq">${quote}</div>` : ''}${!CR.IDCard && c && c.role ? `<div class="pbio">${c.role}${c.home ? ', from ' + c.home : ''}.</div>` : ''}</div>`, ch, null);
 }
 function selfMenu(s) { personPage(s); }
 function selfMenu0(s) {
@@ -3117,5 +3120,10 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('contextmenu', (e) => { if (isPC() && CR.Wheel && CR.Wheel.isOpen()) { e.preventDefault(); CR.Wheel.cancel(); return; } if (!isPC() || !G || G.screen !== 'day' || modalOpen) return; if (!(e.target.closest && e.target.closest('.pcshell .stage'))) return; e.preventDefault(); try { pcStop(); } catch (err) { reportError(err); } });
 }
 if (typeof window !== 'undefined') window.__crisis = { dayCard, save, radioNews, dropDawn, intelOf, priceMul, guestDawn, useStation, hurt, wearTool, wearWord, sitePiles, POOL, LOCS, personPage, cupboardSheet, rescueRumour, calendarDawn, arcDawn, arcPhase, dateStr, priceMul, epilogue, renderEnd, collectorVisit, mkState, evTrade, barter, tapStation, strangersReturn, exposeDeeds, othersScavenge, readTrace, tellSheet, kill, raidWarn, forceEnc, nightRoles, openWheel, goHome, get G() { return G; }, get KNOCK() { return KNOCK; }, get modalOpen() { return modalOpen; }, newGame, act, Q, dawn: dawnV2, nextModal, host, Sim: CR.Sim, stepV2, tapStation, tapFloor, tapPerson, doorSheet, pickDest, sendOut, startControlled, returnParties, lookSheet, homeMenu, get modalOpen() { return modalOpen; } };
+/* a new version is waiting (index.html asks): never pull the floor out from under a game. Reload at once on the title screen;
+   during a game, only once the page is out of sight, after saving, and come straight back into it */
+CR.inGame = () => !!G;
+CR.beforeReload = () => { if (!G) return; try { save(); sessionStorage.setItem('crisis_resume', '1'); } catch (e) {} };
+{ let back = false; try { back = sessionStorage.getItem('crisis_resume') === '1'; sessionStorage.removeItem('crisis_resume'); } catch (e) {} if (back) { try { load(); } catch (e) { reportError(e); } } }
 render();
 })();
